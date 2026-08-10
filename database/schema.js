@@ -129,9 +129,51 @@ module.exports = async function ensureSchema(app) {
   await app.api.role.ensureSystemRoles();
   await backfillRoles(db, app);
   await dropRetiredPermissions(db);
+  await moveNotesToLinks(db);
 
   console.log("[schema] collections and indexes ready");
 };
+
+// A observação deixou de ser um campo da PESSOA e passou a ser do VÍNCULO: é a
+// anotação privada de um profissional sobre alguém. No documento da pessoa ela
+// era lida por todos os outros profissionais que a acompanham — e pela própria
+// pessoa, na área dela.
+//
+// A anotação existente vai para o vínculo de quem criou a ficha, que é quem a
+// escreveu. Idempotente: o campo é removido da pessoa depois de convertido, e
+// numa segunda execução não sobra nada para converter.
+async function moveNotesToLinks(db) {
+  const users = db.collection("users");
+  const pending = await users.find({ notes: { $nin: [null, ""] } }).toArray();
+
+  if (pending.length === 0) {
+    await users.updateMany({ notes: { $exists: true } }, { $unset: { notes: "" } });
+    return;
+  }
+
+  let moved = 0;
+
+  for (const person of pending) {
+    // Sem `createdBy` não há a quem atribuir a anotação. Apagá-la em silêncio
+    // seria pior do que deixá-la órfã, então ela fica onde está e o log avisa.
+    if (!person.createdBy) {
+      console.log("[schema] observação de " + person.name + " sem autor conhecido — mantida");
+      continue;
+    }
+
+    await db.collection("professional_links").updateOne(
+      { professional: person.createdBy, person: person._id },
+      { $set: { notes: person.notes, notesAt: person.updatedAt || new Date() } }
+    );
+
+    await users.updateOne({ _id: person._id }, { $unset: { notes: "" } });
+    moved++;
+  }
+
+  await users.updateMany({ notes: "" }, { $unset: { notes: "" } });
+
+  console.log("[schema] " + moved + " observação(ões) movida(s) para o vínculo do autor");
+}
 
 // Tira dos tipos já salvos as permissões que foram aposentadas. Uma chave
 // órfã não concede nada — nenhuma rota pergunta por ela — mas continua sendo

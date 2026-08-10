@@ -267,7 +267,11 @@ User_model.prototype.listStudents = async function (trainerId, filter) {
   }
 
   const docs = await col.find(query).sort({ createdAt: -1 }).toArray();
-  return docs.map((d) => this.filter(d));
+
+  // A observacao vem do vinculo: cada profissional ve a sua, nunca a de outro.
+  const notes = await this.app.api.link.notesMap(trainerId);
+
+  return docs.map((d) => ({ ...this.filter(d), notes: notes.get(String(d._id)) || "" }));
 };
 
 User_model.prototype.dataStudent = async function (trainerId, id) {
@@ -301,7 +305,6 @@ User_model.prototype.insertStudent = async function (trainerId, obj) {
     goal: obj.goal ? String(obj.goal).trim() : "",
     weight: obj.weight !== undefined && obj.weight !== "" ? Number(obj.weight) : null,
     height: obj.height !== undefined && obj.height !== "" ? Number(obj.height) : null,
-    notes: obj.notes ? String(obj.notes).trim() : "",
     active: obj.active === undefined ? 1 : Number(obj.active) ? 1 : 0,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -334,7 +337,6 @@ User_model.prototype.updateStudent = async function (trainerId, id, obj) {
   if (obj.phone !== undefined) set.phone = String(obj.phone).trim();
   if (obj.birthDate !== undefined) set.birthDate = String(obj.birthDate);
   if (obj.goal !== undefined) set.goal = String(obj.goal).trim();
-  if (obj.notes !== undefined) set.notes = String(obj.notes).trim();
   if (obj.weight !== undefined) set.weight = obj.weight === "" ? null : Number(obj.weight);
   if (obj.height !== undefined) set.height = obj.height === "" ? null : Number(obj.height);
   if (obj.active !== undefined) set.active = Number(obj.active) ? 1 : 0;

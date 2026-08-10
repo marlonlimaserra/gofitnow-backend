@@ -12,6 +12,11 @@ const { ObjectId } = require("mongodb");
 //   "created"   the professional registered this person themselves
 //   "request"   the person approved an access request by e-mail
 //
+// `notes` lives here, on the LINK, and not on the person — it is the
+// professional's private note about them. On the person's document it would be
+// read by every other professional who follows them, and by the person
+// themselves, which is the opposite of what a private note is for.
+//
 // The pair (professional, person) is unique — see database/schema.js — so the
 // upsert below can run twice without producing a duplicate.
 function Link_model(app) {
@@ -52,6 +57,45 @@ Link_model.prototype.unlink = async function (professionalId, personId) {
   });
 
   return r.deletedCount > 0;
+};
+
+// The professional's private note about this person. Never leaves the pair it
+// belongs to.
+Link_model.prototype.setNotes = async function (professionalId, personId, notes) {
+  if (!ObjectId.isValid(personId)) return false;
+  const col = await this.collection();
+
+  const r = await col.updateOne(
+    { professional: new ObjectId(professionalId), person: new ObjectId(personId) },
+    { $set: { notes: String(notes == null ? "" : notes).trim(), notesAt: new Date() } }
+  );
+
+  return r.matchedCount > 0;
+};
+
+Link_model.prototype.notesOf = async function (professionalId, personId) {
+  if (!ObjectId.isValid(personId)) return "";
+  const col = await this.collection();
+
+  const doc = await col.findOne({
+    professional: new ObjectId(professionalId),
+    person: new ObjectId(personId),
+  });
+
+  return doc && doc.notes ? doc.notes : "";
+};
+
+// personId → note, for one professional. The list shows a marker on whoever
+// has a note, and one query per row would be a query per line.
+Link_model.prototype.notesMap = async function (professionalId) {
+  const col = await this.collection();
+
+  const docs = await col
+    .find({ professional: new ObjectId(professionalId), notes: { $nin: [null, ""] } })
+    .project({ person: 1, notes: 1 })
+    .toArray();
+
+  return new Map(docs.map((d) => [String(d.person), d.notes]));
 };
 
 Link_model.prototype.exists = async function (professionalId, personId) {

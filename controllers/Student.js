@@ -39,13 +39,15 @@ module.exports = function (app) {
       return;
     }
 
+    const notes = await app.api.link.notesOf(trainer._id, req.params.id);
+
     app.insertUserActionHistory(req, trainer, "view_person", {
       category: "people",
       local: { target_type: "people", target_id: req.params.id + "" },
       extra: { name: student.name },
     });
 
-    res.send(app.api.user.filter(student));
+    res.send({ ...app.api.user.filter(student), notes });
   });
 
   app.post("/people", async function (req, res) {
@@ -89,6 +91,10 @@ module.exports = function (app) {
     const role = await app.api.role.dataByName("Pessoa");
 
     const id = await app.api.user.insertStudent(trainer._id, { ...body, role: role?._id });
+
+    // A observacao e do profissional, nao da pessoa: fica no vinculo.
+    if (body.notes) await app.api.link.setNotes(trainer._id, id, body.notes);
+
     const created = await app.api.user.data(id);
 
     app.insertUserActionHistory(req, trainer, "create_person", {
@@ -137,6 +143,11 @@ module.exports = function (app) {
     }
 
     await app.api.user.updateStudent(trainer._id, req.params.id, body);
+
+    if (body.notes !== undefined) {
+      await app.api.link.setNotes(trainer._id, req.params.id, body.notes);
+    }
+
     const updated = await app.api.user.data(req.params.id);
 
     app.insertUserActionHistory(req, trainer, "update_person", {
@@ -146,7 +157,10 @@ module.exports = function (app) {
       diff: app.api.actionHistory.diff(target, updated),
     });
 
-    res.send(app.api.user.filter(updated));
+    res.send({
+      ...app.api.user.filter(updated),
+      notes: await app.api.link.notesOf(trainer._id, req.params.id),
+    });
   });
 
   // Revokes the person's login while keeping the profile.
