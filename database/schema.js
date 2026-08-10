@@ -14,6 +14,7 @@ const COLLECTIONS = [
   "user_action_history",
   "workout_templates",
   "auto_fill_values",
+  "avatars",
 ];
 
 module.exports = async function ensureSchema(app) {
@@ -143,6 +144,9 @@ module.exports = async function ensureSchema(app) {
       { professional: 1, field: 1, value: 1 },
       { unique: true, name: "value_unique" }
     );
+
+  // avatars — uma por usuario, sempre lida por dono.
+  await db.collection("avatars").createIndex({ user: 1 }, { unique: true, name: "avatar_user_unique" });
 
   await backfillLinks(db);
 

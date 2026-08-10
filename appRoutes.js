@@ -13,5 +13,6 @@ routes.Workout = require("./controllers/Workout.js");
 routes.Exercise = require("./controllers/Exercise.js");
 routes.WorkoutTemplate = require("./controllers/WorkoutTemplate.js");
 routes.AutoFill = require("./controllers/AutoFill.js");
+routes.Avatar = require("./controllers/Avatar.js");
 
 module.exports = routes;
