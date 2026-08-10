@@ -10,6 +10,7 @@ models.role = require("./model/Role_model.js");
 models.link = require("./model/Link_model.js");
 models.accessRequest = require("./model/AccessRequest_model.js");
 models.actionHistory = require("./model/ActionHistory_model.js");
-models.workoutPreset = require("./model/WorkoutPreset_model.js");
+models.workoutTemplate = require("./model/WorkoutTemplate_model.js");
+models.autoFill = require("./model/AutoFill_model.js");
 
 module.exports = models;

@@ -12,11 +12,16 @@ const COLLECTIONS = [
   "access_requests",
   "roles",
   "user_action_history",
-  "workout_presets",
+  "workout_templates",
+  "auto_fill_values",
 ];
 
 module.exports = async function ensureSchema(app) {
   const db = await app.mongodb.connectToServer();
+
+  // Renomes de collection acontecem ANTES da criação, senão a versão nova
+  // seria criada vazia ao lado da antiga e os dados ficariam órfãos.
+  await renameCollection(db, "workout_presets", "workout_templates");
 
   const existing = (await db.listCollections({}, { nameOnly: true }).toArray()).map((c) => c.name);
 
@@ -125,10 +130,19 @@ module.exports = async function ensureSchema(app) {
     .collection("user_action_history")
     .createIndex({ action: 1, createdAt: -1 }, { name: "by_action" });
 
-  // workout_presets — sempre lidos por profissional, em ordem alfabetica.
+  // workout_templates — sempre lidos por profissional, em ordem alfabetica.
   await db
-    .collection("workout_presets")
+    .collection("workout_templates")
     .createIndex({ professional: 1, name: 1 }, { name: "by_professional_name" });
+
+  // auto_fill_values — sempre lidos por (profissional, campo). O trio unico
+  // impede a mesma frase virar duas opcoes iguais na lista.
+  await db
+    .collection("auto_fill_values")
+    .createIndex(
+      { professional: 1, field: 1, value: 1 },
+      { unique: true, name: "value_unique" }
+    );
 
   await backfillLinks(db);
 
@@ -254,6 +268,19 @@ async function backfillRoles(db, app) {
       counts.person +
       " Pessoa"
   );
+}
+
+// Renomeia uma collection preservando o que já está dentro. Só age quando a
+// origem existe e o destino ainda não — assim uma segunda execução não faz
+// nada, e um banco novo nunca vê essa migração.
+async function renameCollection(db, from, to) {
+  const nomes = (await db.listCollections({}, { nameOnly: true }).toArray()).map((c) => c.name);
+
+  if (!nomes.includes(from)) return;
+  if (nomes.includes(to)) return;
+
+  await db.collection(from).rename(to);
+  console.log("[schema] collection renamed: " + from + " → " + to);
 }
 
 // Dropping an index that no longer matches how the data is read. Missing is
