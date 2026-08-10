@@ -1,3 +1,5 @@
+const { passwordReset } = require("../lib/emailTemplates.js");
+
 module.exports = function (app) {
   // Self-signup — always creates a plain TRAINER. A student is created by
   // their trainer (/students) and an admin trainer by an admin (/clients);
@@ -70,6 +72,107 @@ module.exports = function (app) {
 
     await app.api.auth.deleteToken(req._token);
     res.send({ msg: "Sessão encerrada." });
+  });
+
+  // ── Forgot password ─────────────────────────────────────────────────────
+  // Always answers 200, even when the e-mail has no account. A different
+  // answer would turn this into a way to discover which addresses exist.
+  app.post("/auth/forgot-password", async function (req, res) {
+    const { email } = req.body || {};
+
+    const generic = {
+      msg: "Se existir uma conta com esse e-mail, o link de redefinição foi enviado.",
+    };
+
+    if (!email || !app.validator.isEmail(String(email).trim())) {
+      res.send(generic);
+      return;
+    }
+
+    const user = await app.api.user.dataByEmail(email);
+
+    // A student registered as a profile only (no password yet) has nothing to
+    // reset — their trainer grants access first.
+    if (!user || user.active === 0 || !user.password) {
+      res.send(generic);
+      return;
+    }
+
+    const token = await app.api.passwordReset.create(user._id);
+    const url = `${app.helpers.mailer.appUrl()}/reset-password?token=${token}`;
+
+    const mail = passwordReset({
+      name: user.name,
+      url: url,
+      minutes: app.api.passwordReset.validityMinutes,
+    });
+
+    try {
+      const sent = await app.helpers.mailer.send({ to: user.email, ...mail });
+      // In test mode the preview URL is the only way to read the message, so
+      // it rides along in the response. Never in production.
+      if (sent.preview) generic.preview = sent.preview;
+    } catch (error) {
+      // The token is already stored; failing to e-mail is an infrastructure
+      // problem, not something the caller can act on. Log it and keep the
+      // answer generic.
+      console.error("[forgot-password] could not send e-mail:", error.message);
+    }
+
+    res.send(generic);
+  });
+
+  // Checks the link before showing the form, so the user is not asked to type
+  // a new password only to be told the token expired.
+  app.get("/auth/reset-password/:token", async function (req, res) {
+    const reset = await app.api.passwordReset.verify(req.params.token);
+    if (!reset) {
+      res.status(400).send({ msg: "Link inválido ou expirado." });
+      return;
+    }
+
+    const user = await app.api.user.data(reset.user);
+    if (!user) {
+      res.status(400).send({ msg: "Link inválido ou expirado." });
+      return;
+    }
+
+    res.send({ valid: true, name: user.name, email: user.email });
+  });
+
+  app.post("/auth/reset-password", async function (req, res) {
+    const { token, password } = req.body || {};
+
+    if (!password || String(password).length < 6) {
+      res.status(400).send({ msg: "A senha precisa ter no mínimo 6 caracteres." });
+      return;
+    }
+
+    const reset = await app.api.passwordReset.verify(token);
+    if (!reset) {
+      res.status(400).send({ msg: "Link inválido ou expirado." });
+      return;
+    }
+
+    const user = await app.api.user.data(reset.user);
+    if (!user) {
+      res.status(400).send({ msg: "Link inválido ou expirado." });
+      return;
+    }
+
+    await app.api.user.updateSelf(user._id, { password });
+    await app.api.passwordReset.consume(reset._id);
+
+    // Whoever asked for the reset may be recovering a hijacked account, so
+    // every existing session is dropped and a fresh one is issued.
+    await app.api.auth.deleteAllTokensByUser(user._id);
+    const session = await app.api.auth.registerToken(user._id);
+
+    res.send({
+      msg: "Senha alterada.",
+      session: session,
+      user: app.api.user.filter(await app.api.user.data(user._id)),
+    });
   });
 
   // Password change for the signed-in user.

@@ -1,7 +1,14 @@
 // Creates the GoFitNow collections and indexes. Runs at boot (app.js) and also
 // standalone via `npm run db:init`. Idempotent: running it again duplicates
 // nothing.
-const COLLECTIONS = ["users", "user_tokens", "workouts", "workout_sessions", "exercises"];
+const COLLECTIONS = [
+  "users",
+  "user_tokens",
+  "workouts",
+  "workout_sessions",
+  "exercises",
+  "password_resets",
+];
 
 module.exports = async function ensureSchema(app) {
   const db = await app.mongodb.connectToServer();
@@ -56,6 +63,15 @@ module.exports = async function ensureSchema(app) {
   await db
     .collection("exercises")
     .createIndex({ trainer: 1, muscleGroup: 1, nameSort: 1 }, { name: "by_trainer_group" });
+
+  // password_resets — looked up by token hash; the TTL sweeps expired ones.
+  await db
+    .collection("password_resets")
+    .createIndex({ tokenHash: 1 }, { unique: true, name: "token_hash_unique" });
+  await db
+    .collection("password_resets")
+    .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "reset_ttl" });
+  await db.collection("password_resets").createIndex({ user: 1 }, { name: "by_user" });
 
   console.log("[schema] collections and indexes ready");
 };
