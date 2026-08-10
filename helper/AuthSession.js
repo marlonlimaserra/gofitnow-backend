@@ -1,10 +1,11 @@
-// Lê o header `session` da requisição e valida o token. Responde 401 e devolve
-// false quando não há sessão válida — quem chama só precisa checar o retorno.
+// Reads the request's `session` header and validates the token. Replies 401
+// and returns false when there is no valid session — callers only need to
+// check the return value.
 function AuthSession(app) {
   this.app = app;
 }
 
-AuthSession.prototype.protege = async function (req, res) {
+AuthSession.prototype.protect = async function (req, res) {
   const token = req.headers.session;
 
   if (token === undefined || token === "") {
@@ -12,14 +13,14 @@ AuthSession.prototype.protege = async function (req, res) {
     return false;
   }
 
-  const verifica = await this.app.api.auth.verificar(token);
+  const check = await this.app.api.auth.verify(token);
 
-  if (verifica === false) {
+  if (check === false) {
     res.status(401).send({ msg: "Sessão inválida ou expirada." });
     return false;
   }
 
-  return verifica;
+  return check;
 };
 
 module.exports = AuthSession;

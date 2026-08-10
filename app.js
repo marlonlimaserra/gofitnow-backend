@@ -10,21 +10,21 @@ const appHelpers = require("./appHelpers.js");
 const defaultModules = require("./defaultModules.js");
 const ensureSchema = require("./database/schema.js");
 
-// O .env carrega SÓ a MONGODB_URI. A porta fica com default no código pra não
-// precisar de mais nada no ambiente.
+// The .env carries ONLY MONGODB_URI. The port defaults in code so nothing else
+// is needed in the environment.
 const PORT = process.env.EXPRESS_PORT || 3030;
 
-// Em produção o nginx é quem fala com a internet, então o node escuta só em
-// 127.0.0.1 (HOST vem do systemd) e a porta 3030 não fica exposta. Em
-// desenvolvimento o default 0.0.0.0 mantém o acesso pela rede local.
+// In production nginx is what talks to the internet, so node listens on
+// 127.0.0.1 only (HOST comes from systemd) and port 3030 is never exposed. In
+// development the 0.0.0.0 default keeps it reachable from the local network.
 const HOST = process.env.HOST || "0.0.0.0";
 
 const app = express();
 
 app.mongodb = require("./config/mongodb.js");
 
-// ── Wiring do app ────────────────────────────────────────────────────────
-// Módulos padrão (moment, crypto, validator, uuidv4…) → app.*
+// ── Wiring ───────────────────────────────────────────────────────────────
+// Default modules (moment, crypto, validator, uuidv4…) → app.*
 for (const k in defaultModules) app[k] = defaultModules[k];
 
 // Models → app.api.*
@@ -35,7 +35,7 @@ for (const k in appModels) app.api[k] = new appModels[k](app);
 app.helpers = {};
 for (const k in appHelpers) app.helpers[k] = new appHelpers[k](app);
 
-// ── Middlewares ──────────────────────────────────────────────────────────
+// ── Middleware ───────────────────────────────────────────────────────────
 app.use(bodyParser.urlencoded({ extended: true, limit: "10mb" }));
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(cookieParser());
@@ -57,18 +57,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// Envolve cada handler pra capturar throw async e mandar pro error handler —
-// sem isso uma rejeição dentro de um handler async vira request pendurada.
-const asyncWrap = (fn) => (req, res, next) =>
-  Promise.resolve(fn(req, res, next)).catch(next);
+// Wraps every handler so an async throw reaches the error handler — without
+// this a rejection inside an async handler leaves the request hanging.
+const asyncWrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 ["get", "post", "put", "patch", "delete"].forEach((m) => {
-  const orig = app[m].bind(app);
+  const original = app[m].bind(app);
   app[m] = (path, ...handlers) =>
-    orig(path, ...handlers.map((h) => (typeof h === "function" ? asyncWrap(h) : h)));
+    original(path, ...handlers.map((h) => (typeof h === "function" ? asyncWrap(h) : h)));
 });
 
-// ── Rotas ────────────────────────────────────────────────────────────────
+// ── Routes ───────────────────────────────────────────────────────────────
 for (const k in appRoutes) appRoutes[k](app);
 
 app.use((req, res) => {
@@ -78,7 +77,7 @@ app.use((req, res) => {
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  console.error("Erro ao processar rota:", req && req.method, req && req.originalUrl, err);
+  console.error("Route error:", req && req.method, req && req.originalUrl, err);
   if (res.headersSent) return;
 
   const body = { msg: (err && err.message) || "Erro interno." };
@@ -88,19 +87,20 @@ app.use((err, req, res, next) => {
 });
 
 // ── Boot ─────────────────────────────────────────────────────────────────
-// Conecta no Mongo e garante as coleções/índices ANTES de aceitar requisição:
-// subir com o banco fora do ar só empurraria a falha pro primeiro request.
+// Connect to Mongo and ensure the collections/indexes BEFORE accepting any
+// request: booting with the database down would only push the failure onto the
+// first request.
 (async () => {
   try {
     await app.mongodb.connectToServer();
     await ensureSchema(app);
   } catch (error) {
-    console.error("[boot] não foi possível preparar o MongoDB:", error.message);
+    console.error("[boot] could not prepare MongoDB:", error.message);
     process.exit(1);
   }
 
   app.listen(PORT, HOST, () => {
-    console.log("GoFitNow API rodando em " + HOST + ":" + PORT);
+    console.log("GoFitNow API running on " + HOST + ":" + PORT);
   });
 })();
 

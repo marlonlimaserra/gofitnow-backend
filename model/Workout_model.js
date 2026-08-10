@@ -1,84 +1,84 @@
 const { ObjectId } = require("mongodb");
 
-// Treinos e suas sessões.
+// Workouts and their sessions.
 //
-//   workouts          → o treino do aluno (nome, objetivo, período, professor)
-//   workout_sessions  → cada dia/divisão do treino, com os exercícios embutidos
+//   workouts          → the student's workout (name, goal, period, teacher)
+//   workout_sessions  → each day/split, with the exercises embedded
 //
-// Os exercícios ficam DENTRO da sessão em vez de numa coleção própria: uma
-// sessão tem ~10 exercícios e eles nunca são lidos sem a sessão. Coleção
-// separada só custaria um join a cada abertura de tela.
+// Exercises live INSIDE the session instead of in their own collection: a
+// session holds ~10 exercises and they are never read without the session. A
+// separate collection would only add a join on every screen load.
 //
-// Tudo é escopado no trainer da sessão — o aluno é sempre validado como sendo
-// dele antes de qualquer operação.
+// Everything is scoped to the session's trainer — the student is always
+// verified as belonging to them before any operation.
 function Workout_model(app) {
   this.app = app;
 }
 
-Workout_model.prototype.colWorkouts = async function () {
+Workout_model.prototype.workoutsCollection = async function () {
   const db = await this.app.mongodb.connectToServer();
   return db.collection("workouts");
 };
 
-Workout_model.prototype.colSessions = async function () {
+Workout_model.prototype.sessionsCollection = async function () {
   const db = await this.app.mongodb.connectToServer();
   return db.collection("workout_sessions");
 };
 
-// ── Situação do treino no tempo ──────────────────────────────────────────
-// "current" | "past" | "future". Comparação por dia (YYYY-MM-DD), não por
-// timestamp: um treino que termina hoje ainda é atual o dia inteiro.
-function hoje() {
+// ── Where the workout sits in time ───────────────────────────────────────
+// "current" | "past" | "future". Compared by day (YYYY-MM-DD), not by
+// timestamp: a workout ending today is still current for the whole day.
+function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function situacao(w) {
-  const d = hoje();
+function statusOf(w) {
+  const d = today();
   if (w.endDate && w.endDate < d) return "past";
   if (w.startDate && w.startDate > d) return "future";
   return "current";
 }
 
-Workout_model.prototype.situacao = situacao;
+Workout_model.prototype.statusOf = statusOf;
 
-// ── Treinos ──────────────────────────────────────────────────────────────
+// ── Workouts ─────────────────────────────────────────────────────────────
 
 Workout_model.prototype.list = async function (trainerId, studentId) {
-  const col = await this.colWorkouts();
-  const sessoes = await this.colSessions();
+  const col = await this.workoutsCollection();
+  const sessions = await this.sessionsCollection();
 
   const docs = await col
     .find({ trainer: new ObjectId(trainerId), student: new ObjectId(studentId) })
     .sort({ startDate: -1, createdAt: -1 })
     .toArray();
 
-  // Uma agregação só pra todos os treinos, em vez de um count por linha.
-  const contagem = await sessoes
+  // A single aggregation for every workout, instead of one count per row.
+  const counts = await sessions
     .aggregate([
       { $match: { workout: { $in: docs.map((d) => d._id) } } },
       { $group: { _id: "$workout", total: { $sum: 1 } } },
     ])
     .toArray();
 
-  const porTreino = new Map(contagem.map((c) => [String(c._id), c.total]));
+  const byWorkout = new Map(counts.map((c) => [String(c._id), c.total]));
 
   return docs.map((d) => ({
     ...d,
-    status: situacao(d),
-    sessionCount: porTreino.get(String(d._id)) || 0,
+    status: statusOf(d),
+    sessionCount: byWorkout.get(String(d._id)) || 0,
   }));
 };
 
 Workout_model.prototype.data = async function (trainerId, id) {
   if (!ObjectId.isValid(id)) return undefined;
-  const col = await this.colWorkouts();
+  const col = await this.workoutsCollection();
   const doc = await col.findOne({ _id: new ObjectId(id), trainer: new ObjectId(trainerId) });
   if (!doc) return undefined;
-  return { ...doc, status: situacao(doc) };
+  return { ...doc, status: statusOf(doc) };
 };
 
 Workout_model.prototype.insert = async function (trainerId, studentId, obj) {
-  const col = await this.colWorkouts();
+  const col = await this.workoutsCollection();
 
   const r = await col.insertOne({
     trainer: new ObjectId(trainerId),
@@ -104,7 +104,7 @@ Workout_model.prototype.insert = async function (trainerId, studentId, obj) {
 
 Workout_model.prototype.update = async function (trainerId, id, obj) {
   if (!ObjectId.isValid(id)) return false;
-  const col = await this.colWorkouts();
+  const col = await this.workoutsCollection();
 
   const set = { updatedAt: new Date() };
   if (obj.name !== undefined) set.name = String(obj.name).trim();
@@ -126,53 +126,52 @@ Workout_model.prototype.update = async function (trainerId, id, obj) {
 
 Workout_model.prototype.delete = async function (trainerId, id) {
   if (!ObjectId.isValid(id)) return false;
-  const col = await this.colWorkouts();
-  const sessoes = await this.colSessions();
+  const col = await this.workoutsCollection();
+  const sessions = await this.sessionsCollection();
 
   const r = await col.deleteOne({ _id: new ObjectId(id), trainer: new ObjectId(trainerId) });
   if (r.deletedCount === 0) return false;
 
-  // Sessões órfãs não servem pra nada — vão junto.
-  await sessoes.deleteMany({ workout: new ObjectId(id) });
+  // Orphan sessions are useless — they go with it.
+  await sessions.deleteMany({ workout: new ObjectId(id) });
   return true;
 };
 
-// Duplica o treino inteiro (com as sessões) para o mesmo ou outro aluno.
+// Copies the whole workout (with its sessions) to the same or another student.
 Workout_model.prototype.duplicate = async function (trainerId, id, studentId) {
-  const origem = await this.data(trainerId, id);
-  if (!origem) return undefined;
+  const source = await this.data(trainerId, id);
+  if (!source) return undefined;
 
-  const novoId = await this.insert(trainerId, studentId || origem.student, {
-    ...origem,
-    name: origem.name + " (cópia)",
+  const newId = await this.insert(trainerId, studentId || source.student, {
+    ...source,
+    name: source.name + " (cópia)",
   });
 
-  const colS = await this.colSessions();
-  const sessoes = await colS.find({ workout: new ObjectId(id) }).sort({ order: 1 }).toArray();
+  const sessions = await this.sessionsCollection();
+  const rows = await sessions.find({ workout: new ObjectId(id) }).sort({ order: 1 }).toArray();
 
-  for (const s of sessoes) {
+  for (const s of rows) {
     // eslint-disable-next-line no-unused-vars
-    const { _id, workout, createdAt, updatedAt, ...resto } = s;
-    await colS.insertOne({
-      ...resto,
-      workout: novoId,
+    const { _id, workout, createdAt, updatedAt, ...rest } = s;
+    await sessions.insertOne({
+      ...rest,
+      workout: newId,
       trainer: new ObjectId(trainerId),
       createdAt: new Date(),
       updatedAt: new Date(),
     });
   }
 
-  return novoId;
+  return newId;
 };
 
-// ── Sessões ──────────────────────────────────────────────────────────────
+// ── Sessions ─────────────────────────────────────────────────────────────
 
 Workout_model.prototype.listSessions = async function (workoutId) {
-  const col = await this.colSessions();
+  const col = await this.sessionsCollection();
   const docs = await col.find({ workout: new ObjectId(workoutId) }).sort({ order: 1 }).toArray();
 
-  // A tela mostra "N exercícios · N kcal" em cada card; o total de séries é
-  // usado no cabeçalho da sessão.
+  // The screen shows "N exercises · N sets" on each card.
   return docs.map((s) => ({
     ...s,
     exerciseCount: (s.exercises || []).length,
@@ -182,7 +181,7 @@ Workout_model.prototype.listSessions = async function (workoutId) {
 
 Workout_model.prototype.dataSession = async function (trainerId, id) {
   if (!ObjectId.isValid(id)) return undefined;
-  const col = await this.colSessions();
+  const col = await this.sessionsCollection();
   const doc = await col.findOne({ _id: new ObjectId(id), trainer: new ObjectId(trainerId) });
   if (!doc) return undefined;
 
@@ -194,16 +193,16 @@ Workout_model.prototype.dataSession = async function (trainerId, id) {
 };
 
 Workout_model.prototype.insertSession = async function (trainerId, workoutId, obj) {
-  const col = await this.colSessions();
+  const col = await this.sessionsCollection();
 
-  // Nova sessão entra no fim da fila.
-  const ultima = await col.findOne({ workout: new ObjectId(workoutId) }, { sort: { order: -1 } });
+  // A new session goes to the end of the queue.
+  const last = await col.findOne({ workout: new ObjectId(workoutId) }, { sort: { order: -1 } });
 
   const r = await col.insertOne({
     workout: new ObjectId(workoutId),
     trainer: new ObjectId(trainerId),
     name: String(obj.name).trim(),
-    order: ultima ? ultima.order + 1 : 0,
+    order: last ? last.order + 1 : 0,
     calories: obj.calories !== undefined && obj.calories !== "" ? Number(obj.calories) : null,
     exercises: [],
     createdAt: new Date(),
@@ -215,7 +214,7 @@ Workout_model.prototype.insertSession = async function (trainerId, workoutId, ob
 
 Workout_model.prototype.updateSession = async function (trainerId, id, obj) {
   if (!ObjectId.isValid(id)) return false;
-  const col = await this.colSessions();
+  const col = await this.sessionsCollection();
 
   const set = { updatedAt: new Date() };
   if (obj.name !== undefined) set.name = String(obj.name).trim();
@@ -231,21 +230,21 @@ Workout_model.prototype.updateSession = async function (trainerId, id, obj) {
 
 Workout_model.prototype.deleteSession = async function (trainerId, id) {
   if (!ObjectId.isValid(id)) return false;
-  const col = await this.colSessions();
+  const col = await this.sessionsCollection();
   const r = await col.deleteOne({ _id: new ObjectId(id), trainer: new ObjectId(trainerId) });
   return r.deletedCount > 0;
 };
 
-// Grava a lista INTEIRA de exercícios da sessão (ordem, séries, dicas). A tela
-// edita tudo junto e salva de uma vez — atualizar exercício por exercício
-// exigiria ids estáveis dentro do array sem ganho nenhum.
-Workout_model.prototype.saveSessionExercises = async function (trainerId, id, exercicios) {
+// Saves the session's WHOLE exercise list (order, sets, tips). The screen edits
+// it all together and saves once — updating exercise by exercise would need
+// stable ids inside the array for no gain.
+Workout_model.prototype.saveSessionExercises = async function (trainerId, id, exercises) {
   if (!ObjectId.isValid(id)) return false;
-  const col = await this.colSessions();
+  const col = await this.sessionsCollection();
 
-  const limpos = (exercicios || []).map((e, i) => ({
-    // `exerciseId` aponta pro catálogo, mas nome/miniatura são copiados: se o
-    // exercício sair do catálogo, o treino já montado continua legível.
+  const cleaned = (exercises || []).map((e, i) => ({
+    // `exerciseId` points at the catalog, but name/thumbnail are copied: if the
+    // exercise leaves the catalog, the assembled workout stays readable.
     exerciseId: ObjectId.isValid(e.exerciseId) ? new ObjectId(e.exerciseId) : null,
     name: String(e.name || "").trim(),
     thumbUrl: e.thumbUrl || null,
@@ -266,7 +265,7 @@ Workout_model.prototype.saveSessionExercises = async function (trainerId, id, ex
 
   const r = await col.updateOne(
     { _id: new ObjectId(id), trainer: new ObjectId(trainerId) },
-    { $set: { exercises: limpos, updatedAt: new Date() } }
+    { $set: { exercises: cleaned, updatedAt: new Date() } }
   );
 
   return r.matchedCount > 0;

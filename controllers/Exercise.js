@@ -1,31 +1,32 @@
 module.exports = function (app) {
-  // Catálogo de exercícios do trainer logado. Cada um monta o seu; tudo é
-  // escopado na sessão, então um trainer nunca alcança o catálogo de outro.
+  // The signed-in trainer's exercise catalog. Each trainer builds their own;
+  // everything is scoped to the session, so a trainer never reaches another
+  // trainer's catalog.
 
-  // Grupos musculares em uso, pro dropdown de filtro.
-  app.get("/exercicios/grupos", async function (req, res) {
+  // Muscle groups in use, for the filter dropdown.
+  app.get("/exercises/groups", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
     res.send(await app.api.exercise.groups(trainer._id));
   });
 
-  // ?busca=&grupo=&page=&limit=
-  app.get("/exercicios", async function (req, res) {
+  // ?search=&group=&page=&limit=
+  app.get("/exercises", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
     res.send(
       await app.api.exercise.list(trainer._id, {
-        busca: req.query.busca,
-        muscleGroup: req.query.grupo,
+        search: req.query.search,
+        muscleGroup: req.query.group,
         page: req.query.page,
         limit: req.query.limit,
       })
     );
   });
 
-  app.post("/exercicios", async function (req, res) {
+  app.post("/exercises", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
@@ -39,20 +40,20 @@ module.exports = function (app) {
     res.status(201).send(await app.api.exercise.data(trainer._id, id));
   });
 
-  app.get("/exercicios/:id", async function (req, res) {
+  app.get("/exercises/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
-    const ex = await app.api.exercise.data(trainer._id, req.params.id);
-    if (!ex) {
+    const exercise = await app.api.exercise.data(trainer._id, req.params.id);
+    if (!exercise) {
       res.status(404).send({ msg: "Exercício não encontrado." });
       return;
     }
 
-    res.send(ex);
+    res.send(exercise);
   });
 
-  app.put("/exercicios/:id", async function (req, res) {
+  app.put("/exercises/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
@@ -71,9 +72,10 @@ module.exports = function (app) {
     res.send(await app.api.exercise.data(trainer._id, req.params.id));
   });
 
-  // Excluir do catálogo NÃO mexe nas sessões que já usam o exercício: elas
-  // guardam nome e séries próprios, então o treino montado continua íntegro.
-  app.delete("/exercicios/:id", async function (req, res) {
+  // Deleting from the catalog does NOT touch sessions already using the
+  // exercise: they keep their own name and sets, so the assembled workout
+  // stays intact.
+  app.delete("/exercises/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 

@@ -1,4 +1,4 @@
-// Helpers são instanciados com o `app` e ficam em app.helpers.*
+// Helpers are instantiated with `app` and live under app.helpers.*
 const helpers = {};
 
 helpers.authSession = require("./helper/AuthSession.js");

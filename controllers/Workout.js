@@ -1,10 +1,11 @@
 module.exports = function (app) {
-  // Treinos e sessões — só trainer. Tudo escopado na sessão: o aluno é sempre
-  // confirmado como sendo deste trainer antes de qualquer operação.
+  // Workouts and sessions — trainer only. Everything is scoped to the session:
+  // the student is always confirmed as belonging to this trainer first.
 
-  // Confere que o aluno é do trainer logado. Responde 404 e devolve false se
-  // não for — de fora não dá pra distinguir "não existe" de "é de outro".
-  async function alunoDoTrainer(req, res, trainer) {
+  // Confirms the student belongs to the signed-in trainer. Replies 404 and
+  // returns false otherwise — from the outside there is no way to tell
+  // "does not exist" from "belongs to someone else".
+  async function studentOfTrainer(req, res, trainer) {
     const student = await app.api.user.dataStudent(trainer._id, req.params.studentId);
     if (!student) {
       res.status(404).send({ msg: "Aluno não encontrado." });
@@ -13,34 +14,34 @@ module.exports = function (app) {
     return student;
   }
 
-  // ── Treinos do aluno ────────────────────────────────────────────────────
+  // ── The student's workouts ──────────────────────────────────────────────
 
-  app.get("/alunos/:studentId/treinos", async function (req, res) {
+  app.get("/students/:studentId/workouts", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
-    const student = await alunoDoTrainer(req, res, trainer);
+    const student = await studentOfTrainer(req, res, trainer);
     if (student === false) return;
 
-    const treinos = await app.api.workout.list(trainer._id, student._id);
+    const workouts = await app.api.workout.list(trainer._id, student._id);
 
-    // A tela tem as abas Atuais / Anteriores / Futuros / Todos com contagem.
+    // The screen has Current / Past / Future / All tabs with counts.
     res.send({
-      rows: treinos,
+      rows: workouts,
       counts: {
-        current: treinos.filter((t) => t.status === "current").length,
-        past: treinos.filter((t) => t.status === "past").length,
-        future: treinos.filter((t) => t.status === "future").length,
-        all: treinos.length,
+        current: workouts.filter((w) => w.status === "current").length,
+        past: workouts.filter((w) => w.status === "past").length,
+        future: workouts.filter((w) => w.status === "future").length,
+        all: workouts.length,
       },
     });
   });
 
-  app.post("/alunos/:studentId/treinos", async function (req, res) {
+  app.post("/students/:studentId/workouts", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
-    const student = await alunoDoTrainer(req, res, trainer);
+    const student = await studentOfTrainer(req, res, trainer);
     if (student === false) return;
 
     const body = req.body || {};
@@ -54,36 +55,36 @@ module.exports = function (app) {
       return;
     }
 
-    // Sem professor informado, assume o próprio trainer logado.
+    // With no teacher given, assume the signed-in trainer.
     if (!body.teacherName) body.teacherName = trainer.name;
 
     const id = await app.api.workout.insert(trainer._id, student._id, body);
     res.status(201).send(await app.api.workout.data(trainer._id, id));
   });
 
-  // ── Um treino ───────────────────────────────────────────────────────────
+  // ── A single workout ────────────────────────────────────────────────────
 
-  app.get("/treinos/:id", async function (req, res) {
+  app.get("/workouts/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
-    const treino = await app.api.workout.data(trainer._id, req.params.id);
-    if (!treino) {
+    const workout = await app.api.workout.data(trainer._id, req.params.id);
+    if (!workout) {
       res.status(404).send({ msg: "Treino não encontrado." });
       return;
     }
 
-    const student = await app.api.user.data(treino.student);
-    const sessions = await app.api.workout.listSessions(treino._id);
+    const student = await app.api.user.data(workout.student);
+    const sessions = await app.api.workout.listSessions(workout._id);
 
     res.send({
-      ...treino,
+      ...workout,
       student: student ? { _id: student._id, name: student.name } : null,
       sessions,
     });
   });
 
-  app.put("/treinos/:id", async function (req, res) {
+  app.put("/workouts/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
@@ -107,7 +108,7 @@ module.exports = function (app) {
     res.send(await app.api.workout.data(trainer._id, req.params.id));
   });
 
-  app.delete("/treinos/:id", async function (req, res) {
+  app.delete("/workouts/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
@@ -120,38 +121,38 @@ module.exports = function (app) {
     res.send({ msg: "Treino removido." });
   });
 
-  // Copia o treino (com as sessões) para o mesmo ou outro aluno.
-  app.post("/treinos/:id/duplicar", async function (req, res) {
+  // Copies the workout (with its sessions) to the same or another student.
+  app.post("/workouts/:id/duplicate", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
-    const destino = (req.body || {}).studentId;
+    const targetStudent = (req.body || {}).studentId;
 
-    if (destino) {
-      const student = await app.api.user.dataStudent(trainer._id, destino);
+    if (targetStudent) {
+      const student = await app.api.user.dataStudent(trainer._id, targetStudent);
       if (!student) {
         res.status(404).send({ msg: "Aluno de destino não encontrado." });
         return;
       }
     }
 
-    const novoId = await app.api.workout.duplicate(trainer._id, req.params.id, destino);
-    if (!novoId) {
+    const newId = await app.api.workout.duplicate(trainer._id, req.params.id, targetStudent);
+    if (!newId) {
       res.status(404).send({ msg: "Treino não encontrado." });
       return;
     }
 
-    res.status(201).send(await app.api.workout.data(trainer._id, novoId));
+    res.status(201).send(await app.api.workout.data(trainer._id, newId));
   });
 
-  // ── Sessões ─────────────────────────────────────────────────────────────
+  // ── Sessions ────────────────────────────────────────────────────────────
 
-  app.post("/treinos/:id/sessoes", async function (req, res) {
+  app.post("/workouts/:id/sessions", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
-    const treino = await app.api.workout.data(trainer._id, req.params.id);
-    if (!treino) {
+    const workout = await app.api.workout.data(trainer._id, req.params.id);
+    if (!workout) {
       res.status(404).send({ msg: "Treino não encontrado." });
       return;
     }
@@ -162,25 +163,25 @@ module.exports = function (app) {
       return;
     }
 
-    const id = await app.api.workout.insertSession(trainer._id, treino._id, body);
+    const id = await app.api.workout.insertSession(trainer._id, workout._id, body);
     res.status(201).send(await app.api.workout.dataSession(trainer._id, id));
   });
 
-  app.get("/sessoes/:id", async function (req, res) {
+  app.get("/sessions/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
-    const sessao = await app.api.workout.dataSession(trainer._id, req.params.id);
-    if (!sessao) {
+    const session = await app.api.workout.dataSession(trainer._id, req.params.id);
+    if (!session) {
       res.status(404).send({ msg: "Sessão não encontrada." });
       return;
     }
 
-    const treino = await app.api.workout.data(trainer._id, sessao.workout);
-    res.send({ ...sessao, workoutName: treino ? treino.name : "", workoutId: sessao.workout });
+    const workout = await app.api.workout.data(trainer._id, session.workout);
+    res.send({ ...session, workoutName: workout ? workout.name : "", workoutId: session.workout });
   });
 
-  app.put("/sessoes/:id", async function (req, res) {
+  app.put("/sessions/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
@@ -199,7 +200,7 @@ module.exports = function (app) {
     res.send(await app.api.workout.dataSession(trainer._id, req.params.id));
   });
 
-  app.delete("/sessoes/:id", async function (req, res) {
+  app.delete("/sessions/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
@@ -212,8 +213,8 @@ module.exports = function (app) {
     res.send({ msg: "Sessão removida." });
   });
 
-  // Salva a lista inteira de exercícios da sessão de uma vez (ordem + séries).
-  app.put("/sessoes/:id/exercicios", async function (req, res) {
+  // Saves the session's whole exercise list at once (order + sets).
+  app.put("/sessions/:id/exercises", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 

@@ -1,36 +1,36 @@
 const { ObjectId } = require("mongodb");
 
-// Catálogo de exercícios do trainer. Cada trainer monta o seu — não há
-// biblioteca de terceiros.
+// The trainer's exercise catalog. Each trainer builds their own — there is no
+// third-party library.
 //
 //   { trainer, name, nameSort, muscleGroup, videoUrl, thumbUrl, defaultTip }
 //
-// `muscleGroup` é texto livre ("Peito", "Costas", "Alongamento"…): o filtro da
-// tela lista os valores distintos que o próprio trainer cadastrou, então a
-// taxonomia nasce do uso em vez de vir engessada.
+// `muscleGroup` is free text ("Chest", "Back", "Stretching"…): the screen's
+// filter lists the distinct values the trainer has actually used, so the
+// taxonomy grows from usage instead of being fixed up front.
 function Exercise_model(app) {
   this.app = app;
 }
 
-// Chave de ordenação e busca: sem espaços nas pontas, minúscula e sem acento.
-// O sort binário do Mongo jogaria tudo que começa com maiúscula pra frente, e
-// a busca por "gluteo" não acharia "glúteo".
-function normalizar(texto) {
-  return String(texto || "")
+// Sort and search key: trimmed, lowercased and unaccented. Mongo's binary sort
+// would push every capitalized name to the front, and a search for "gluteo"
+// would not find "glúteo".
+function normalize(text) {
+  return String(text || "")
     .trim()
     .toLowerCase()
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "");
 }
 
-Exercise_model.prototype.col = async function () {
+Exercise_model.prototype.collection = async function () {
   const db = await this.app.mongodb.connectToServer();
   return db.collection("exercises");
 };
 
-// Grupos musculares em uso, pro dropdown de filtro.
+// Muscle groups in use, for the filter dropdown.
 Exercise_model.prototype.groups = async function (trainerId) {
-  const col = await this.col();
+  const col = await this.collection();
 
   const docs = await col
     .aggregate([
@@ -43,21 +43,22 @@ Exercise_model.prototype.groups = async function (trainerId) {
   return docs.map((d) => ({ name: d._id, total: d.total }));
 };
 
-Exercise_model.prototype.list = async function (trainerId, filtro = {}) {
-  const col = await this.col();
+Exercise_model.prototype.list = async function (trainerId, filter = {}) {
+  const col = await this.collection();
 
   const query = { trainer: new ObjectId(trainerId) };
 
-  if (filtro.busca) {
-    // Escapa o termo — sem isso um "(" digitado pelo usuário derruba o regex.
-    const termo = normalizar(filtro.busca).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    query.nameSort = { $regex: termo };
+  if (filter.search) {
+    // Search the normalized field: "gluteo" finds "glúteo". The term is escaped
+    // — without it a "(" typed by the user breaks the regex.
+    const term = normalize(filter.search).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    query.nameSort = { $regex: term };
   }
 
-  if (filtro.muscleGroup) query.muscleGroup = String(filtro.muscleGroup);
+  if (filter.muscleGroup) query.muscleGroup = String(filter.muscleGroup);
 
-  const page = Math.max(1, Number(filtro.page) || 1);
-  const limit = Math.min(100, Math.max(1, Number(filtro.limit) || 20));
+  const page = Math.max(1, Number(filter.page) || 1);
+  const limit = Math.min(100, Math.max(1, Number(filter.limit) || 20));
 
   const total = await col.countDocuments(query);
   const rows = await col
@@ -72,32 +73,31 @@ Exercise_model.prototype.list = async function (trainerId, filtro = {}) {
 
 Exercise_model.prototype.data = async function (trainerId, id) {
   if (!ObjectId.isValid(id)) return undefined;
-  const col = await this.col();
+  const col = await this.collection();
   const doc = await col.findOne({ _id: new ObjectId(id), trainer: new ObjectId(trainerId) });
   return doc || undefined;
 };
 
-// Miniatura a partir da URL do vídeo, quando dá pra derivar. YouTube e Vimeo
-// cobrem a maioria dos casos; fora isso fica sem imagem.
-function thumbnailDoVideo(videoUrl) {
+// Thumbnail derived from the video URL when possible. YouTube covers most
+// cases; anything else stays without an image.
+function thumbnailFromVideo(videoUrl) {
   if (!videoUrl) return null;
   const yt = String(videoUrl).match(
     /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/
   );
-  if (yt) return `https://img.youtube.com/vi/${yt[1]}/mqdefault.jpg`;
-  return null;
+  return yt ? `https://img.youtube.com/vi/${yt[1]}/mqdefault.jpg` : null;
 }
 
 Exercise_model.prototype.insert = async function (trainerId, obj) {
-  const col = await this.col();
+  const col = await this.collection();
 
   const r = await col.insertOne({
     trainer: new ObjectId(trainerId),
     name: String(obj.name).trim(),
-    nameSort: normalizar(obj.name),
+    nameSort: normalize(obj.name),
     muscleGroup: obj.muscleGroup ? String(obj.muscleGroup).trim() : "",
     videoUrl: obj.videoUrl ? String(obj.videoUrl).trim() : "",
-    thumbUrl: thumbnailDoVideo(obj.videoUrl),
+    thumbUrl: thumbnailFromVideo(obj.videoUrl),
     defaultTip: obj.defaultTip ? String(obj.defaultTip).trim() : "",
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -108,18 +108,18 @@ Exercise_model.prototype.insert = async function (trainerId, obj) {
 
 Exercise_model.prototype.update = async function (trainerId, id, obj) {
   if (!ObjectId.isValid(id)) return false;
-  const col = await this.col();
+  const col = await this.collection();
 
   const set = { updatedAt: new Date() };
   if (obj.name !== undefined) {
     set.name = String(obj.name).trim();
-    set.nameSort = normalizar(obj.name);
+    set.nameSort = normalize(obj.name);
   }
   if (obj.muscleGroup !== undefined) set.muscleGroup = String(obj.muscleGroup).trim();
   if (obj.defaultTip !== undefined) set.defaultTip = String(obj.defaultTip).trim();
   if (obj.videoUrl !== undefined) {
     set.videoUrl = String(obj.videoUrl).trim();
-    set.thumbUrl = thumbnailDoVideo(obj.videoUrl);
+    set.thumbUrl = thumbnailFromVideo(obj.videoUrl);
   }
 
   const r = await col.updateOne(
@@ -131,7 +131,7 @@ Exercise_model.prototype.update = async function (trainerId, id, obj) {
 
 Exercise_model.prototype.delete = async function (trainerId, id) {
   if (!ObjectId.isValid(id)) return false;
-  const col = await this.col();
+  const col = await this.collection();
   const r = await col.deleteOne({ _id: new ObjectId(id), trainer: new ObjectId(trainerId) });
   return r.deletedCount > 0;
 };

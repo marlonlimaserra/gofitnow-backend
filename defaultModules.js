@@ -1,5 +1,5 @@
-// Módulos que ficam pendurados no `app` e são usados pelos models/controllers
-// como app.moment, app.crypto, etc. Mesmo padrão do monit-backend.
+// Modules hung off `app` and used by models/controllers as app.moment,
+// app.crypto and so on. Same pattern as monit-backend.
 const fs = require("fs");
 const url = require("url");
 const crypto = require("crypto");

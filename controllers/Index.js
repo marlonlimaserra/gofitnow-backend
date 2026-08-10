@@ -1,5 +1,5 @@
-// A versão sai do package.json — fonte única, não uma constante que alguém
-// esquece de subir junto com o release.
+// The version comes from package.json — single source of truth, not a
+// constant somebody forgets to bump on release.
 const { version } = require("../package.json");
 
 module.exports = function (app) {
@@ -7,7 +7,7 @@ module.exports = function (app) {
     res.send({ app: "GoFitNow API", version: version, status: "ok" });
   });
 
-  // Health check: confirma que a API responde E que o Mongo está de pé.
+  // Health check: confirms the API answers AND that Mongo is up.
   app.get("/health", async function (req, res) {
     try {
       const db = await app.mongodb.connectToServer();

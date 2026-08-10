@@ -1,24 +1,22 @@
 module.exports = function (app) {
-  // Menu "Clientes" — só admin. Aqui o admin cadastra e administra os
-  // TRAINERS da plataforma (que por sua vez cadastram seus students).
+  // The "Clients" menu — admin only. Here the admin registers and manages the
+  // platform's TRAINERS, who in turn register their own students.
 
-  app.get("/clientes", async function (req, res) {
+  app.get("/clients", async function (req, res) {
     const admin = await app.helpers.ReqProtected.verifyAdmin(req, res);
     if (admin === false) return;
 
-    res.send(
-      await app.api.user.listTrainers({ busca: req.query.busca, active: req.query.active })
-    );
+    res.send(await app.api.user.listTrainers({ search: req.query.search, active: req.query.active }));
   });
 
-  app.get("/clientes/resumo", async function (req, res) {
+  app.get("/clients/summary", async function (req, res) {
     const admin = await app.helpers.ReqProtected.verifyAdmin(req, res);
     if (admin === false) return;
 
     res.send(await app.api.user.platformSummary());
   });
 
-  app.get("/clientes/:id", async function (req, res) {
+  app.get("/clients/:id", async function (req, res) {
     const admin = await app.helpers.ReqProtected.verifyAdmin(req, res);
     if (admin === false) return;
 
@@ -34,7 +32,7 @@ module.exports = function (app) {
     });
   });
 
-  app.post("/clientes", async function (req, res) {
+  app.post("/clients", async function (req, res) {
     const admin = await app.helpers.ReqProtected.verifyAdmin(req, res);
     if (admin === false) return;
 
@@ -53,8 +51,8 @@ module.exports = function (app) {
       return;
     }
 
-    const existe = await app.api.user.dataByEmail(email);
-    if (existe) {
+    const exists = await app.api.user.dataByEmail(email);
+    if (exists) {
       res.status(409).send({ msg: "Já existe um usuário com esse e-mail." });
       return;
     }
@@ -71,12 +69,12 @@ module.exports = function (app) {
     res.status(201).send(app.api.user.filter(await app.api.user.data(id)));
   });
 
-  app.put("/clientes/:id", async function (req, res) {
+  app.put("/clients/:id", async function (req, res) {
     const admin = await app.helpers.ReqProtected.verifyAdmin(req, res);
     if (admin === false) return;
 
-    const alvo = await app.api.user.dataTrainer(req.params.id);
-    if (!alvo) {
+    const target = await app.api.user.dataTrainer(req.params.id);
+    if (!target) {
       res.status(404).send({ msg: "Personal não encontrado." });
       return;
     }
@@ -96,20 +94,20 @@ module.exports = function (app) {
         res.status(400).send({ msg: "E-mail inválido." });
         return;
       }
-      const existe = await app.api.user.dataByEmail(body.email);
-      if (existe && String(existe._id) !== String(alvo._id)) {
+      const exists = await app.api.user.dataByEmail(body.email);
+      if (exists && String(exists._id) !== String(target._id)) {
         res.status(409).send({ msg: "Esse e-mail já está em uso." });
         return;
       }
     }
 
-    // Trava do último admin: sem ela dá pra tirar o próprio admin (ou
-    // desativar a conta) e ficar sem ninguém capaz de abrir este menu.
-    const perdeAdmin =
-      (body.admin === false && alvo.admin === true) ||
-      (body.active !== undefined && !Number(body.active) && alvo.admin === true);
+    // Last-admin guard: without it you could drop your own admin flag (or
+    // deactivate the account) and leave nobody able to open this menu.
+    const losesAdmin =
+      (body.admin === false && target.admin === true) ||
+      (body.active !== undefined && !Number(body.active) && target.admin === true);
 
-    if (perdeAdmin && (await app.api.user.countAdmins()) <= 1) {
+    if (losesAdmin && (await app.api.user.countAdmins()) <= 1) {
       res.status(409).send({
         msg: "Este é o último administrador ativo — promova outro antes de alterar este.",
       });
@@ -120,7 +118,7 @@ module.exports = function (app) {
     res.send(app.api.user.filter(await app.api.user.data(req.params.id)));
   });
 
-  app.delete("/clientes/:id", async function (req, res) {
+  app.delete("/clients/:id", async function (req, res) {
     const admin = await app.helpers.ReqProtected.verifyAdmin(req, res);
     if (admin === false) return;
 
@@ -129,21 +127,21 @@ module.exports = function (app) {
       return;
     }
 
-    const alvo = await app.api.user.dataTrainer(req.params.id);
-    if (!alvo) {
+    const target = await app.api.user.dataTrainer(req.params.id);
+    if (!target) {
       res.status(404).send({ msg: "Personal não encontrado." });
       return;
     }
 
-    if (alvo.admin === true && (await app.api.user.countAdmins()) <= 1) {
+    if (target.admin === true && (await app.api.user.countAdmins()) <= 1) {
       res.status(409).send({ msg: "Este é o último administrador ativo." });
       return;
     }
 
-    // Excluir um trainer com students deixaria as fichas órfãs (o `trainer`
-    // apontaria pra um id que não existe mais). Melhor barrar e deixar a
-    // decisão explícita: desative o trainer ou mova os alunos antes.
-    const students = await app.api.user.countStudentsOfTrainer(alvo._id);
+    // Deleting a trainer who still has students would orphan their profiles
+    // (`trainer` would point at an id that no longer exists). Better to block
+    // it and make the decision explicit: deactivate them or move the students.
+    const students = await app.api.user.countStudentsOfTrainer(target._id);
     if (students > 0) {
       res.status(409).send({
         msg:

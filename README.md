@@ -1,247 +1,234 @@
 # GoFitNow — Backend
 
-API do GoFitNow (personal trainers e alunos). Estrutura herdada do `monit-backend`,
-mas **só MongoDB** — sem MySQL, Redis, RabbitMQ ou AWS.
+GoFitNow API (personal trainers and their students). The structure comes from
+`monit-backend`, but this one is **MongoDB only** — no MySQL, Redis, RabbitMQ
+or AWS.
 
-> **Convenção:** tudo que é banco de dados — coleções, campos e valores de enum
-> — é em **inglês**. Português fica só nos textos da interface e nas mensagens
-> de erro que o usuário lê.
+> **Language convention:** everything in the codebase is **English** — file
+> names, identifiers, comments, HTTP routes, collections and fields. Only what
+> the end user reads is Portuguese: the `msg` in error responses. The product
+> is Brazilian; the code is not.
 
-## Requisitos
+## Requirements
 
 - Node.js 18+
-- MongoDB rodando localmente
+- MongoDB running locally
 
-## Configuração
+## Configuration
 
-O `.env` tem **apenas a URL do Mongo**:
+The `.env` holds **only the Mongo URL**:
 
 ```
 MONGODB_URI=mongodb://127.0.0.1:27017/gofitnow
 ```
 
-O nome do banco (`gofitnow`) sai da própria URI. A porta da API tem default no
-código (`3030`); só defina `EXPRESS_PORT` se precisar mudar.
+The database name (`gofitnow`) comes from the URI itself. The API port defaults
+in code (`3030`); set `EXPRESS_PORT` only if you need to change it.
 
-## Rodando
+## Running
 
 ```bash
 npm install
-npm run db:init      # cria coleções e índices (opcional — o boot já faz isso)
+npm run db:init      # collections and indexes (boot does this too)
 npm start            # nodemon app.js
 ```
 
-Para já criar o primeiro usuário (nasce **trainer + admin**):
+To create the first user (born **trainer + admin**):
 
 ```bash
-npm run db:init -- "Seu Nome" "voce@email.com" "suasenha"
+npm run db:init -- "Your Name" "you@email.com" "yourpassword"
 ```
 
-## Produção
+## Production
 
-Roda em `179.198.120.67`, exposta em **https://backend.gofitnow.fit**.
+Runs on `179.198.120.67`, served at **https://backend.gofitnow.fit**.
 
 ```
-/opt/gofitnow-backend            código
-/opt/gofitnow-backend/.env       só a MONGODB_URI (chmod 600)
-gofitnow-backend.service         systemd, usuário `gofitnow` (sem shell)
+/opt/gofitnow-backend            code
+/opt/gofitnow-backend/.env       MONGODB_URI only (chmod 600)
+gofitnow-backend.service         systemd, user `gofitnow` (no shell)
 /etc/nginx/sites-available/backend.gofitnow.fit
 ```
 
-Porta e host ficam no **systemd**, não no `.env` — assim o `.env` segue com
-apenas a URL do Mongo. O node escuta em `127.0.0.1:3030`, então a porta não é
-alcançável da internet; quem atende é o nginx.
+Port and host live in **systemd**, not in `.env` — that keeps `.env` down to
+the Mongo URL. Node listens on `127.0.0.1:3030`, so the port is unreachable
+from the internet; nginx is what answers.
 
 ```bash
-systemctl status gofitnow-backend      # estado
+systemctl status gofitnow-backend      # state
 journalctl -u gofitnow-backend -f      # logs
-systemctl restart gofitnow-backend     # reiniciar
+gofitnow-deploy                        # git pull + install + restart
+gofitnow-deploy --status               # which commit is live
 ```
 
-SSL do Let's Encrypt via `certbot --nginx`, com renovação pelo `certbot.timer`
-(testada com `--dry-run`). HTTP redireciona para HTTPS com 301.
+TLS from Let's Encrypt via `certbot --nginx`, renewed by `certbot.timer`. HTTP
+redirects to HTTPS with a 301.
 
-**Publicar uma versão nova:**
-
-```bash
-# na máquina local, dentro de gofitnow-backend/
-tar -czf /tmp/api.tar.gz --exclude=node_modules --exclude=.git --exclude=.env .
-scp /tmp/api.tar.gz root@179.198.120.67:/tmp/
-ssh root@179.198.120.67 '
-  tar -xzf /tmp/api.tar.gz -C /opt/gofitnow-backend &&
-  cd /opt/gofitnow-backend &&
-  npm install --omit=dev --no-audit --no-fund &&
-  chown -R gofitnow:gofitnow /opt/gofitnow-backend &&
-  systemctl restart gofitnow-backend'
-```
-
-## Estrutura
+## Layout
 
 ```
-app.js                 entry — wiring do Express, models, helpers e rotas
-appRoutes.js           mapa de controllers
-appModels.js           mapa de models  → app.api.*
-appHelpers.js          mapa de helpers → app.helpers.*
+app.js                 entry — wires Express, models, helpers and routes
+appRoutes.js           controller map
+appModels.js           model map  → app.api.*
+appHelpers.js          helper map → app.helpers.*
 defaultModules.js      moment, crypto, validator, uuid → app.*
-config/mongodb.js      conexão única com o Mongo
-database/schema.js     coleções + índices (idempotente, roda no boot)
-database/init.js       script standalone (npm run db:init)
-controllers/           rotas HTTP
-model/                 acesso às coleções
+config/mongodb.js      the single Mongo connection
+database/schema.js     collections + indexes (idempotent, runs at boot)
+database/init.js       standalone script (npm run db:init)
+controllers/           HTTP routes
+model/                 collection access
 helper/                AuthSession, ReqProtected
 ```
 
-## Coleções
+## Collections
 
-| Coleção            | Conteúdo                                          |
-| ------------------ | ------------------------------------------------- |
-| `users`            | toda pessoa: trainer ou student                   |
-| `user_tokens`      | sessões ativas (TTL de 30 dias em `expiresAt`)    |
-| `workouts`         | treinos do aluno (período, objetivo, professor)   |
-| `workout_sessions` | dias do treino, com os exercícios embutidos       |
-| `exercises`        | catálogo de exercícios de cada trainer            |
+| Collection         | Holds                                          |
+| ------------------ | ---------------------------------------------- |
+| `users`            | every person: trainer or student               |
+| `user_tokens`      | live sessions (30-day TTL on `expiresAt`)      |
+| `workouts`         | a student's workouts (period, goal, teacher)   |
+| `workout_sessions` | workout days, with exercises embedded          |
+| `exercises`        | each trainer's exercise catalog                |
 
-### O documento `users`
+### The `users` document
 
 ```js
 {
   name, email,
-  password, salt,        // null enquanto o student não tem acesso liberado
+  password, salt,        // null while a student has no access yet
   type: "trainer" | "student",
-  admin: true | false,   // flag SEPARADA do type
-  trainer: ObjectId,     // só em type="student" — o dono da ficha
+  admin: true | false,   // a flag SEPARATE from type
+  trainer: ObjectId,     // student only — the profile's owner
   phone, birthDate, goal, weight, height, notes,
   active, createdAt, updatedAt
 }
 ```
 
-**Papéis**
+**Roles**
 
-- `type: "trainer"` — cadastra e enxerga os próprios alunos.
-- `type: "student"` — enxerga só a si; `trainer` aponta pro dono.
-- `admin: true` — enxerga o menu **Clientes** e cadastra os trainers da
-  plataforma. É ortogonal ao type: um admin normalmente é também um trainer.
+- `type: "trainer"` — creates and sees their own students.
+- `type: "student"` — only sees themself; `trainer` points to the owner.
+- `admin: true` — sees the **Clients** menu and registers the platform's
+  trainers. Orthogonal to type: an admin is usually a trainer too.
 
-A senha é SHA-512 de `salt + ":" + password`, com salt sorteado por usuário.
-`password` e `salt` nunca saem da API — no lugar vai `hasAccess: boolean`.
+The password is SHA-512 of `salt + ":" + password`, with a per-user salt.
+`password` and `salt` never leave the API — `hasAccess: boolean` goes instead.
 
-O índice único de e-mail é **parcial** (`{ email: { $type: "string" } }`):
-student sem acesso pode não ter e-mail, e sem o filtro o segundo student sem
-e-mail colidiria com o primeiro. E-mail vazio é gravado como campo ausente,
-nunca como `""`.
+The unique e-mail index is **partial** (`{ email: { $type: "string" } }`): a
+student without access may have no e-mail, and without the filter the second
+such student would collide with the first. An empty e-mail is stored as an
+absent field, never as `""`.
 
-## Autenticação
+## Authentication
 
-Trainer e student entram pela mesma rota. O login devolve `session`, que o
-frontend manda no header `session` em toda rota autenticada.
+Trainer and student sign in through the same route. Login returns `session`,
+which the frontend sends in the `session` header on every authenticated route.
 
 ```
-POST   /auth/register     { name, email, password }  → cria TRAINER comum
+POST   /auth/register     { name, email, password }  → creates a plain TRAINER
 POST   /auth              { email, password }        → { session, user }
 GET    /auth/verify                                  → { user }
 POST   /auth/logout
-PUT    /auth/senha        { currentPassword, newPassword } → { session }
+PUT    /auth/password     { currentPassword, newPassword } → { session }
 ```
 
-`/auth/register` nunca cria admin nem student: admin só é marcado por outro
-admin em `/clientes`, e student é criado pelo seu trainer em `/alunos`.
+`/auth/register` never creates an admin or a student: admin is granted by
+another admin at `/clients`, and a student is created by their trainer at
+`/students`.
 
 ## Endpoints
 
 ```
-GET    /health                          ping da API + Mongo
+GET    /                                API name and version
+GET    /health                          API + Mongo ping
 
-GET    /me                              próprio usuário (student recebe
-PUT    /me         { name, email }      junto o `trainerInfo`)
+GET    /me                              own user (a student also gets
+PUT    /me         { name, email }      `trainerInfo`)
 
-# --- só admin ---
-GET    /clientes          ?busca=&active=     trainers da plataforma
-GET    /clientes/resumo
-GET    /clientes/:id
-POST   /clientes          { name, email, password, phone, admin, active }
-PUT    /clientes/:id
-DELETE /clientes/:id
+# --- admin only ---
+GET    /clients           ?search=&active=     platform trainers
+GET    /clients/summary
+GET    /clients/:id
+POST   /clients           { name, email, password, phone, admin, active }
+PUT    /clients/:id
+DELETE /clients/:id
 
-# --- só trainer ---
-GET    /alunos            ?busca=&active=
-GET    /alunos/resumo
-GET    /alunos/:id
-POST   /alunos            { name, email, password?, phone, birthDate,
+# --- trainer only ---
+GET    /students          ?search=&active=
+GET    /students/summary
+GET    /students/:id
+POST   /students          { name, email, password?, phone, birthDate,
                             goal, weight, height, notes, active }
-PUT    /alunos/:id
-DELETE /alunos/:id/acesso               tira o login, mantém a ficha
-DELETE /alunos/:id
+PUT    /students/:id
+DELETE /students/:id/access             revokes the login, keeps the profile
+DELETE /students/:id
 
-# --- treinos (só trainer) ---
-GET    /alunos/:studentId/treinos       { rows, counts } — counts alimenta as
-POST   /alunos/:studentId/treinos         abas Atuais/Anteriores/Futuros/Todos
-GET    /treinos/:id                     treino + sessões
-PUT    /treinos/:id
-DELETE /treinos/:id                     leva as sessões junto
-POST   /treinos/:id/duplicar            { studentId? } copia com as sessões
+GET    /students/:studentId/workouts    { rows, counts } — counts feeds the
+POST   /students/:studentId/workouts      Current/Past/Future/All tabs
+GET    /workouts/:id                    workout + sessions
+PUT    /workouts/:id
+DELETE /workouts/:id                    takes its sessions with it
+POST   /workouts/:id/duplicate          { studentId? } copies with sessions
 
-POST   /treinos/:id/sessoes             { name, calories? }
-GET    /sessoes/:id
-PUT    /sessoes/:id
-DELETE /sessoes/:id
-PUT    /sessoes/:id/exercicios          { exercises: [...] } salva a lista toda
+POST   /workouts/:id/sessions           { name, calories? }
+GET    /sessions/:id
+PUT    /sessions/:id
+DELETE /sessions/:id
+PUT    /sessions/:id/exercises          { exercises: [...] } saves the whole list
 
-# --- catálogo de exercícios (só trainer) ---
-GET    /exercicios        ?busca=&grupo=&page=&limit=
-GET    /exercicios/grupos               grupos musculares em uso
-POST   /exercicios        { name, muscleGroup, videoUrl, defaultTip }
-GET    /exercicios/:id
-PUT    /exercicios/:id
-DELETE /exercicios/:id
+GET    /exercises         ?search=&group=&page=&limit=
+GET    /exercises/groups                muscle groups in use
+POST   /exercises         { name, muscleGroup, videoUrl, defaultTip }
+GET    /exercises/:id
+PUT    /exercises/:id
+DELETE /exercises/:id
 ```
 
-### Treinos e sessões
+A student's `password` is optional: without it the profile exists but cannot
+log in. With it, the e-mail becomes required — that is how they sign in.
 
-`workouts` guarda o treino; `workout_sessions` guarda cada dia com os
-**exercícios embutidos** no documento. Uma sessão tem ~10 exercícios e eles
-nunca são lidos sem ela — coleção separada só custaria um join por tela.
+### Workouts and sessions
 
-Cada série tem `unit`, `quantity`, `load`, `intensity`, `speed` e `rest`.
+`workouts` holds the workout; `workout_sessions` holds each day with the
+**exercises embedded** in the document. A session has ~10 exercises and they
+are never read without it — a separate collection would only add a join per
+screen.
 
-O status (`current` / `past` / `future`) é derivado do período contra a data de
-hoje, comparando `YYYY-MM-DD` — um treino que termina hoje segue atual o dia
-inteiro.
+Each set carries `unit`, `quantity`, `load`, `intensity`, `speed` and `rest`.
 
-### Catálogo de exercícios
+Status (`current` / `past` / `future`) is derived from the period against
+today, comparing `YYYY-MM-DD` — a workout ending today stays current all day.
 
-Cada trainer monta o seu; não há biblioteca de terceiros. `muscleGroup` é texto
-livre e o filtro lista os valores distintos que o próprio trainer cadastrou, ou
-seja, a taxonomia nasce do uso.
+### Exercise catalog
 
-`nameSort` (nome sem espaços nas pontas, minúsculo e sem acento) é o que ordena
-e o que a busca consulta — o sort binário do Mongo jogaria as maiúsculas pra
-frente, e "gluteo" não acharia "glúteo".
+Each trainer builds their own; there is no third-party library. `muscleGroup`
+is free text and the filter lists the distinct values that trainer has used, so
+the taxonomy grows from usage.
 
-Excluir do catálogo **não** mexe nos treinos já montados: a sessão copia nome e
-miniatura, então continua legível sem o exercício de origem.
+`nameSort` (name trimmed, lowercased, unaccented) is what sorts and what search
+queries — Mongo's binary sort would push capitalized names to the front, and
+"gluteo" would not find "glúteo".
 
-`password` no student é opcional: sem ela a ficha existe mas ele não loga. Com
-ela, o e-mail passa a ser obrigatório — é por ele que ele entra.
+Deleting from the catalog does **not** touch assembled workouts: the session
+copies the name and thumbnail, so it stays readable without the source
+exercise.
 
-> Os **caminhos** das rotas continuam em português (`/alunos`, `/clientes`),
-> acompanhando o vocabulário da interface. Só os payloads seguem o banco.
+## Guards
 
-## Guardas
-
-O menu do frontend esconde; o backend recusa. Toda rota passa por
+The frontend menu hides; the backend refuses. Every route goes through
 `app.helpers.ReqProtected`:
 
-| Método           | Quem passa              | Quem é barrado |
-| ---------------- | ----------------------- | -------------- |
-| `verify`         | qualquer usuário logado | 401 sem sessão |
-| `verifyTrainer`  | `type === "trainer"`    | 403            |
-| `verifyAdmin`    | `admin === true`        | 403            |
+| Method           | Who passes           | Who is blocked |
+| ---------------- | -------------------- | -------------- |
+| `verify`         | any signed-in user   | 401 without a session |
+| `verifyTrainer`  | `type === "trainer"` | 403            |
+| `verifyAdmin`    | `admin === true`     | 403            |
 
-Regras que o backend garante sozinho:
+Rules the backend enforces on its own:
 
-- Student é sempre escopado no trainer da sessão — o id do dono nunca vem do
-  body ou da query.
-- O último admin ativo não pode se rebaixar, se desativar nem ser excluído.
-- Ninguém exclui a própria conta pelo menu Clientes.
-- Trainer com students vinculados não é excluído (deixaria fichas órfãs) —
-  desative-o ou remova os alunos antes.
+- A student is always scoped to the session's trainer — the owner id never
+  comes from the body or the query.
+- The last active admin cannot be demoted, deactivated or deleted.
+- Nobody deletes their own account from the Clients menu.
+- A trainer with students attached is not deleted (it would orphan the
+  profiles) — deactivate them or move the students first.

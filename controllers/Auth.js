@@ -1,7 +1,7 @@
 module.exports = function (app) {
-  // Auto-cadastro — cria sempre um TRAINER comum. Student é criado pelo seu
-  // trainer (/alunos) e trainer com admin é criado pelo admin (/clientes);
-  // nenhum dos dois nasce por aqui.
+  // Self-signup — always creates a plain TRAINER. A student is created by
+  // their trainer (/students) and an admin trainer by an admin (/clients);
+  // neither is born here.
   app.post("/auth/register", async function (req, res) {
     const { name, email, password } = req.body || {};
 
@@ -18,8 +18,8 @@ module.exports = function (app) {
       return;
     }
 
-    const existe = await app.api.user.dataByEmail(email);
-    if (existe) {
+    const exists = await app.api.user.dataByEmail(email);
+    if (exists) {
       res.status(409).send({ msg: "Já existe uma conta com esse e-mail." });
       return;
     }
@@ -31,8 +31,8 @@ module.exports = function (app) {
     res.status(201).send({ session: token, user: app.api.user.filter(user) });
   });
 
-  // Login — trainer e student entram pela mesma porta; o front decide o que
-  // mostrar pelo `type` e pelo `admin`.
+  // Login — trainer and student come through the same door; the frontend
+  // decides what to show from `type` and `admin`.
   app.post("/auth", async function (req, res) {
     const { email, password } = req.body || {};
 
@@ -41,10 +41,11 @@ module.exports = function (app) {
       return;
     }
 
-    const user = await app.api.user.autenticar(email, password);
+    const user = await app.api.user.authenticate(email, password);
 
-    // Mensagem genérica de propósito: dizer "e-mail não existe" entregaria
-    // quais e-mails têm conta. Vale também pro student sem acesso liberado.
+    // Deliberately generic message: saying "this e-mail does not exist" would
+    // reveal which addresses have an account. Same for a student whose access
+    // has not been granted yet.
     if (!user) {
       res.status(401).send({ msg: "E-mail ou senha inválidos." });
       return;
@@ -55,7 +56,7 @@ module.exports = function (app) {
     res.send({ session: token, user: app.api.user.filter(user) });
   });
 
-  // Revalida a sessão no boot do frontend.
+  // Revalidates the session when the frontend boots.
   app.get("/auth/verify", async function (req, res) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;
@@ -71,8 +72,8 @@ module.exports = function (app) {
     res.send({ msg: "Sessão encerrada." });
   });
 
-  // Troca de senha do próprio usuário logado.
-  app.put("/auth/senha", async function (req, res) {
+  // Password change for the signed-in user.
+  app.put("/auth/password", async function (req, res) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;
 
@@ -83,16 +84,16 @@ module.exports = function (app) {
       return;
     }
 
-    const confere = await app.api.user.autenticar(user.email, currentPassword);
-    if (!confere) {
+    const check = await app.api.user.authenticate(user.email, currentPassword);
+    if (!check) {
       res.status(401).send({ msg: "Senha atual incorreta." });
       return;
     }
 
     await app.api.user.updateSelf(user._id, { password: newPassword });
 
-    // Trocar a senha derruba as outras sessões e reemite a atual — senão um
-    // token roubado continuaria valendo depois da troca.
+    // Changing the password drops the other sessions and re-issues this one —
+    // otherwise a stolen token would keep working after the change.
     await app.api.auth.deleteAllTokensByUser(user._id);
     const token = await app.api.auth.registerToken(user._id);
 

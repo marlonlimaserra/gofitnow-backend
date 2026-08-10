@@ -1,27 +1,28 @@
 module.exports = function (app) {
-  // Gestão de alunos — só trainer. O id do dono nunca vem do body ou da
-  // query: sai sempre da sessão, então um trainer não alcança student de outro.
+  // Student management — trainer only. The owner id never comes from the body
+  // or the query: it always comes from the session, so a trainer can never
+  // reach another trainer's student.
 
-  app.get("/alunos", async function (req, res) {
+  app.get("/students", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
     res.send(
       await app.api.user.listStudents(trainer._id, {
-        busca: req.query.busca,
+        search: req.query.search,
         active: req.query.active,
       })
     );
   });
 
-  app.get("/alunos/resumo", async function (req, res) {
+  app.get("/students/summary", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
     res.send(await app.api.user.studentsSummary(trainer._id));
   });
 
-  app.get("/alunos/:id", async function (req, res) {
+  app.get("/students/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
@@ -34,7 +35,7 @@ module.exports = function (app) {
     res.send(app.api.user.filter(student));
   });
 
-  app.post("/alunos", async function (req, res) {
+  app.post("/students", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
@@ -49,8 +50,8 @@ module.exports = function (app) {
       return;
     }
     if (body.password) {
-      // Senha é opcional (a ficha pode existir sem acesso), mas se veio uma,
-      // precisa de e-mail — é por ele que o aluno loga.
+      // The password is optional (a profile can exist without access), but if
+      // one is given the e-mail becomes required — that is how they log in.
       if (!body.email) {
         res.status(400).send({ msg: "Informe o e-mail do aluno para liberar o acesso." });
         return;
@@ -61,8 +62,8 @@ module.exports = function (app) {
       }
     }
     if (body.email) {
-      const existe = await app.api.user.dataByEmail(body.email);
-      if (existe) {
+      const exists = await app.api.user.dataByEmail(body.email);
+      if (exists) {
         res.status(409).send({ msg: "Já existe um usuário com esse e-mail." });
         return;
       }
@@ -72,14 +73,14 @@ module.exports = function (app) {
     res.status(201).send(app.api.user.filter(await app.api.user.data(id)));
   });
 
-  app.put("/alunos/:id", async function (req, res) {
+  app.put("/students/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
     const body = req.body || {};
-    const alvo = await app.api.user.dataStudent(trainer._id, req.params.id);
+    const target = await app.api.user.dataStudent(trainer._id, req.params.id);
 
-    if (!alvo) {
+    if (!target) {
       res.status(404).send({ msg: "Aluno não encontrado." });
       return;
     }
@@ -93,8 +94,8 @@ module.exports = function (app) {
       return;
     }
     if (body.password) {
-      const emailFinal = body.email !== undefined ? body.email : alvo.email;
-      if (!emailFinal) {
+      const finalEmail = body.email !== undefined ? body.email : target.email;
+      if (!finalEmail) {
         res.status(400).send({ msg: "Informe o e-mail do aluno para liberar o acesso." });
         return;
       }
@@ -104,8 +105,8 @@ module.exports = function (app) {
       }
     }
     if (body.email) {
-      const existe = await app.api.user.dataByEmail(body.email);
-      if (existe && String(existe._id) !== String(alvo._id)) {
+      const exists = await app.api.user.dataByEmail(body.email);
+      if (exists && String(exists._id) !== String(target._id)) {
         res.status(409).send({ msg: "Já existe um usuário com esse e-mail." });
         return;
       }
@@ -115,8 +116,8 @@ module.exports = function (app) {
     res.send(app.api.user.filter(await app.api.user.data(req.params.id)));
   });
 
-  // Tira o login do aluno mantendo a ficha.
-  app.delete("/alunos/:id/acesso", async function (req, res) {
+  // Revokes the student's login while keeping the profile.
+  app.delete("/students/:id/access", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 
@@ -130,7 +131,7 @@ module.exports = function (app) {
     res.send({ msg: "Acesso revogado." });
   });
 
-  app.delete("/alunos/:id", async function (req, res) {
+  app.delete("/students/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
     if (trainer === false) return;
 

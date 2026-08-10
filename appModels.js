@@ -1,4 +1,4 @@
-// Models são instanciados com o `app` e ficam em app.api.*
+// Models are instantiated with `app` and live under app.api.*
 const models = {};
 
 models.user = require("./model/User_model.js");

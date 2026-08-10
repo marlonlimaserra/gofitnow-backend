@@ -1,20 +1,19 @@
 const { ObjectId } = require("mongodb");
 
-// Coleção `users` — toda pessoa do sistema. Os campos do banco são em INGLÊS;
-// o português fica só na interface.
+// The `users` collection — every person in the system.
 //
-//   type: "trainer"  → cadastra e enxerga os próprios alunos
-//   type: "student"  → tem `trainer` apontando pro dono; enxerga só a si
+//   type: "trainer"  → creates and sees their own students
+//   type: "student"  → has `trainer` pointing to the owner; only sees themself
 //
-// `admin` é uma flag SEPARADA do type: marca quem administra a plataforma
-// (cadastra os trainers). Um admin normalmente é também um trainer, então os
-// dois convivem no mesmo documento em vez de virarem um terceiro type.
+// `admin` is a flag SEPARATE from type: it marks whoever administers the
+// platform (registering trainers). An admin is usually also a trainer, so both
+// live on the same document instead of becoming a third type.
 //
-// Campos de ficha (weight, height, goal…) só fazem sentido no student, mas
-// ficam no mesmo documento — não vale uma coleção separada pra isso.
+// Profile fields (weight, height, goal…) only make sense on a student, but
+// they sit on the same document — a separate collection would not pay off.
 //
-// `password`/`salt` ficam null enquanto o student não tem acesso liberado: o
-// trainer pode cadastrar a ficha antes de dar login pra ele.
+// `password`/`salt` stay null while a student has no access yet: the trainer
+// can register the profile before granting a login.
 function User_model(app) {
   this.app = app;
 }
@@ -26,21 +25,21 @@ User_model.prototype.collection = async function () {
   return db.collection("users");
 };
 
-// Hash sha512 com salt por usuário. O salt é sorteado no cadastro e guardado
-// junto do documento — sem ele, duas senhas iguais gerariam o mesmo hash.
-User_model.prototype.gerarSalt = function () {
+// SHA-512 with a per-user salt. The salt is drawn at signup and stored next to
+// the document — without it, two identical passwords would hash the same.
+User_model.prototype.generateSalt = function () {
   return this.app.crypto.randomBytes(16).toString("hex");
 };
 
-User_model.prototype.hashSenha = function (senha, salt) {
+User_model.prototype.hashPassword = function (password, salt) {
   return this.app.crypto
     .createHash("sha512")
-    .update(salt + ":" + senha)
+    .update(salt + ":" + password)
     .digest("base64");
 };
 
-// Nunca devolver password/salt pra fora do backend. `hasAccess` entrega o que
-// a tela precisa saber (se o student já consegue logar) sem expor o hash.
+// Never let password/salt leave the backend. `hasAccess` tells the screen what
+// it needs to know (whether the student can log in) without exposing the hash.
 User_model.prototype.filter = function (doc) {
   if (!doc) return doc;
   const { password, salt, ...rest } = doc;
@@ -48,10 +47,10 @@ User_model.prototype.filter = function (doc) {
   return rest;
 };
 
-// E-mail vazio é gravado como campo AUSENTE, não como "". O índice único é
-// parcial (só onde `email` existe), então dois students sem e-mail conviveriam,
-// mas dois com "" colidiriam.
-function normalizaEmail(email) {
+// An empty e-mail is stored as an ABSENT field, not as "". The unique index is
+// partial (only where `email` exists), so two students without an e-mail can
+// coexist, while two with "" would collide.
+function normalizeEmail(email) {
   const v = String(email == null ? "" : email)
     .trim()
     .toLowerCase();
@@ -66,26 +65,26 @@ User_model.prototype.data = async function (id) {
 };
 
 User_model.prototype.dataByEmail = async function (email) {
-  const e = normalizaEmail(email);
+  const e = normalizeEmail(email);
   if (!e) return undefined;
   const col = await this.collection();
   const doc = await col.findOne({ email: e });
   return doc || undefined;
 };
 
-// ── Trainer (o "cliente" na visão do admin) ──────────────────────────────
+// ── Trainers (the "clients" from the admin's point of view) ──────────────
 
 User_model.prototype.insertTrainer = async function (obj) {
   const col = await this.collection();
-  const salt = this.gerarSalt();
+  const salt = this.generateSalt();
 
   const r = await col.insertOne({
     name: String(obj.name).trim(),
-    email: normalizaEmail(obj.email),
-    password: this.hashSenha(obj.password, salt),
+    email: normalizeEmail(obj.email),
+    password: this.hashPassword(obj.password, salt),
     salt: salt,
     type: "trainer",
-    // `admin` nunca vem de auto-cadastro: só o admin marca outro admin.
+    // `admin` never comes from self-signup: only an admin grants admin.
     admin: obj.admin === true,
     phone: obj.phone ? String(obj.phone).trim() : "",
     active: obj.active === undefined ? 1 : Number(obj.active) ? 1 : 0,
@@ -96,39 +95,39 @@ User_model.prototype.insertTrainer = async function (obj) {
   return r.insertedId;
 };
 
-// Lista os trainers — visão de admin. Traz junto quantos students cada um
-// tem, que é a informação que a tela mostra.
-User_model.prototype.listTrainers = async function (filtro) {
+// Lists trainers — the admin view. Brings each one's student count along,
+// which is what the screen shows.
+User_model.prototype.listTrainers = async function (filter) {
   const col = await this.collection();
 
   const query = { type: "trainer" };
 
-  if (filtro && filtro.busca) {
-    const termo = String(filtro.busca).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (filter && filter.search) {
+    const term = String(filter.search).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     query.$or = [
-      { name: { $regex: termo, $options: "i" } },
-      { email: { $regex: termo, $options: "i" } },
-      { phone: { $regex: termo, $options: "i" } },
+      { name: { $regex: term, $options: "i" } },
+      { email: { $regex: term, $options: "i" } },
+      { phone: { $regex: term, $options: "i" } },
     ];
   }
 
-  if (filtro && filtro.active !== undefined && filtro.active !== "") {
-    query.active = Number(filtro.active) ? 1 : 0;
+  if (filter && filter.active !== undefined && filter.active !== "") {
+    query.active = Number(filter.active) ? 1 : 0;
   }
 
   const docs = await col.find(query).sort({ createdAt: -1 }).toArray();
 
-  // Uma agregação só pra todos os trainers — em vez de um countDocuments por
-  // linha, que faria N consultas numa lista de N.
-  const contagem = await col
+  // A single aggregation for every trainer, instead of one countDocuments per
+  // row — that would be N queries for a list of N.
+  const counts = await col
     .aggregate([{ $match: { type: "student" } }, { $group: { _id: "$trainer", total: { $sum: 1 } } }])
     .toArray();
 
-  const porTrainer = new Map(contagem.map((c) => [String(c._id), c.total]));
+  const byTrainer = new Map(counts.map((c) => [String(c._id), c.total]));
 
   return docs.map((d) => ({
     ...this.filter(d),
-    totalStudents: porTrainer.get(String(d._id)) || 0,
+    totalStudents: byTrainer.get(String(d._id)) || 0,
   }));
 };
 
@@ -152,14 +151,14 @@ User_model.prototype.updateTrainer = async function (id, obj) {
   if (obj.admin !== undefined) set.admin = obj.admin === true || obj.admin === 1;
 
   if (obj.email !== undefined) {
-    const e = normalizaEmail(obj.email);
+    const e = normalizeEmail(obj.email);
     if (e) set.email = e;
     else unset.email = "";
   }
 
   if (obj.password) {
-    set.salt = this.gerarSalt();
-    set.password = this.hashSenha(obj.password, set.salt);
+    set.salt = this.generateSalt();
+    set.password = this.hashPassword(obj.password, set.salt);
   }
 
   const update = { $set: set };
@@ -181,32 +180,32 @@ User_model.prototype.countStudentsOfTrainer = async function (trainerId) {
   return await col.countDocuments({ type: "student", trainer: new ObjectId(trainerId) });
 };
 
-// Quantos admins ATIVOS existem. Serve pra impedir que o último admin se
-// rebaixe ou se apague e deixe a plataforma sem ninguém no menu Clientes.
+// How many ACTIVE admins exist. Used to stop the last admin from demoting or
+// deleting themself and leaving nobody able to open the Clients menu.
 User_model.prototype.countAdmins = async function () {
   const col = await this.collection();
   return await col.countDocuments({ admin: true, active: 1 });
 };
 
-// ── Students (sempre no escopo de um trainer) ────────────────────────────
+// ── Students (always scoped to a trainer) ────────────────────────────────
 
-User_model.prototype.listStudents = async function (trainerId, filtro) {
+User_model.prototype.listStudents = async function (trainerId, filter) {
   const col = await this.collection();
 
   const query = { type: "student", trainer: new ObjectId(trainerId) };
 
-  if (filtro && filtro.busca) {
-    // Escapa a busca: sem isso um "(" digitado pelo usuário derruba o regex.
-    const termo = String(filtro.busca).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (filter && filter.search) {
+    // Escape the term — without this a "(" typed by the user breaks the regex.
+    const term = String(filter.search).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     query.$or = [
-      { name: { $regex: termo, $options: "i" } },
-      { email: { $regex: termo, $options: "i" } },
-      { phone: { $regex: termo, $options: "i" } },
+      { name: { $regex: term, $options: "i" } },
+      { email: { $regex: term, $options: "i" } },
+      { phone: { $regex: term, $options: "i" } },
     ];
   }
 
-  if (filtro && filtro.active !== undefined && filtro.active !== "") {
-    query.active = Number(filtro.active) ? 1 : 0;
+  if (filter && filter.active !== undefined && filter.active !== "") {
+    query.active = Number(filter.active) ? 1 : 0;
   }
 
   const docs = await col.find(query).sort({ createdAt: -1 }).toArray();
@@ -229,7 +228,7 @@ User_model.prototype.insertStudent = async function (trainerId, obj) {
 
   const doc = {
     name: String(obj.name).trim(),
-    email: normalizaEmail(obj.email),
+    email: normalizeEmail(obj.email),
     password: null,
     salt: null,
     type: "student",
@@ -245,11 +244,11 @@ User_model.prototype.insertStudent = async function (trainerId, obj) {
     updatedAt: new Date(),
   };
 
-  // Senha é opcional no cadastro: sem ela o student existe como ficha, mas
-  // ainda não loga.
+  // The password is optional at signup: without it the student exists as a
+  // profile but cannot log in yet.
   if (obj.password) {
-    doc.salt = this.gerarSalt();
-    doc.password = this.hashSenha(obj.password, doc.salt);
+    doc.salt = this.generateSalt();
+    doc.password = this.hashPassword(obj.password, doc.salt);
   }
 
   const r = await col.insertOne(doc);
@@ -273,14 +272,14 @@ User_model.prototype.updateStudent = async function (trainerId, id, obj) {
   if (obj.active !== undefined) set.active = Number(obj.active) ? 1 : 0;
 
   if (obj.email !== undefined) {
-    const e = normalizaEmail(obj.email);
+    const e = normalizeEmail(obj.email);
     if (e) set.email = e;
     else unset.email = "";
   }
 
   if (obj.password) {
-    set.salt = this.gerarSalt();
-    set.password = this.hashSenha(obj.password, set.salt);
+    set.salt = this.generateSalt();
+    set.password = this.hashPassword(obj.password, set.salt);
   }
 
   const update = { $set: set };
@@ -305,7 +304,7 @@ User_model.prototype.deleteStudent = async function (trainerId, id) {
   return r.deletedCount > 0;
 };
 
-// Tira o acesso do student sem apagar a ficha.
+// Revokes the student's login without deleting the profile.
 User_model.prototype.revokeStudentAccess = async function (trainerId, id) {
   if (!ObjectId.isValid(id)) return false;
   const col = await this.collection();
@@ -316,9 +315,9 @@ User_model.prototype.revokeStudentAccess = async function (trainerId, id) {
   return r.matchedCount > 0;
 };
 
-// ── Comum aos dois types ─────────────────────────────────────────────────
+// ── Common to both types ─────────────────────────────────────────────────
 
-// Atualiza os dados da própria conta (name/email) ou a senha.
+// Updates the user's own account data (name/email) or password.
 User_model.prototype.updateSelf = async function (id, obj) {
   if (!ObjectId.isValid(id)) return false;
   const col = await this.collection();
@@ -329,14 +328,14 @@ User_model.prototype.updateSelf = async function (id, obj) {
   if (obj.name !== undefined) set.name = String(obj.name).trim();
 
   if (obj.email !== undefined) {
-    const e = normalizaEmail(obj.email);
+    const e = normalizeEmail(obj.email);
     if (e) set.email = e;
     else unset.email = "";
   }
 
   if (obj.password) {
-    set.salt = this.gerarSalt();
-    set.password = this.hashSenha(obj.password, set.salt);
+    set.salt = this.generateSalt();
+    set.password = this.hashPassword(obj.password, set.salt);
   }
 
   const update = { $set: set };
@@ -346,21 +345,22 @@ User_model.prototype.updateSelf = async function (id, obj) {
   return true;
 };
 
-// Confere e-mail + senha. Devolve o documento cru (com hash) ou undefined.
-User_model.prototype.autenticar = async function (email, senha) {
+// Checks e-mail + password. Returns the raw document (with the hash) or
+// undefined.
+User_model.prototype.authenticate = async function (email, password) {
   const user = await this.dataByEmail(email);
   if (!user) return undefined;
   if (user.active === 0) return undefined;
 
-  // Student cadastrado como ficha, sem acesso liberado ainda.
+  // Student registered as a profile, with no access granted yet.
   if (!user.password || !user.salt) return undefined;
 
-  if (this.hashSenha(senha, user.salt) !== user.password) return undefined;
+  if (this.hashPassword(password, user.salt) !== user.password) return undefined;
 
   return user;
 };
 
-// Números do dashboard do trainer.
+// Numbers for the trainer's dashboard.
 User_model.prototype.studentsSummary = async function (trainerId) {
   const col = await this.collection();
   const base = { type: "student", trainer: new ObjectId(trainerId) };
@@ -369,28 +369,28 @@ User_model.prototype.studentsSummary = async function (trainerId) {
   const active = await col.countDocuments({ ...base, active: 1 });
   const withAccess = await col.countDocuments({ ...base, password: { $ne: null } });
 
-  const inicioMes = new Date();
-  inicioMes.setDate(1);
-  inicioMes.setHours(0, 0, 0, 0);
-  const newThisMonth = await col.countDocuments({ ...base, createdAt: { $gte: inicioMes } });
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const newThisMonth = await col.countDocuments({ ...base, createdAt: { $gte: monthStart } });
 
   return { total, active, inactive: total - active, withAccess, newThisMonth };
 };
 
-// Números da plataforma inteira — só o admin enxerga.
+// Platform-wide numbers — admin only.
 User_model.prototype.platformSummary = async function () {
   const col = await this.collection();
 
-  const inicioMes = new Date();
-  inicioMes.setDate(1);
-  inicioMes.setHours(0, 0, 0, 0);
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
 
   return {
     trainers: await col.countDocuments({ type: "trainer" }),
     activeTrainers: await col.countDocuments({ type: "trainer", active: 1 }),
     students: await col.countDocuments({ type: "student" }),
     admins: await col.countDocuments({ admin: true, active: 1 }),
-    newThisMonth: await col.countDocuments({ createdAt: { $gte: inicioMes } }),
+    newThisMonth: await col.countDocuments({ createdAt: { $gte: monthStart } }),
   };
 };
 

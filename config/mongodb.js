@@ -1,26 +1,26 @@
 const { MongoClient } = require("mongodb");
 
-// Única fonte de conexão do backend. O .env carrega só a MONGODB_URI — o nome
-// do banco sai da própria URI (mongodb://host:porta/<banco>), então trocar de
-// banco é trocar a URI, sem mexer em código.
+// The backend's single connection source. The .env carries only MONGODB_URI —
+// the database name comes from the URI itself (mongodb://host:port/<db>), so
+// switching databases means switching the URI, with no code change.
 const connectionString = process.env.MONGODB_URI;
 
 if (!connectionString) {
-  console.error("[mongo] MONGODB_URI não definida no .env");
+  console.error("[mongo] MONGODB_URI is not set in .env");
   process.exit(1);
 }
 
-// serverSelectionTimeoutMS curto: com o Mongo local fora do ar, o default de
-// 30s deixaria o boot pendurado meio minuto antes de dizer o óbvio.
+// Short serverSelectionTimeoutMS: with a local Mongo down, the 30s default
+// would hang the boot for half a minute before stating the obvious.
 const client = new MongoClient(connectionString, { serverSelectionTimeoutMS: 8000 });
 
 let dbConnection;
 let connecting;
 
 module.exports = {
-  // Devolve sempre a MESMA instância de db. A primeira chamada abre a conexão;
-  // as concorrentes esperam a mesma Promise (por isso o `connecting`), senão N
-  // requisições simultâneas no boot abririam N conexões.
+  // Always returns the SAME db instance. The first call opens the connection;
+  // concurrent ones await the same promise (hence `connecting`), otherwise N
+  // simultaneous requests at boot would open N connections.
   connectToServer: async function () {
     if (dbConnection) return dbConnection;
 
@@ -28,14 +28,14 @@ module.exports = {
       connecting = client
         .connect()
         .then((c) => {
-          // db() sem argumento usa o banco que veio na URI.
+          // db() with no argument uses the database from the URI.
           dbConnection = c.db();
-          console.log("[mongo] conectado em " + dbConnection.databaseName);
+          console.log("[mongo] connected to " + dbConnection.databaseName);
           return dbConnection;
         })
         .catch((err) => {
           connecting = undefined;
-          console.error("[mongo] falha ao conectar:", err.message);
+          console.error("[mongo] connection failed:", err.message);
           throw err;
         });
     }

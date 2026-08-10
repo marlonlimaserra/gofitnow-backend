@@ -1,14 +1,14 @@
 const { ObjectId } = require("mongodb");
 
-// Coleção `user_tokens` — sessões de qualquer usuário (trainer ou student).
-// Cada login gera um token novo; o logout apaga só o token daquela sessão
-// (não derruba os outros dispositivos). O índice TTL em `expiresAt` (ver
-// database/schema.js) limpa os expirados.
+// The `user_tokens` collection — sessions for any user (trainer or student).
+// Each login mints a new token; logout deletes only that session's token, so
+// other devices stay signed in. The TTL index on `expiresAt` (see
+// database/schema.js) sweeps expired ones.
 function Auth_model(app) {
   this.app = app;
 }
 
-const DIAS_VALIDADE = 30;
+const VALIDITY_DAYS = 30;
 
 Auth_model.prototype.collection = async function () {
   const db = await this.app.mongodb.connectToServer();
@@ -20,7 +20,7 @@ Auth_model.prototype.registerToken = async function (userId) {
   const token = this.app.uuidv4();
 
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + DIAS_VALIDADE);
+  expiresAt.setDate(expiresAt.getDate() + VALIDITY_DAYS);
 
   await col.insertOne({
     token: token,
@@ -32,14 +32,14 @@ Auth_model.prototype.registerToken = async function (userId) {
   return token;
 };
 
-Auth_model.prototype.verificar = async function (token) {
+Auth_model.prototype.verify = async function (token) {
   if (!token) return false;
   const col = await this.collection();
   const doc = await col.findOne({ token: String(token) });
   if (!doc) return false;
 
-  // O TTL do Mongo roda a cada ~60s, então um token recém-expirado ainda pode
-  // estar na coleção. Checa a data na mão pra não aceitar sessão vencida.
+  // Mongo's TTL sweep runs about once a minute, so a just-expired token may
+  // still be in the collection. Check the date by hand to never accept it.
   if (doc.expiresAt && doc.expiresAt.getTime() < Date.now()) return false;
 
   return doc;

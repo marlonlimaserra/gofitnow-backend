@@ -1,16 +1,16 @@
 module.exports = function (app) {
-  // Perfil do próprio usuário — vale pros dois types. No student, devolve
-  // junto quem é o trainer dele (a tela mostra isso).
+  // The signed-in user's own profile — works for both types. For a student it
+  // also returns who their trainer is, which the screen shows.
   app.get("/me", async function (req, res) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;
 
-    const resposta = { ...user };
+    const payload = { ...user };
 
     if (user.type === "student" && user.trainer) {
       const trainer = await app.api.user.data(user.trainer);
       if (trainer) {
-        resposta.trainerInfo = {
+        payload.trainerInfo = {
           _id: trainer._id,
           name: trainer.name,
           email: trainer.email,
@@ -18,7 +18,7 @@ module.exports = function (app) {
       }
     }
 
-    res.send(resposta);
+    res.send(payload);
   });
 
   app.put("/me", async function (req, res) {
@@ -37,18 +37,18 @@ module.exports = function (app) {
         res.status(400).send({ msg: "E-mail inválido." });
         return;
       }
-      const existe = await app.api.user.dataByEmail(email);
-      if (existe && String(existe._id) !== String(user._id)) {
+      const exists = await app.api.user.dataByEmail(email);
+      if (exists && String(exists._id) !== String(user._id)) {
         res.status(409).send({ msg: "Esse e-mail já está em uso." });
         return;
       }
     }
 
-    // Só name e email. Senha tem rota própria (/auth/senha); `type`, `admin`
-    // e `active` ninguém muda em si mesmo por aqui.
+    // Name and e-mail only. The password has its own route (/auth/password);
+    // `type`, `admin` and `active` are not something you change on yourself.
     await app.api.user.updateSelf(user._id, { name, email });
 
-    const atualizado = await app.api.user.data(user._id);
-    res.send(app.api.user.filter(atualizado));
+    const updated = await app.api.user.data(user._id);
+    res.send(app.api.user.filter(updated));
   });
 };

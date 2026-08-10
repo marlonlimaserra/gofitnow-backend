@@ -1,32 +1,32 @@
-// Porta de entrada das rotas autenticadas: valida a sessão, carrega o usuário
-// dono dela e deixa tudo em req._user. Se devolver false, a resposta já foi
-// enviada — o controller só precisa dar return.
+// Gateway for authenticated routes: validates the session, loads the user who
+// owns it and leaves everything on req._user. When it returns false the
+// response has already been sent — the controller only needs to return.
 function ReqProtected(app) {
   this.app = app;
 }
 
-// Qualquer usuário logado (trainer ou student).
+// Any signed-in user (trainer or student).
 ReqProtected.prototype.verify = async function (req, res) {
-  const verification = await this.app.helpers.authSession.protege(req, res);
-  if (verification === false) return false;
+  const session = await this.app.helpers.authSession.protect(req, res);
+  if (session === false) return false;
 
-  const user = await this.app.api.user.data(verification.user);
+  const user = await this.app.api.user.data(session.user);
 
-  // Token válido apontando pra usuário removido/desativado: derruba a sessão.
+  // Valid token pointing at a removed/disabled user: drop the session.
   if (!user || user.active === 0) {
-    await this.app.api.auth.deleteToken(verification.token);
+    await this.app.api.auth.deleteToken(session.token);
     res.status(401).send({ msg: "Conta indisponível." });
     return false;
   }
 
   req._user = this.app.api.user.filter(user);
-  req._token = verification.token;
+  req._token = session.token;
 
   return req._user;
 };
 
-// Rotas que só o trainer acessa (gestão de alunos). Um student logado chega
-// aqui com sessão válida — por isso 403, não 401.
+// Routes only a trainer can reach (student management). A signed-in student
+// gets here with a valid session — hence 403, not 401.
 ReqProtected.prototype.verifyTrainer = async function (req, res) {
   const user = await this.verify(req, res);
   if (user === false) return false;
@@ -39,8 +39,8 @@ ReqProtected.prototype.verifyTrainer = async function (req, res) {
   return user;
 };
 
-// Rotas de administração da plataforma (menu Clientes). `admin` é flag do
-// usuário, independente do type.
+// Platform administration routes (the Clients menu). `admin` is a flag on the
+// user, independent of type.
 ReqProtected.prototype.verifyAdmin = async function (req, res) {
   const user = await this.verify(req, res);
   if (user === false) return false;
