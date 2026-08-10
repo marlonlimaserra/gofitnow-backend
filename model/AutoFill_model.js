@@ -51,13 +51,16 @@ AutoFill_model.prototype.insert = async function (professionalId, field, value) 
 
   // Upsert em vez de insert: repetir um valor que já está lá devolve o mesmo
   // registro em vez de sujar a lista com duplicatas.
-  const r = await col.findOneAndUpdate(
+  //
+  // O driver 6 devolve o DOCUMENTO direto. O `.value` da API antiga não existe
+  // mais — e aqui seria uma armadilha: este documento tem um campo chamado
+  // `value`, então um fallback `r.value || r` devolveria a string salva no
+  // lugar do registro.
+  return await col.findOneAndUpdate(
     { professional: new ObjectId(professionalId), field: String(field), value: clean },
     { $setOnInsert: { createdAt: new Date() } },
     { upsert: true, returnDocument: "after" }
   );
-
-  return r.value || r;
 };
 
 AutoFill_model.prototype.delete = async function (professionalId, id) {
