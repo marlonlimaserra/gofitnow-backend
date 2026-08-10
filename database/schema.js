@@ -150,9 +150,36 @@ module.exports = async function ensureSchema(app) {
   await backfillRoles(db, app);
   await dropRetiredPermissions(db);
   await moveNotesToLinks(db);
+  await seedLinkActive(db);
 
   console.log("[schema] collections and indexes ready");
 };
+
+// O status "ativo" também virou coisa do VÍNCULO. Na pessoa ele acumulava dois
+// significados: "esta conta pode entrar", que é decisão do admin, e "está ativo
+// na minha lista", que é de cada profissional.
+//
+// Cada vínculo herda o status que a pessoa tinha, para ninguém ver a lista
+// mudar sozinha. O campo na conta CONTINUA existindo e mandando no login — os
+// dois passam a viver lado a lado, cada um com um dono.
+async function seedLinkActive(db) {
+  const links = db.collection("professional_links");
+  const pending = await links.find({ active: { $exists: false } }).toArray();
+
+  if (pending.length === 0) return;
+
+  const users = db.collection("users");
+
+  for (const link of pending) {
+    const person = await users.findOne({ _id: link.person }, { projection: { active: 1 } });
+    await links.updateOne(
+      { _id: link._id },
+      { $set: { active: person && person.active === 0 ? 0 : 1 } }
+    );
+  }
+
+  console.log("[schema] " + pending.length + " vínculo(s) receberam o status atual da pessoa");
+}
 
 // A observação deixou de ser um campo da PESSOA e passou a ser do VÍNCULO: é a
 // anotação privada de um profissional sobre alguém. No documento da pessoa ela

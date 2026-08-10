@@ -262,16 +262,28 @@ User_model.prototype.listStudents = async function (trainerId, filter) {
     ];
   }
 
-  if (filter && filter.active !== undefined && filter.active !== "") {
-    query.active = Number(filter.active) ? 1 : 0;
-  }
-
   const docs = await col.find(query).sort({ createdAt: -1 }).toArray();
 
-  // A observacao vem do vinculo: cada profissional ve a sua, nunca a de outro.
+  // Observação e status vêm do VÍNCULO: cada profissional vê os seus, nunca os
+  // de outro. O `active` do vínculo sobrescreve o da conta de propósito — na
+  // lista de quem acompanha, "ativo" quer dizer ativo AQUI.
   const notes = await this.app.api.link.notesMap(trainerId);
+  const active = await this.app.api.link.activeMap(trainerId);
 
-  return docs.map((d) => ({ ...this.filter(d), notes: notes.get(String(d._id)) || "" }));
+  const rows = docs.map((d) => ({
+    ...this.filter(d),
+    notes: notes.get(String(d._id)) || "",
+    active: active.get(String(d._id)) ?? 1,
+  }));
+
+  // O filtro é aplicado depois porque o valor está no vínculo, não na consulta
+  // que trouxe as pessoas.
+  if (filter && filter.active !== undefined && filter.active !== "") {
+    const wanted = Number(filter.active) ? 1 : 0;
+    return rows.filter((r) => r.active === wanted);
+  }
+
+  return rows;
 };
 
 User_model.prototype.dataStudent = async function (trainerId, id) {
@@ -339,7 +351,8 @@ User_model.prototype.updateStudent = async function (trainerId, id, obj) {
   if (obj.goal !== undefined) set.goal = String(obj.goal).trim();
   if (obj.weight !== undefined) set.weight = obj.weight === "" ? null : Number(obj.weight);
   if (obj.height !== undefined) set.height = obj.height === "" ? null : Number(obj.height);
-  if (obj.active !== undefined) set.active = Number(obj.active) ? 1 : 0;
+  // `active` NÃO entra aqui: na visão do profissional ele quer dizer "ativo na
+  // minha lista" e mora no vínculo. O da conta é do admin, em Usuários.
 
   if (obj.email !== undefined) {
     const e = normalizeEmail(obj.email);
@@ -462,7 +475,10 @@ User_model.prototype.studentsSummary = async function (trainerId) {
   const base = { _id: { $in: ids } };
 
   const total = ids.length;
-  const active = await col.countDocuments({ ...base, active: 1 });
+  // Ativo aqui é ativo NA LISTA deste profissional, igual ao que a tela mostra
+  // — contar pelo `active` da conta daria um número que não bate com a lista.
+  const activeMap = await this.app.api.link.activeMap(trainerId);
+  const active = ids.filter((id) => (activeMap.get(String(id)) ?? 1) === 1).length;
   const withAccess = await col.countDocuments({ ...base, password: { $ne: null } });
 
   const monthStart = new Date();

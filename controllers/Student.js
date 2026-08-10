@@ -40,6 +40,7 @@ module.exports = function (app) {
     }
 
     const notes = await app.api.link.notesOf(trainer._id, req.params.id);
+    const active = await app.api.link.activeOf(trainer._id, req.params.id);
 
     app.insertUserActionHistory(req, trainer, "view_person", {
       category: "people",
@@ -47,7 +48,7 @@ module.exports = function (app) {
       extra: { name: student.name },
     });
 
-    res.send({ ...app.api.user.filter(student), notes });
+    res.send({ ...app.api.user.filter(student), notes, active });
   });
 
   app.post("/people", async function (req, res) {
@@ -144,8 +145,14 @@ module.exports = function (app) {
 
     await app.api.user.updateStudent(trainer._id, req.params.id, body);
 
+    // Observação e status são do VÍNCULO, não da pessoa: cada profissional tem
+    // os seus. Marcar inativo aqui não bloqueia o login de ninguém — isso é o
+    // `active` da conta, alterado em Usuários.
     if (body.notes !== undefined) {
       await app.api.link.setNotes(trainer._id, req.params.id, body.notes);
+    }
+    if (body.active !== undefined) {
+      await app.api.link.setActive(trainer._id, req.params.id, body.active);
     }
 
     const updated = await app.api.user.data(req.params.id);
@@ -160,6 +167,7 @@ module.exports = function (app) {
     res.send({
       ...app.api.user.filter(updated),
       notes: await app.api.link.notesOf(trainer._id, req.params.id),
+      active: await app.api.link.activeOf(trainer._id, req.params.id),
     });
   });
 

@@ -17,6 +17,13 @@ const { ObjectId } = require("mongodb");
 // read by every other professional who follows them, and by the person
 // themselves, which is the opposite of what a private note is for.
 //
+// `active` is here for the same reason, and to undo a collision: on the person
+// it meant two different things at once — "this account may log in", which is
+// the admin's call, and "this one is active on my list", which is each
+// professional's. Someone can have stopped training with the personal trainer
+// and still be in treatment with the nutritionist; and marking them inactive
+// here never blocks their login, which is decided by `users.active`.
+//
 // The pair (professional, person) is unique — see database/schema.js — so the
 // upsert below can run twice without producing a duplicate.
 function Link_model(app) {
@@ -38,6 +45,7 @@ Link_model.prototype.link = async function (professionalId, personId, source) {
         professional: new ObjectId(professionalId),
         person: new ObjectId(personId),
         source: source || "created",
+        active: 1,
         createdAt: new Date(),
       },
     },
@@ -96,6 +104,45 @@ Link_model.prototype.notesMap = async function (professionalId) {
     .toArray();
 
   return new Map(docs.map((d) => [String(d.person), d.notes]));
+};
+
+// Ativo NA LISTA deste profissional. Não mexe no login da pessoa.
+Link_model.prototype.setActive = async function (professionalId, personId, active) {
+  if (!ObjectId.isValid(personId)) return false;
+  const col = await this.collection();
+
+  const r = await col.updateOne(
+    { professional: new ObjectId(professionalId), person: new ObjectId(personId) },
+    { $set: { active: Number(active) ? 1 : 0 } }
+  );
+
+  return r.matchedCount > 0;
+};
+
+// personId → 1/0 para um profissional, em uma consulta só. Um vínculo antigo
+// sem o campo conta como ativo: quem nunca desativou ninguém não deve ver a
+// lista inteira apagada.
+Link_model.prototype.activeMap = async function (professionalId) {
+  const col = await this.collection();
+
+  const docs = await col
+    .find({ professional: new ObjectId(professionalId) })
+    .project({ person: 1, active: 1 })
+    .toArray();
+
+  return new Map(docs.map((d) => [String(d.person), d.active === 0 ? 0 : 1]));
+};
+
+Link_model.prototype.activeOf = async function (professionalId, personId) {
+  if (!ObjectId.isValid(personId)) return 1;
+  const col = await this.collection();
+
+  const doc = await col.findOne({
+    professional: new ObjectId(professionalId),
+    person: new ObjectId(personId),
+  });
+
+  return doc && doc.active === 0 ? 0 : 1;
 };
 
 Link_model.prototype.exists = async function (professionalId, personId) {
