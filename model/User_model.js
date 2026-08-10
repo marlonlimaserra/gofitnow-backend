@@ -35,6 +35,10 @@ function User_model(app) {
 
 const TYPES = ["trainer", "student"];
 
+// Sexo biologico, que e o que entra em IMC e gasto calorico. Vazio significa
+// nao informado — e como ficam as fichas cadastradas antes deste campo existir.
+const SEXES = ["female", "male"];
+
 User_model.prototype.collection = async function () {
   const db = await this.app.mongodb.connectToServer();
   return db.collection("users");
@@ -314,6 +318,7 @@ User_model.prototype.insertStudent = async function (trainerId, obj) {
     createdBy: new ObjectId(trainerId),
     phone: obj.phone ? String(obj.phone).trim() : "",
     birthDate: obj.birthDate ? String(obj.birthDate) : "",
+    sex: SEXES.includes(String(obj.sex)) ? String(obj.sex) : "",
     goal: obj.goal ? String(obj.goal).trim() : "",
     weight: obj.weight !== undefined && obj.weight !== "" ? Number(obj.weight) : null,
     height: obj.height !== undefined && obj.height !== "" ? Number(obj.height) : null,
@@ -348,6 +353,7 @@ User_model.prototype.updateStudent = async function (trainerId, id, obj) {
   if (obj.name !== undefined) set.name = String(obj.name).trim();
   if (obj.phone !== undefined) set.phone = String(obj.phone).trim();
   if (obj.birthDate !== undefined) set.birthDate = String(obj.birthDate);
+  if (obj.sex !== undefined) set.sex = SEXES.includes(String(obj.sex)) ? String(obj.sex) : "";
   if (obj.goal !== undefined) set.goal = String(obj.goal).trim();
   if (obj.weight !== undefined) set.weight = obj.weight === "" ? null : Number(obj.weight);
   if (obj.height !== undefined) set.height = obj.height === "" ? null : Number(obj.height);
