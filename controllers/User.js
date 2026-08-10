@@ -25,11 +25,28 @@ module.exports = function (app) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;
 
-    const { name, email } = req.body || {};
+    const { name, email, peopleSingular, peoplePlural } = req.body || {};
 
     if (name !== undefined && String(name).trim().length < 2) {
       res.status(400).send({ msg: "Informe seu nome." });
       return;
+    }
+
+    // Free text, but bounded: this word lands in menus, titles and buttons, so
+    // an empty one would leave blanks on screen and a long one would break the
+    // layout everywhere at once.
+    for (const [value, field] of [
+      [peopleSingular, "singular"],
+      [peoplePlural, "plural"],
+    ]) {
+      if (value === undefined) continue;
+      const clean = String(value).trim();
+      if (clean.length < 3 || clean.length > 20) {
+        res.status(400).send({
+          msg: `Use entre 3 e 20 letras para o ${field} (ex.: aluno / alunos).`,
+        });
+        return;
+      }
     }
 
     if (email !== undefined) {
@@ -44,9 +61,10 @@ module.exports = function (app) {
       }
     }
 
-    // Name and e-mail only. The password has its own route (/auth/password);
-    // `type`, `admin` and `active` are not something you change on yourself.
-    await app.api.user.updateSelf(user._id, { name, email });
+    // Name, e-mail and the vocabulary. The password has its own route
+    // (/auth/password); `type`, `role`, `admin` and `active` are not something
+    // you change on yourself — that would make every permission optional.
+    await app.api.user.updateSelf(user._id, { name, email, peopleSingular, peoplePlural });
 
     const updated = await app.api.user.data(user._id);
     res.send(await app.api.user.withRole(updated));

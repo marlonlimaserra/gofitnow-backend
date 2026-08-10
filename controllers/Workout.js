@@ -6,7 +6,7 @@ module.exports = function (app) {
   // returns false otherwise — from the outside there is no way to tell
   // "does not exist" from "belongs to someone else".
   async function studentOfTrainer(req, res, trainer) {
-    const student = await app.api.user.dataStudent(trainer._id, req.params.studentId);
+    const student = await app.api.user.dataStudent(trainer._id, req.params.personId);
     if (!student) {
       res.status(404).send({ msg: "Aluno não encontrado." });
       return false;
@@ -16,7 +16,7 @@ module.exports = function (app) {
 
   // ── The student's workouts ──────────────────────────────────────────────
 
-  app.get("/students/:studentId/workouts", async function (req, res) {
+  app.get("/people/:personId/workouts", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.view");
     if (trainer === false) return;
 
@@ -37,7 +37,7 @@ module.exports = function (app) {
     });
   });
 
-  app.post("/students/:studentId/workouts", async function (req, res) {
+  app.post("/people/:personId/workouts", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
     if (trainer === false) return;
 

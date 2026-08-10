@@ -5,12 +5,12 @@ module.exports = function (app) {
   // comes from the session, and every read goes through the link, so one
   // professional can never reach a person who did not let them in.
   //
-  // The routes are still /students because that is what the whole app calls
-  // them internally (and what workouts and sessions point at). The screens say
-  // "pessoas" — a person here may be a patient, a student or a client
-  // depending on who is looking.
+  // The routes are /people. The MODELS and the database still say student,
+  // because that is what workouts and sessions point at. The screens say the
+  // word each professional chose — aluno, paciente, cliente — for the same
+  // record.
 
-  app.get("/students", async function (req, res) {
+  app.get("/people", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "people.view");
     if (trainer === false) return;
 
@@ -22,14 +22,14 @@ module.exports = function (app) {
     );
   });
 
-  app.get("/students/summary", async function (req, res) {
+  app.get("/people/summary", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "people.view");
     if (trainer === false) return;
 
     res.send(await app.api.user.studentsSummary(trainer._id));
   });
 
-  app.get("/students/:id", async function (req, res) {
+  app.get("/people/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "people.view");
     if (trainer === false) return;
 
@@ -42,7 +42,7 @@ module.exports = function (app) {
     res.send(app.api.user.filter(student));
   });
 
-  app.post("/students", async function (req, res) {
+  app.post("/people", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "people.create");
     if (trainer === false) return;
 
@@ -52,23 +52,19 @@ module.exports = function (app) {
       res.status(400).send({ msg: "Informe o nome da pessoa." });
       return;
     }
-    if (body.email && !app.validator.isEmail(String(body.email).trim())) {
-      res.status(400).send({ msg: "E-mail inválido." });
+    // The e-mail is REQUIRED, always. It is the identity of a person across
+    // professionals: a record without one cannot be found by anyone else, so
+    // the same human would end up registered twice — the exact duplication
+    // this app exists to remove.
+    if (!body.email || !app.validator.isEmail(String(body.email).trim())) {
+      res.status(400).send({ msg: "Informe o e-mail da pessoa." });
       return;
     }
-    if (body.password) {
-      // The password is optional (a profile can exist without access), but if
-      // one is given the e-mail becomes required — that is how they log in.
-      if (!body.email) {
-        res.status(400).send({ msg: "Informe o e-mail para liberar o acesso." });
-        return;
-      }
-      if (String(body.password).length < 6) {
-        res.status(400).send({ msg: "A senha precisa ter no mínimo 6 caracteres." });
-        return;
-      }
+    if (body.password && String(body.password).length < 6) {
+      res.status(400).send({ msg: "A senha precisa ter no mínimo 6 caracteres." });
+      return;
     }
-    if (body.email) {
+    {
       const exists = await app.api.user.dataByEmail(body.email);
       if (exists) {
         // Registering a second copy of someone who is already here is exactly
@@ -90,7 +86,7 @@ module.exports = function (app) {
     res.status(201).send(app.api.user.filter(await app.api.user.data(id)));
   });
 
-  app.put("/students/:id", async function (req, res) {
+  app.put("/people/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "people.edit");
     if (trainer === false) return;
 
@@ -106,20 +102,17 @@ module.exports = function (app) {
       res.status(400).send({ msg: "Informe o nome da pessoa." });
       return;
     }
-    if (body.email && !app.validator.isEmail(String(body.email).trim())) {
-      res.status(400).send({ msg: "E-mail inválido." });
+    // Sending the field at all means it has to be valid: a person cannot be
+    // left without an e-mail, because that is what makes their record findable
+    // by the other professionals who care for them. Not sending it keeps
+    // whatever is stored, so a partial update still works.
+    if (body.email !== undefined && !app.validator.isEmail(String(body.email).trim())) {
+      res.status(400).send({ msg: "Informe o e-mail da pessoa." });
       return;
     }
-    if (body.password) {
-      const finalEmail = body.email !== undefined ? body.email : target.email;
-      if (!finalEmail) {
-        res.status(400).send({ msg: "Informe o e-mail para liberar o acesso." });
-        return;
-      }
-      if (String(body.password).length < 6) {
-        res.status(400).send({ msg: "A senha precisa ter no mínimo 6 caracteres." });
-        return;
-      }
+    if (body.password && String(body.password).length < 6) {
+      res.status(400).send({ msg: "A senha precisa ter no mínimo 6 caracteres." });
+      return;
     }
     if (body.email) {
       const exists = await app.api.user.dataByEmail(body.email);
@@ -134,7 +127,7 @@ module.exports = function (app) {
   });
 
   // Revokes the person's login while keeping the profile.
-  app.delete("/students/:id/access", async function (req, res) {
+  app.delete("/people/:id/access", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "people.access");
     if (trainer === false) return;
 
@@ -164,7 +157,7 @@ module.exports = function (app) {
   // professionals per person, deleting the document would wipe someone else's
   // patient. So the row only really disappears when this professional is the
   // last one and the profile never became an account of its own.
-  app.delete("/students/:id", async function (req, res) {
+  app.delete("/people/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "people.delete");
     if (trainer === false) return;
 

@@ -405,6 +405,16 @@ User_model.prototype.updateSelf = async function (id, obj) {
 
   if (obj.name !== undefined) set.name = String(obj.name).trim();
 
+  // What this professional calls the people they follow: aluno, paciente,
+  // cliente. Stored lowercase — the screens capitalise where they need to, so
+  // "Aluno" typed here does not become "ALunos" in the middle of a sentence.
+  if (obj.peopleSingular !== undefined) {
+    set.peopleSingular = String(obj.peopleSingular).trim().toLowerCase();
+  }
+  if (obj.peoplePlural !== undefined) {
+    set.peoplePlural = String(obj.peoplePlural).trim().toLowerCase();
+  }
+
   if (obj.email !== undefined) {
     const e = normalizeEmail(obj.email);
     if (e) set.email = e;
