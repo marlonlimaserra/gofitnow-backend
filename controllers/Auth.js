@@ -1,9 +1,9 @@
 const { passwordReset } = require("../lib/emailTemplates.js");
 
 module.exports = function (app) {
-  // Self-signup — always creates a plain TRAINER. A student is created by
-  // their trainer (/students) and an admin trainer by an admin (/clients);
-  // neither is born here.
+  // Self-signup — always creates a plain PROFISSIONAL. The role is looked up
+  // here and never read from the body: otherwise anyone could sign up asking
+  // to be an Administrador.
   app.post("/auth/register", async function (req, res) {
     const { name, email, password } = req.body || {};
 
@@ -26,15 +26,22 @@ module.exports = function (app) {
       return;
     }
 
-    const id = await app.api.user.insertTrainer({ name, email, password });
+    const role = await app.api.role.dataByName("Profissional");
+
+    const id = await app.api.user.insertTrainer({
+      name,
+      email,
+      password,
+      role: role ? role._id : null,
+    });
     const token = await app.api.auth.registerToken(id);
     const user = await app.api.user.data(id);
 
-    res.status(201).send({ session: token, user: app.api.user.filter(user) });
+    res.status(201).send({ session: token, user: await app.api.user.withRole(user) });
   });
 
-  // Login — trainer and student come through the same door; the frontend
-  // decides what to show from `type` and `admin`.
+  // Login — professional and person come through the same door; the frontend
+  // decides what to show from `type` and the permission list.
   app.post("/auth", async function (req, res) {
     const { email, password } = req.body || {};
 
@@ -55,7 +62,7 @@ module.exports = function (app) {
 
     const token = await app.api.auth.registerToken(user._id);
 
-    res.send({ session: token, user: app.api.user.filter(user) });
+    res.send({ session: token, user: await app.api.user.withRole(user) });
   });
 
   // Revalidates the session when the frontend boots.
@@ -171,7 +178,7 @@ module.exports = function (app) {
     res.send({
       msg: "Senha alterada.",
       session: session,
-      user: app.api.user.filter(await app.api.user.data(user._id)),
+      user: await app.api.user.withRole(await app.api.user.data(user._id)),
     });
   });
 

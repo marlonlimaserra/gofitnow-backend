@@ -5,7 +5,7 @@ module.exports = function (app) {
 
   // Muscle groups in use, for the filter dropdown.
   app.get("/exercises/groups", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
+    const trainer = await app.helpers.ReqProtected.can(req, res, "exercises.view");
     if (trainer === false) return;
 
     res.send(await app.api.exercise.groups(trainer._id));
@@ -13,7 +13,7 @@ module.exports = function (app) {
 
   // ?search=&group=&page=&limit=
   app.get("/exercises", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
+    const trainer = await app.helpers.ReqProtected.can(req, res, "exercises.view");
     if (trainer === false) return;
 
     res.send(
@@ -27,7 +27,7 @@ module.exports = function (app) {
   });
 
   app.post("/exercises", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
+    const trainer = await app.helpers.ReqProtected.can(req, res, "exercises.manage");
     if (trainer === false) return;
 
     const body = req.body || {};
@@ -41,7 +41,7 @@ module.exports = function (app) {
   });
 
   app.get("/exercises/:id", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
+    const trainer = await app.helpers.ReqProtected.can(req, res, "exercises.view");
     if (trainer === false) return;
 
     const exercise = await app.api.exercise.data(trainer._id, req.params.id);
@@ -54,7 +54,7 @@ module.exports = function (app) {
   });
 
   app.put("/exercises/:id", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
+    const trainer = await app.helpers.ReqProtected.can(req, res, "exercises.manage");
     if (trainer === false) return;
 
     const body = req.body || {};
@@ -76,7 +76,7 @@ module.exports = function (app) {
   // exercise: they keep their own name and sets, so the assembled workout
   // stays intact.
   app.delete("/exercises/:id", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
+    const trainer = await app.helpers.ReqProtected.can(req, res, "exercises.manage");
     if (trainer === false) return;
 
     const ok = await app.api.exercise.delete(trainer._id, req.params.id);

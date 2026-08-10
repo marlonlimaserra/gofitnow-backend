@@ -5,7 +5,10 @@ routes.Index = require("./controllers/Index.js");
 routes.Auth = require("./controllers/Auth.js");
 routes.User = require("./controllers/User.js");
 routes.Client = require("./controllers/Client.js");
+routes.AdminUser = require("./controllers/AdminUser.js");
+routes.Role = require("./controllers/Role.js");
 routes.Student = require("./controllers/Student.js");
+routes.AccessRequest = require("./controllers/AccessRequest.js");
 routes.Workout = require("./controllers/Workout.js");
 routes.Exercise = require("./controllers/Exercise.js");
 

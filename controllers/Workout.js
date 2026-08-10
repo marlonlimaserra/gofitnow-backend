@@ -17,7 +17,7 @@ module.exports = function (app) {
   // ── The student's workouts ──────────────────────────────────────────────
 
   app.get("/students/:studentId/workouts", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
+    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.view");
     if (trainer === false) return;
 
     const student = await studentOfTrainer(req, res, trainer);
@@ -38,7 +38,7 @@ module.exports = function (app) {
   });
 
   app.post("/students/:studentId/workouts", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
+    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
     if (trainer === false) return;
 
     const student = await studentOfTrainer(req, res, trainer);
@@ -65,7 +65,7 @@ module.exports = function (app) {
   // ── A single workout ────────────────────────────────────────────────────
 
   app.get("/workouts/:id", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
+    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.view");
     if (trainer === false) return;
 
     const workout = await app.api.workout.data(trainer._id, req.params.id);
@@ -85,7 +85,7 @@ module.exports = function (app) {
   });
 
   app.put("/workouts/:id", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
+    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
     if (trainer === false) return;
 
     const body = req.body || {};
@@ -109,7 +109,7 @@ module.exports = function (app) {
   });
 
   app.delete("/workouts/:id", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
+    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
     if (trainer === false) return;
 
     const ok = await app.api.workout.delete(trainer._id, req.params.id);
@@ -123,7 +123,7 @@ module.exports = function (app) {
 
   // Copies the workout (with its sessions) to the same or another student.
   app.post("/workouts/:id/duplicate", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
+    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
     if (trainer === false) return;
 
     const targetStudent = (req.body || {}).studentId;
@@ -148,7 +148,7 @@ module.exports = function (app) {
   // ── Sessions ────────────────────────────────────────────────────────────
 
   app.post("/workouts/:id/sessions", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
+    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
     if (trainer === false) return;
 
     const workout = await app.api.workout.data(trainer._id, req.params.id);
@@ -168,7 +168,7 @@ module.exports = function (app) {
   });
 
   app.get("/sessions/:id", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
+    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.view");
     if (trainer === false) return;
 
     const session = await app.api.workout.dataSession(trainer._id, req.params.id);
@@ -182,7 +182,7 @@ module.exports = function (app) {
   });
 
   app.put("/sessions/:id", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
+    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
     if (trainer === false) return;
 
     const body = req.body || {};
@@ -201,7 +201,7 @@ module.exports = function (app) {
   });
 
   app.delete("/sessions/:id", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
+    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
     if (trainer === false) return;
 
     const ok = await app.api.workout.deleteSession(trainer._id, req.params.id);
@@ -215,7 +215,7 @@ module.exports = function (app) {
 
   // Saves the session's whole exercise list at once (order + sets).
   app.put("/sessions/:id/exercises", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.verifyTrainer(req, res);
+    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
     if (trainer === false) return;
 
     const { exercises } = req.body || {};

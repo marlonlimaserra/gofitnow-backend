@@ -49,6 +49,6 @@ module.exports = function (app) {
     await app.api.user.updateSelf(user._id, { name, email });
 
     const updated = await app.api.user.data(user._id);
-    res.send(app.api.user.filter(updated));
+    res.send(await app.api.user.withRole(updated));
   });
 };

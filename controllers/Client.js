@@ -3,21 +3,21 @@ module.exports = function (app) {
   // platform's TRAINERS, who in turn register their own students.
 
   app.get("/clients", async function (req, res) {
-    const admin = await app.helpers.ReqProtected.verifyAdmin(req, res);
+    const admin = await app.helpers.ReqProtected.can(req, res, "clients.view");
     if (admin === false) return;
 
     res.send(await app.api.user.listTrainers({ search: req.query.search, active: req.query.active }));
   });
 
   app.get("/clients/summary", async function (req, res) {
-    const admin = await app.helpers.ReqProtected.verifyAdmin(req, res);
+    const admin = await app.helpers.ReqProtected.can(req, res, "clients.view");
     if (admin === false) return;
 
     res.send(await app.api.user.platformSummary());
   });
 
   app.get("/clients/:id", async function (req, res) {
-    const admin = await app.helpers.ReqProtected.verifyAdmin(req, res);
+    const admin = await app.helpers.ReqProtected.can(req, res, "clients.view");
     if (admin === false) return;
 
     const trainer = await app.api.user.dataTrainer(req.params.id);
@@ -33,7 +33,7 @@ module.exports = function (app) {
   });
 
   app.post("/clients", async function (req, res) {
-    const admin = await app.helpers.ReqProtected.verifyAdmin(req, res);
+    const admin = await app.helpers.ReqProtected.can(req, res, "clients.manage");
     if (admin === false) return;
 
     const { name, email, password, phone, active } = req.body || {};
@@ -57,20 +57,31 @@ module.exports = function (app) {
       return;
     }
 
+    // The type comes from the body but is CHECKED here: an id that is not a
+    // real role would create an account with no permissions at all, and one
+    // that is not sent at all falls back to the plain professional type.
+    let role = req.body.role ? await app.api.role.data(req.body.role) : undefined;
+    if (req.body.role && !role) {
+      res.status(400).send({ msg: "Tipo de usuário inválido." });
+      return;
+    }
+    if (!role) role = await app.api.role.dataByName("Profissional");
+
     const id = await app.api.user.insertTrainer({
       name,
       email,
       password,
       phone,
       active,
+      role: role ? role._id : null,
       admin: req.body.admin === true,
     });
 
-    res.status(201).send(app.api.user.filter(await app.api.user.data(id)));
+    res.status(201).send(await app.api.user.withRole(await app.api.user.data(id)));
   });
 
   app.put("/clients/:id", async function (req, res) {
-    const admin = await app.helpers.ReqProtected.verifyAdmin(req, res);
+    const admin = await app.helpers.ReqProtected.can(req, res, "clients.manage");
     if (admin === false) return;
 
     const target = await app.api.user.dataTrainer(req.params.id);
@@ -101,25 +112,47 @@ module.exports = function (app) {
       }
     }
 
-    // Last-admin guard: without it you could drop your own admin flag (or
-    // deactivate the account) and leave nobody able to open this menu.
-    const losesAdmin =
-      (body.admin === false && target.admin === true) ||
-      (body.active !== undefined && !Number(body.active) && target.admin === true);
-
-    if (losesAdmin && (await app.api.user.countAdmins()) <= 1) {
-      res.status(409).send({
-        msg: "Este é o último administrador ativo — promova outro antes de alterar este.",
-      });
+    if (body.role !== undefined && !(await app.api.role.data(body.role))) {
+      res.status(400).send({ msg: "Tipo de usuário inválido." });
       return;
     }
 
+    // Somebody active must keep the power to hand permissions out. A type
+    // change, dropping the master switch or a deactivation can each take the
+    // last one away, so the check looks at what this account will be able to
+    // do AFTER the change.
+    const wasManager = await app.api.user.hasPermission(target, "roles.manage");
+    const staysAdmin = body.admin !== undefined ? body.admin === true : target.admin === true;
+    const willManage =
+      staysAdmin ||
+      (body.role !== undefined
+        ? await app.api.role.grants(body.role, "roles.manage")
+        : await app.api.role.grants(target.role, "roles.manage"));
+    const staysActive = body.active !== undefined ? !!Number(body.active) : target.active === 1;
+
+    if (wasManager && (!willManage || !staysActive)) {
+      const others = await app.api.role.countActiveUsersWith("roles.manage", target._id);
+      if (others === 0) {
+        res.status(409).send({
+          msg: "Esta é a última conta ativa que gerencia permissões — promova outra antes de alterar esta.",
+        });
+        return;
+      }
+    }
+
     await app.api.user.updateTrainer(req.params.id, body);
-    res.send(app.api.user.filter(await app.api.user.data(req.params.id)));
+
+    // A deactivated professional must not keep browsing with the session they
+    // already had — the guard only runs on the next request.
+    if (body.active !== undefined && !Number(body.active)) {
+      await app.api.auth.deleteAllTokensByUser(req.params.id);
+    }
+
+    res.send(await app.api.user.withRole(await app.api.user.data(req.params.id)));
   });
 
   app.delete("/clients/:id", async function (req, res) {
-    const admin = await app.helpers.ReqProtected.verifyAdmin(req, res);
+    const admin = await app.helpers.ReqProtected.can(req, res, "clients.manage");
     if (admin === false) return;
 
     if (String(req.params.id) === String(admin._id)) {
@@ -133,22 +166,24 @@ module.exports = function (app) {
       return;
     }
 
-    if (target.admin === true && (await app.api.user.countAdmins()) <= 1) {
-      res.status(409).send({ msg: "Este é o último administrador ativo." });
-      return;
+    if (await app.api.user.hasPermission(target, "roles.manage")) {
+      const others = await app.api.role.countActiveUsersWith("roles.manage", target._id);
+      if (others === 0) {
+        res.status(409).send({ msg: "Esta é a última conta ativa que gerencia permissões." });
+        return;
+      }
     }
 
-    // Deleting a trainer who still has students would orphan their profiles
-    // (`trainer` would point at an id that no longer exists). Better to block
-    // it and make the decision explicit: deactivate them or move the students.
-    const students = await app.api.user.countStudentsOfTrainer(target._id);
-    if (students > 0) {
+    // Deleting a professional who still follows people would cut those links
+    // silently. Make the decision explicit: deactivate them or unlink first.
+    const people = await app.api.user.countStudentsOfTrainer(target._id);
+    if (people > 0) {
       res.status(409).send({
         msg:
-          "Este personal tem " +
-          students +
-          (students === 1 ? " aluno vinculado" : " alunos vinculados") +
-          ". Desative a conta ou remova os alunos antes de excluir.",
+          "Este profissional acompanha " +
+          people +
+          (people === 1 ? " pessoa" : " pessoas") +
+          ". Desative a conta ou remova os vínculos antes de excluir.",
       });
       return;
     }

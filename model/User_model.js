@@ -1,19 +1,34 @@
 const { ObjectId } = require("mongodb");
+const permissionCatalog = require("../lib/permissions.js");
 
 // The `users` collection — every person in the system.
 //
-//   type: "trainer"  → creates and sees their own students
-//   type: "student"  → has `trainer` pointing to the owner; only sees themself
+//   type: "trainer"  → a professional: follows people and manages their plans
+//   type: "student"  → a person being followed
 //
-// `admin` is a flag SEPARATE from type: it marks whoever administers the
-// platform (registering trainers). An admin is usually also a trainer, so both
-// live on the same document instead of becoming a third type.
+// A person is NOT owned by one professional. Who follows whom lives in
+// `professional_links` (see Link_model), so the same person can be followed by
+// an endocrinologist, a nutritionist and a personal trainer at once, each
+// seeing the same record. `createdBy` only says who first registered the
+// profile — it grants nothing on its own.
 //
-// Profile fields (weight, height, goal…) only make sense on a student, but
-// they sit on the same document — a separate collection would not pay off.
+// `role` points at a document in `roles` and is what decides everything the
+// user may DO. Several users share a role, and a role can be created on the
+// Tipos de usuário screen — that is what makes a second admin-equivalent type
+// possible without touching code.
 //
-// `password`/`salt` stay null while a student has no access yet: the trainer
-// can register the profile before granting a login.
+// `admin: true` is the one exception: a MASTER SWITCH that grants every
+// permission that exists, re-evaluated on each request. A permission shipped
+// next month is already granted, so an owner can never be locked out of a
+// screen they have not heard of yet. No role can express that — a role stores
+// a fixed list, and a list written today cannot contain tomorrow's keys.
+//
+// Profile fields (weight, height, goal…) only make sense on a person being
+// followed, but they sit on the same document — a separate collection would
+// not pay off.
+//
+// `password`/`salt` stay null while a person has no access yet: a professional
+// can register the profile before there is a login.
 function User_model(app) {
   this.app = app;
 }
@@ -39,12 +54,41 @@ User_model.prototype.hashPassword = function (password, salt) {
 };
 
 // Never let password/salt leave the backend. `hasAccess` tells the screen what
-// it needs to know (whether the student can log in) without exposing the hash.
+// it needs to know (whether the person can log in) without exposing the hash.
 User_model.prototype.filter = function (doc) {
   if (!doc) return doc;
   const { password, salt, ...rest } = doc;
   rest.hasAccess = !!password;
   return rest;
+};
+
+// The same document plus the role it points at, resolved into a name and a
+// flat list of permission keys. This is what the frontend needs to decide
+// which menus exist, and what every route guard reads.
+User_model.prototype.withRole = async function (doc) {
+  if (!doc) return doc;
+
+  const user = this.filter(doc);
+  const role = doc.role ? await this.app.api.role.data(doc.role) : undefined;
+
+  user.roleName = role ? role.name : "";
+  user.admin = doc.admin === true;
+
+  // The master switch is read from the catalog, not from a stored list, so it
+  // covers permissions that did not exist when the account was created.
+  // Without it, no role means NO permissions — never "everything": a user
+  // whose role was deleted must lose access, not inherit it.
+  user.permissions = user.admin ? [...permissionCatalog.ALL] : role ? role.permissions || [] : [];
+
+  return user;
+};
+
+// What a user may do, master switch included. Used by the guards that need to
+// know whether somebody holds a permission WITHOUT loading a full session.
+User_model.prototype.hasPermission = async function (doc, permission) {
+  if (!doc) return false;
+  if (doc.admin === true) return true;
+  return await this.app.api.role.grants(doc.role, permission);
 };
 
 // An empty e-mail is stored as an ABSENT field, not as "". The unique index is
@@ -84,7 +128,10 @@ User_model.prototype.insertTrainer = async function (obj) {
     password: this.hashPassword(obj.password, salt),
     salt: salt,
     type: "trainer",
-    // `admin` never comes from self-signup: only an admin grants admin.
+    // Neither the role nor the master switch comes from self-signup: the
+    // controller resolves them, so a crafted request cannot ask to be created
+    // as an administrator.
+    role: obj.role ? new ObjectId(obj.role) : null,
     admin: obj.admin === true,
     phone: obj.phone ? String(obj.phone).trim() : "",
     active: obj.active === undefined ? 1 : Number(obj.active) ? 1 : 0,
@@ -117,18 +164,24 @@ User_model.prototype.listTrainers = async function (filter) {
 
   const docs = await col.find(query).sort({ createdAt: -1 }).toArray();
 
-  // A single aggregation for every trainer, instead of one countDocuments per
-  // row — that would be N queries for a list of N.
-  const counts = await col
-    .aggregate([{ $match: { type: "student" } }, { $group: { _id: "$trainer", total: { $sum: 1 } } }])
-    .toArray();
-
-  const byTrainer = new Map(counts.map((c) => [String(c._id), c.total]));
+  // One aggregation over the links for the whole platform, instead of one
+  // count per row — that would be N queries for a list of N.
+  const byProfessional = await this.app.api.link.countsByProfessional();
+  const roleNames = await this.roleNameMap();
 
   return docs.map((d) => ({
     ...this.filter(d),
-    totalStudents: byTrainer.get(String(d._id)) || 0,
+    roleName: roleNames.get(String(d.role)) || "",
+    totalStudents: byProfessional.get(String(d._id)) || 0,
   }));
+};
+
+// id → name for every role, in one read. Lists show the type on each row and
+// looking it up per row would be a query per line.
+User_model.prototype.roleNameMap = async function () {
+  const col = await (await this.app.mongodb.connectToServer()).collection("roles");
+  const docs = await col.find({}).project({ name: 1 }).toArray();
+  return new Map(docs.map((d) => [String(d._id), d.name]));
 };
 
 User_model.prototype.dataTrainer = async function (id) {
@@ -148,6 +201,7 @@ User_model.prototype.updateTrainer = async function (id, obj) {
   if (obj.name !== undefined) set.name = String(obj.name).trim();
   if (obj.phone !== undefined) set.phone = String(obj.phone).trim();
   if (obj.active !== undefined) set.active = Number(obj.active) ? 1 : 0;
+  if (obj.role !== undefined && ObjectId.isValid(obj.role)) set.role = new ObjectId(obj.role);
   if (obj.admin !== undefined) set.admin = obj.admin === true || obj.admin === 1;
 
   if (obj.email !== undefined) {
@@ -176,23 +230,27 @@ User_model.prototype.deleteTrainer = async function (id) {
 };
 
 User_model.prototype.countStudentsOfTrainer = async function (trainerId) {
-  const col = await this.collection();
-  return await col.countDocuments({ type: "student", trainer: new ObjectId(trainerId) });
+  return await this.app.api.link.countPeopleOf(trainerId);
 };
 
-// How many ACTIVE admins exist. Used to stop the last admin from demoting or
-// deleting themself and leaving nobody able to open the Clients menu.
-User_model.prototype.countAdmins = async function () {
-  const col = await this.collection();
-  return await col.countDocuments({ admin: true, active: 1 });
+// How many ACTIVE accounts can still hand permissions out. Used to stop the
+// last one from demoting or deleting themself and leaving the platform with
+// no way back into the permission screens.
+User_model.prototype.countAdmins = async function (ignoreUserId) {
+  return await this.app.api.role.countActiveUsersWith("roles.manage", ignoreUserId);
 };
 
-// ── Students (always scoped to a trainer) ────────────────────────────────
+// ── People a professional follows (always scoped through the links) ──────
 
+// The professional never sees a person they are not linked to, and the id list
+// comes from the links — never from the request.
 User_model.prototype.listStudents = async function (trainerId, filter) {
   const col = await this.collection();
 
-  const query = { type: "student", trainer: new ObjectId(trainerId) };
+  const ids = await this.app.api.link.personIdsOf(trainerId);
+  if (ids.length === 0) return [];
+
+  const query = { _id: { $in: ids } };
 
   if (filter && filter.search) {
     // Escape the term — without this a "(" typed by the user breaks the regex.
@@ -214,12 +272,13 @@ User_model.prototype.listStudents = async function (trainerId, filter) {
 
 User_model.prototype.dataStudent = async function (trainerId, id) {
   if (!ObjectId.isValid(id)) return undefined;
+
+  // The link IS the permission check: no link, no access, even if the id is
+  // real and the caller knows it.
+  if (!(await this.app.api.link.exists(trainerId, id))) return undefined;
+
   const col = await this.collection();
-  const doc = await col.findOne({
-    _id: new ObjectId(id),
-    type: "student",
-    trainer: new ObjectId(trainerId),
-  });
+  const doc = await col.findOne({ _id: new ObjectId(id) });
   return doc || undefined;
 };
 
@@ -232,7 +291,11 @@ User_model.prototype.insertStudent = async function (trainerId, obj) {
     password: null,
     salt: null,
     type: "student",
-    trainer: new ObjectId(trainerId),
+    role: obj.role ? new ObjectId(obj.role) : null,
+    // Who first registered the profile. It does NOT grant access — the link
+    // does — but it is what lets that professional still manage the login of
+    // someone who never signed up on their own.
+    createdBy: new ObjectId(trainerId),
     phone: obj.phone ? String(obj.phone).trim() : "",
     birthDate: obj.birthDate ? String(obj.birthDate) : "",
     goal: obj.goal ? String(obj.goal).trim() : "",
@@ -252,11 +315,16 @@ User_model.prototype.insertStudent = async function (trainerId, obj) {
   }
 
   const r = await col.insertOne(doc);
+
+  // Registering someone already puts them on your list.
+  await this.app.api.link.link(trainerId, r.insertedId, "created");
+
   return r.insertedId;
 };
 
 User_model.prototype.updateStudent = async function (trainerId, id, obj) {
   if (!ObjectId.isValid(id)) return false;
+  if (!(await this.app.api.link.exists(trainerId, id))) return false;
   const col = await this.collection();
 
   const set = { updatedAt: new Date() };
@@ -285,31 +353,41 @@ User_model.prototype.updateStudent = async function (trainerId, id, obj) {
   const update = { $set: set };
   if (Object.keys(unset).length) update.$unset = unset;
 
-  const r = await col.updateOne(
-    { _id: new ObjectId(id), type: "student", trainer: new ObjectId(trainerId) },
-    update
-  );
+  const r = await col.updateOne({ _id: new ObjectId(id) }, update);
 
   return r.matchedCount > 0;
 };
 
+// Takes the person off this professional's list. The person keeps existing,
+// along with every other professional who follows them.
+User_model.prototype.unlinkStudent = async function (trainerId, id) {
+  return await this.app.api.link.unlink(trainerId, id);
+};
+
+// Erases the person for good. Only ever called for a profile nobody else
+// follows and that never became a real account — see controllers/Student.js.
 User_model.prototype.deleteStudent = async function (trainerId, id) {
   if (!ObjectId.isValid(id)) return false;
+  if (!(await this.app.api.link.exists(trainerId, id))) return false;
+
   const col = await this.collection();
-  const r = await col.deleteOne({
-    _id: new ObjectId(id),
-    type: "student",
-    trainer: new ObjectId(trainerId),
-  });
+  const r = await col.deleteOne({ _id: new ObjectId(id) });
+
+  await this.app.api.link.deleteAllOf(id);
+
   return r.deletedCount > 0;
 };
 
-// Revokes the student's login without deleting the profile.
+// Revokes the person's login without deleting the profile.
+//
+// Restricted to whoever created the profile: a professional who merely got
+// access by request must not be able to lock the person out of an account the
+// person owns.
 User_model.prototype.revokeStudentAccess = async function (trainerId, id) {
   if (!ObjectId.isValid(id)) return false;
   const col = await this.collection();
   const r = await col.updateOne(
-    { _id: new ObjectId(id), type: "student", trainer: new ObjectId(trainerId) },
+    { _id: new ObjectId(id), createdBy: new ObjectId(trainerId) },
     { $set: { password: null, salt: null, updatedAt: new Date() } }
   );
   return r.matchedCount > 0;
@@ -363,9 +441,15 @@ User_model.prototype.authenticate = async function (email, password) {
 // Numbers for the trainer's dashboard.
 User_model.prototype.studentsSummary = async function (trainerId) {
   const col = await this.collection();
-  const base = { type: "student", trainer: new ObjectId(trainerId) };
 
-  const total = await col.countDocuments(base);
+  const ids = await this.app.api.link.personIdsOf(trainerId);
+  if (ids.length === 0) {
+    return { total: 0, active: 0, inactive: 0, withAccess: 0, newThisMonth: 0 };
+  }
+
+  const base = { _id: { $in: ids } };
+
+  const total = ids.length;
   const active = await col.countDocuments({ ...base, active: 1 });
   const withAccess = await col.countDocuments({ ...base, password: { $ne: null } });
 
@@ -375,6 +459,88 @@ User_model.prototype.studentsSummary = async function (trainerId) {
   const newThisMonth = await col.countDocuments({ ...base, createdAt: { $gte: monthStart } });
 
   return { total, active, inactive: total - active, withAccess, newThisMonth };
+};
+
+// ── Every user, no scoping — admin only ──────────────────────────────────
+
+// Powers the Users screen. Unlike listStudents/listTrainers this one is not
+// filtered by ownership at all, which is exactly why every route that reaches
+// it asks for the users.view permission first.
+User_model.prototype.listAll = async function (filter) {
+  const col = await this.collection();
+  const query = {};
+
+  if (filter && filter.search) {
+    const term = String(filter.search).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    query.$or = [
+      { name: { $regex: term, $options: "i" } },
+      { email: { $regex: term, $options: "i" } },
+      { phone: { $regex: term, $options: "i" } },
+    ];
+  }
+
+  if (filter && filter.type) query.type = String(filter.type);
+  if (filter && filter.active !== undefined && filter.active !== "") {
+    query.active = Number(filter.active) ? 1 : 0;
+  }
+  if (filter && filter.role && ObjectId.isValid(filter.role)) query.role = new ObjectId(filter.role);
+
+  const docs = await col.find(query).sort({ createdAt: -1 }).toArray();
+
+  const byProfessional = await this.app.api.link.countsByProfessional();
+  const roleNames = await this.roleNameMap();
+
+  return docs.map((d) => ({
+    ...this.filter(d),
+    roleName: roleNames.get(String(d.role)) || "",
+    totalStudents: byProfessional.get(String(d._id)) || 0,
+  }));
+};
+
+// Admin edit of ANY user. Separate from updateTrainer/updateStudent because
+// those two pin `type` in the query — here type itself can change.
+User_model.prototype.updateAny = async function (id, obj) {
+  if (!ObjectId.isValid(id)) return false;
+  const col = await this.collection();
+
+  const set = { updatedAt: new Date() };
+  const unset = {};
+
+  if (obj.name !== undefined) set.name = String(obj.name).trim();
+  if (obj.phone !== undefined) set.phone = String(obj.phone).trim();
+  if (obj.active !== undefined) set.active = Number(obj.active) ? 1 : 0;
+  if (obj.role !== undefined && ObjectId.isValid(obj.role)) set.role = new ObjectId(obj.role);
+  if (obj.admin !== undefined) set.admin = obj.admin === true || obj.admin === 1;
+  if (obj.type !== undefined && TYPES.includes(String(obj.type))) set.type = String(obj.type);
+
+  if (obj.email !== undefined) {
+    const e = normalizeEmail(obj.email);
+    if (e) set.email = e;
+    else unset.email = "";
+  }
+
+  if (obj.password) {
+    set.salt = this.generateSalt();
+    set.password = this.hashPassword(obj.password, set.salt);
+  }
+
+  const update = { $set: set };
+  if (Object.keys(unset).length) update.$unset = unset;
+
+  const r = await col.updateOne({ _id: new ObjectId(id) }, update);
+  return r.matchedCount > 0;
+};
+
+User_model.prototype.deleteAny = async function (id) {
+  if (!ObjectId.isValid(id)) return false;
+  const col = await this.collection();
+
+  const r = await col.deleteOne({ _id: new ObjectId(id) });
+  // Links in BOTH directions go with them, otherwise a list would try to load
+  // an id that no longer exists.
+  await this.app.api.link.deleteAllOf(id);
+
+  return r.deletedCount > 0;
 };
 
 // Platform-wide numbers — admin only.
@@ -389,7 +555,7 @@ User_model.prototype.platformSummary = async function () {
     trainers: await col.countDocuments({ type: "trainer" }),
     activeTrainers: await col.countDocuments({ type: "trainer", active: 1 }),
     students: await col.countDocuments({ type: "student" }),
-    admins: await col.countDocuments({ admin: true, active: 1 }),
+    admins: await this.countAdmins(),
     newThisMonth: await col.countDocuments({ createdAt: { $gte: monthStart } }),
   };
 };
