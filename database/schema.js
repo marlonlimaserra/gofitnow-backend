@@ -12,6 +12,7 @@ const COLLECTIONS = [
   "access_requests",
   "roles",
   "user_action_history",
+  "workout_presets",
 ];
 
 module.exports = async function ensureSchema(app) {
@@ -123,6 +124,11 @@ module.exports = async function ensureSchema(app) {
   await db
     .collection("user_action_history")
     .createIndex({ action: 1, createdAt: -1 }, { name: "by_action" });
+
+  // workout_presets — sempre lidos por profissional, em ordem alfabetica.
+  await db
+    .collection("workout_presets")
+    .createIndex({ professional: 1, name: 1 }, { name: "by_professional_name" });
 
   await backfillLinks(db);
 

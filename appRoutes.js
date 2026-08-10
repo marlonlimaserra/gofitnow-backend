@@ -11,5 +11,6 @@ routes.Student = require("./controllers/Student.js");
 routes.AccessRequest = require("./controllers/AccessRequest.js");
 routes.Workout = require("./controllers/Workout.js");
 routes.Exercise = require("./controllers/Exercise.js");
+routes.WorkoutPreset = require("./controllers/WorkoutPreset.js");
 
 module.exports = routes;
