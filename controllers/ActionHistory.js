@@ -1,6 +1,26 @@
+const actions = require("../lib/actions.js");
+
 module.exports = function (app) {
   // Reading the audit trail. Writing it is not a route: it happens inside the
   // action being recorded, so nothing can log something that did not run.
+
+  // What the filter dropdowns need, in one request: the label catalog plus the
+  // values that ACTUALLY appear in this database. Offering an action nobody
+  // ever performed only produces empty screens.
+  //
+  // Registered before /:targetType/:targetId so "filters" is not read as a
+  // target type.
+  app.get("/action-history/filters", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "logs.view");
+    if (user === false) return;
+
+    res.send({
+      actions: actions.ACTIONS,
+      categories: actions.CATEGORIES,
+      targetTypes: actions.TARGET_TYPES,
+      ...(await app.api.actionHistory.filterValues()),
+    });
+  });
 
   app.get("/action-history", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "logs.view");

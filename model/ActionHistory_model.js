@@ -149,6 +149,20 @@ ActionHistory_model.prototype.record = async function (req, user, action, data) 
   }
 };
 
+// "2026-08-10" → local midnight, or 23:59:59.999 of that day. Anything that
+// already carries a time (an ISO timestamp) is used as it is.
+function dayBoundary(value, edge) {
+  const plain = /^\d{4}-\d{2}-\d{2}$/.test(String(value).trim());
+
+  if (!plain) return new Date(value);
+
+  const [year, month, day] = String(value).trim().split("-").map(Number);
+
+  return edge === "end"
+    ? new Date(year, month - 1, day, 23, 59, 59, 999)
+    : new Date(year, month - 1, day, 0, 0, 0, 0);
+}
+
 // Reading the trail. Filters are all optional and combine.
 ActionHistory_model.prototype.list = async function (filter) {
   const col = await this.collection();
@@ -162,8 +176,15 @@ ActionHistory_model.prototype.list = async function (filter) {
 
   if (filter && (filter.from || filter.to)) {
     query.createdAt = {};
-    if (filter.from) query.createdAt.$gte = new Date(filter.from);
-    if (filter.to) query.createdAt.$lte = new Date(filter.to);
+
+    // The screen sends plain dates (YYYY-MM-DD). Read as LOCAL midnight, not
+    // UTC — in Brazil `new Date("2026-08-10")` is 21:00 of the 9th, which
+    // silently shifts a whole day of results.
+    if (filter.from) query.createdAt.$gte = dayBoundary(filter.from, "start");
+    // The end date is INCLUSIVE: asking for "up to the 10th" and getting
+    // nothing from the 10th because it means 00:00 is a bug from the user's
+    // point of view, however defensible in date arithmetic.
+    if (filter.to) query.createdAt.$lte = dayBoundary(filter.to, "end");
   }
 
   if (filter && filter.search) {
@@ -176,8 +197,10 @@ ActionHistory_model.prototype.list = async function (filter) {
   }
 
   // Hard cap: this collection only grows, and a screen asking for everything
-  // would page the whole history into memory.
-  const limit = Math.min(Number(filter && filter.limit) || 100, 500);
+  // would page the whole history into memory. The ceiling is generous enough
+  // for an export of a filtered range, which is the only legitimate reason to
+  // ask for thousands of rows at once.
+  const limit = Math.min(Number(filter && filter.limit) || 100, 5000);
   const skip = Number(filter && filter.skip) || 0;
 
   const [rows, total] = await Promise.all([
@@ -186,6 +209,36 @@ ActionHistory_model.prototype.list = async function (filter) {
   ]);
 
   return { rows, total, limit, skip };
+};
+
+// The values that actually occur in the collection, for the filter dropdowns.
+// A distinct() over an indexed field is cheap and beats offering every action
+// the catalog knows about when most of them never happened here.
+ActionHistory_model.prototype.filterValues = async function () {
+  const col = await this.collection();
+
+  const [usedActions, usedCategories, usedTargetTypes, people] = await Promise.all([
+    col.distinct("action"),
+    col.distinct("category"),
+    col.distinct("target.type"),
+    // Who appears in the log — including accounts already deleted, which is
+    // precisely when an audit trail earns its keep.
+    col
+      .aggregate([
+        { $match: { user: { $ne: null } } },
+        { $group: { _id: "$user", name: { $last: "$userName" }, email: { $last: "$userEmail" } } },
+        { $sort: { name: 1 } },
+        { $limit: 500 },
+      ])
+      .toArray(),
+  ]);
+
+  return {
+    usedActions: usedActions.filter(Boolean).sort(),
+    usedCategories: usedCategories.filter(Boolean).sort(),
+    usedTargetTypes: usedTargetTypes.filter(Boolean).sort(),
+    users: people.map((p) => ({ _id: p._id, name: p.name, email: p.email })),
+  };
 };
 
 module.exports = ActionHistory_model;
