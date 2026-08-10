@@ -2,8 +2,10 @@ module.exports = function (app) {
   // The "Users" menu — admin only. Everything the platform has, in one list,
   // with no ownership filter: professionals, people, admins.
   //
-  // The Clients screen still exists and is narrower on purpose (it registers
-  // professionals). This one is the full view for whoever runs the platform.
+  // This replaced the old Clients screen, which listed the same professionals
+  // with a narrower filter and a different permission. The only thing it could
+  // do that this one could not was CREATE, so creating moved here (POST below)
+  // and the screen was retired instead of kept as a near-duplicate.
 
   app.get("/users", async function (req, res) {
     const admin = await app.helpers.ReqProtected.can(req, res, "users.view");
@@ -41,6 +43,71 @@ module.exports = function (app) {
       totalStudents: await app.api.link.countPeopleOf(user._id),
       totalProfessionals: await app.api.link.countProfessionalsOf(user._id),
     });
+  });
+
+  // Creating an account here always makes a PROFESSIONAL. Someone being
+  // followed is added by a professional through the e-mail flow, which is what
+  // creates the link — one made here would exist with nobody following them,
+  // which is not a state any screen can act on.
+  app.post("/users", async function (req, res) {
+    const admin = await app.helpers.ReqProtected.can(req, res, "users.manage");
+    if (admin === false) return;
+
+    const { name, email, password, phone, active } = req.body || {};
+
+    if (!name || String(name).trim().length < 2) {
+      res.status(400).send({ msg: "Informe o nome." });
+      return;
+    }
+    if (!email || !app.validator.isEmail(String(email).trim())) {
+      res.status(400).send({ msg: "E-mail inválido." });
+      return;
+    }
+    if (!password || String(password).length < 6) {
+      res.status(400).send({ msg: "A senha precisa ter no mínimo 6 caracteres." });
+      return;
+    }
+
+    const exists = await app.api.user.dataByEmail(email);
+    if (exists) {
+      res.status(409).send({ msg: "Já existe um usuário com esse e-mail." });
+      return;
+    }
+
+    // The type comes from the body but is CHECKED here: an id that is not a
+    // real role would create an account with no permissions at all, and one
+    // not sent at all falls back to the plain professional type.
+    let role = req.body.role ? await app.api.role.data(req.body.role) : undefined;
+    if (req.body.role && !role) {
+      res.status(400).send({ msg: "Tipo de usuário inválido." });
+      return;
+    }
+    if (!role) role = await app.api.role.dataByName("Profissional");
+
+    const id = await app.api.user.insertTrainer({
+      name,
+      email,
+      password,
+      phone,
+      active,
+      role: role ? role._id : null,
+      admin: req.body.admin === true,
+    });
+
+    const created = await app.api.user.data(id);
+
+    app.insertUserActionHistory(req, admin, "create_professional", {
+      category: "admin",
+      local: { target_type: "users", target_id: id + "" },
+      extra: {
+        name: created.name,
+        email: created.email,
+        role: role ? role.name : null,
+        admin: created.admin === true,
+      },
+    });
+
+    res.status(201).send(await app.api.user.withRole(created));
   });
 
   app.put("/users/:id", async function (req, res) {

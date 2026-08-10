@@ -128,9 +128,29 @@ module.exports = async function ensureSchema(app) {
 
   await app.api.role.ensureSystemRoles();
   await backfillRoles(db, app);
+  await dropRetiredPermissions(db);
 
   console.log("[schema] collections and indexes ready");
 };
+
+// Tira dos tipos já salvos as permissões que foram aposentadas. Uma chave
+// órfã não concede nada — nenhuma rota pergunta por ela — mas continua sendo
+// exibida e contada na tela, o que faz o admin achar que ainda significa algo.
+async function dropRetiredPermissions(db) {
+  const { RETIRED } = require("../lib/permissions.js");
+  if (!RETIRED.length) return;
+
+  const r = await db
+    .collection("roles")
+    .updateMany(
+      { permissions: { $in: RETIRED } },
+      { $pull: { permissions: { $in: RETIRED } }, $set: { updatedAt: new Date() } }
+    );
+
+  if (r.modifiedCount > 0) {
+    console.log("[schema] " + r.modifiedCount + " tipo(s) limpos de permissões aposentadas");
+  }
+}
 
 // Gives every account a role. Whoever has `admin: true` becomes an
 // Administrador, every other professional a Profissional, and everyone being

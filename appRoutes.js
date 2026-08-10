@@ -4,7 +4,6 @@ const routes = {};
 routes.Index = require("./controllers/Index.js");
 routes.Auth = require("./controllers/Auth.js");
 routes.User = require("./controllers/User.js");
-routes.Client = require("./controllers/Client.js");
 routes.AdminUser = require("./controllers/AdminUser.js");
 routes.Role = require("./controllers/Role.js");
 routes.ActionHistory = require("./controllers/ActionHistory.js");
