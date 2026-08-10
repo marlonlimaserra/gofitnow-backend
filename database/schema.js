@@ -11,6 +11,7 @@ const COLLECTIONS = [
   "professional_links",
   "access_requests",
   "roles",
+  "user_action_history",
 ];
 
 module.exports = async function ensureSchema(app) {
@@ -105,6 +106,23 @@ module.exports = async function ensureSchema(app) {
 
   // users — the role is read on every request that checks a permission.
   await db.collection("users").createIndex({ role: 1 }, { name: "by_role" });
+
+  // user_action_history — write-heavy, read by "who did this" and "what
+  // happened to this record". No TTL: an audit trail that deletes itself is
+  // not one. If it ever needs pruning that is a deliberate decision, not a
+  // background sweep nobody remembers configuring.
+  await db
+    .collection("user_action_history")
+    .createIndex({ createdAt: -1 }, { name: "by_date" });
+  await db
+    .collection("user_action_history")
+    .createIndex({ user: 1, createdAt: -1 }, { name: "by_user_date" });
+  await db
+    .collection("user_action_history")
+    .createIndex({ "target.type": 1, "target.id": 1, createdAt: -1 }, { name: "by_target" });
+  await db
+    .collection("user_action_history")
+    .createIndex({ action: 1, createdAt: -1 }, { name: "by_action" });
 
   await backfillLinks(db);
 

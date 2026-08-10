@@ -53,7 +53,15 @@ module.exports = function (app) {
     }
 
     const id = await app.api.role.insert({ name, description, permissions: list });
-    res.status(201).send(await app.api.role.data(id));
+    const created = await app.api.role.data(id);
+
+    app.insertUserActionHistory(req, user, "create_role", {
+      category: "admin",
+      local: { target_type: "roles", target_id: id + "" },
+      extra: { name: created.name, permissions: created.permissions },
+    });
+
+    res.status(201).send(created);
   });
 
   app.put("/roles/:id", async function (req, res) {
@@ -110,7 +118,18 @@ module.exports = function (app) {
     }
 
     await app.api.role.update(req.params.id, body);
-    res.send(await app.api.role.data(req.params.id));
+    const updated = await app.api.role.data(req.params.id);
+
+    // Mudar permissao e a acao mais sensivel do sistema: quem pode isso pode
+    // se dar qualquer poder. O diff mostra exatamente o que entrou e saiu.
+    app.insertUserActionHistory(req, user, "update_role", {
+      category: "admin",
+      local: { target_type: "roles", target_id: req.params.id + "" },
+      extra: { name: updated.name },
+      diff: app.api.actionHistory.diff(target, updated),
+    });
+
+    res.send(updated);
   });
 
   app.delete("/roles/:id", async function (req, res) {
@@ -142,6 +161,13 @@ module.exports = function (app) {
     }
 
     await app.api.role.delete(req.params.id);
+
+    app.insertUserActionHistory(req, user, "delete_role", {
+      category: "admin",
+      local: { target_type: "roles", target_id: req.params.id + "" },
+      extra: { name: target.name, permissions: target.permissions },
+    });
+
     res.send({ msg: "Tipo removido." });
   });
 };

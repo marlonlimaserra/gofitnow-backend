@@ -37,7 +37,15 @@ module.exports = function (app) {
     }
 
     const id = await app.api.exercise.insert(trainer._id, body);
-    res.status(201).send(await app.api.exercise.data(trainer._id, id));
+    const created = await app.api.exercise.data(trainer._id, id);
+
+    app.insertUserActionHistory(req, trainer, "create_exercise", {
+      category: "exercises",
+      local: { target_type: "exercises", target_id: id + "" },
+      extra: { name: created.name, muscleGroup: created.muscleGroup },
+    });
+
+    res.status(201).send(created);
   });
 
   app.get("/exercises/:id", async function (req, res) {
@@ -69,7 +77,15 @@ module.exports = function (app) {
       return;
     }
 
-    res.send(await app.api.exercise.data(trainer._id, req.params.id));
+    const updated = await app.api.exercise.data(trainer._id, req.params.id);
+
+    app.insertUserActionHistory(req, trainer, "update_exercise", {
+      category: "exercises",
+      local: { target_type: "exercises", target_id: req.params.id + "" },
+      extra: { name: updated.name },
+    });
+
+    res.send(updated);
   });
 
   // Deleting from the catalog does NOT touch sessions already using the
@@ -84,6 +100,11 @@ module.exports = function (app) {
       res.status(404).send({ msg: "Exercício não encontrado." });
       return;
     }
+
+    app.insertUserActionHistory(req, trainer, "delete_exercise", {
+      category: "exercises",
+      local: { target_type: "exercises", target_id: req.params.id + "" },
+    });
 
     res.send({ msg: "Exercício removido." });
   });

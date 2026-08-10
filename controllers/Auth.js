@@ -37,6 +37,12 @@ module.exports = function (app) {
     const token = await app.api.auth.registerToken(id);
     const user = await app.api.user.data(id);
 
+    app.insertUserActionHistory(req, user, "register", {
+      category: "auth",
+      local: { target_type: "users", target_id: id + "" },
+      extra: { name: user.name, email: user.email, self_signup: true },
+    });
+
     res.status(201).send({ session: token, user: await app.api.user.withRole(user) });
   });
 
@@ -56,11 +62,20 @@ module.exports = function (app) {
     // reveal which addresses have an account. Same for a student whose access
     // has not been granted yet.
     if (!user) {
+      // A tentativa que falha e a mais interessante do log: e ela que mostra
+      // ataque de senha. O e-mail vai como digitado, sem confirmar se existe.
+      app.insertUserActionHistory(req, null, "login_failed", {
+        category: "auth",
+        extra: { email: String(email).trim().toLowerCase() },
+      });
+
       res.status(401).send({ msg: "E-mail ou senha inválidos." });
       return;
     }
 
     const token = await app.api.auth.registerToken(user._id);
+
+    app.insertUserActionHistory(req, user, "login", { category: "auth" });
 
     res.send({ session: token, user: await app.api.user.withRole(user) });
   });
@@ -78,6 +93,9 @@ module.exports = function (app) {
     if (user === false) return;
 
     await app.api.auth.deleteToken(req._token);
+
+    app.insertUserActionHistory(req, user, "logout", { category: "auth" });
+
     res.send({ msg: "Sessão encerrada." });
   });
 
@@ -107,6 +125,11 @@ module.exports = function (app) {
 
     const token = await app.api.passwordReset.create(user._id);
     const url = `${app.helpers.mailer.appUrl()}/reset-password?token=${token}`;
+
+    app.insertUserActionHistory(req, user, "forgot_password", {
+      category: "auth",
+      local: { target_type: "users", target_id: user._id + "" },
+    });
 
     const mail = passwordReset({
       name: user.name,
@@ -175,6 +198,12 @@ module.exports = function (app) {
     await app.api.auth.deleteAllTokensByUser(user._id);
     const session = await app.api.auth.registerToken(user._id);
 
+    app.insertUserActionHistory(req, user, "reset_password", {
+      category: "auth",
+      local: { target_type: "users", target_id: user._id + "" },
+      extra: { via: "link_email", sessions_revoked: true },
+    });
+
     res.send({
       msg: "Senha alterada.",
       session: session,
@@ -206,6 +235,12 @@ module.exports = function (app) {
     // otherwise a stolen token would keep working after the change.
     await app.api.auth.deleteAllTokensByUser(user._id);
     const token = await app.api.auth.registerToken(user._id);
+
+    app.insertUserActionHistory(req, user, "change_password", {
+      category: "auth",
+      local: { target_type: "users", target_id: user._id + "" },
+      extra: { sessions_revoked: true },
+    });
 
     res.send({ msg: "Senha alterada.", session: token });
   });

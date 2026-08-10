@@ -59,7 +59,15 @@ module.exports = function (app) {
     if (!body.teacherName) body.teacherName = trainer.name;
 
     const id = await app.api.workout.insert(trainer._id, student._id, body);
-    res.status(201).send(await app.api.workout.data(trainer._id, id));
+    const created = await app.api.workout.data(trainer._id, id);
+
+    app.insertUserActionHistory(req, trainer, "create_workout", {
+      category: "workouts",
+      local: { target_type: "workouts", target_id: id + "" },
+      extra: { name: created.name, person: student.name, personId: student._id + "" },
+    });
+
+    res.status(201).send(created);
   });
 
   // ── A single workout ────────────────────────────────────────────────────
@@ -99,24 +107,43 @@ module.exports = function (app) {
       return;
     }
 
+    const before = await app.api.workout.data(trainer._id, req.params.id);
+
     const ok = await app.api.workout.update(trainer._id, req.params.id, body);
     if (!ok) {
       res.status(404).send({ msg: "Treino não encontrado." });
       return;
     }
 
-    res.send(await app.api.workout.data(trainer._id, req.params.id));
+    const updated = await app.api.workout.data(trainer._id, req.params.id);
+
+    app.insertUserActionHistory(req, trainer, "update_workout", {
+      category: "workouts",
+      local: { target_type: "workouts", target_id: req.params.id + "" },
+      extra: { name: updated.name },
+      diff: app.api.actionHistory.diff(before, updated),
+    });
+
+    res.send(updated);
   });
 
   app.delete("/workouts/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
     if (trainer === false) return;
 
+    const before = await app.api.workout.data(trainer._id, req.params.id);
+
     const ok = await app.api.workout.delete(trainer._id, req.params.id);
     if (!ok) {
       res.status(404).send({ msg: "Treino não encontrado." });
       return;
     }
+
+    app.insertUserActionHistory(req, trainer, "delete_workout", {
+      category: "workouts",
+      local: { target_type: "workouts", target_id: req.params.id + "" },
+      extra: { name: before ? before.name : null },
+    });
 
     res.send({ msg: "Treino removido." });
   });
@@ -142,7 +169,15 @@ module.exports = function (app) {
       return;
     }
 
-    res.status(201).send(await app.api.workout.data(trainer._id, newId));
+    const copy = await app.api.workout.data(trainer._id, newId);
+
+    app.insertUserActionHistory(req, trainer, "duplicate_workout", {
+      category: "workouts",
+      local: { target_type: "workouts", target_id: newId + "" },
+      extra: { name: copy.name, copiedFrom: req.params.id + "", toPerson: targetStudent || null },
+    });
+
+    res.status(201).send(copy);
   });
 
   // ── Sessions ────────────────────────────────────────────────────────────
@@ -164,7 +199,15 @@ module.exports = function (app) {
     }
 
     const id = await app.api.workout.insertSession(trainer._id, workout._id, body);
-    res.status(201).send(await app.api.workout.dataSession(trainer._id, id));
+    const created = await app.api.workout.dataSession(trainer._id, id);
+
+    app.insertUserActionHistory(req, trainer, "create_session", {
+      category: "workouts",
+      local: { target_type: "workout_sessions", target_id: id + "" },
+      extra: { name: created.name, workout: workout.name, workoutId: workout._id + "" },
+    });
+
+    res.status(201).send(created);
   });
 
   app.get("/sessions/:id", async function (req, res) {
@@ -191,24 +234,43 @@ module.exports = function (app) {
       return;
     }
 
+    const before = await app.api.workout.dataSession(trainer._id, req.params.id);
+
     const ok = await app.api.workout.updateSession(trainer._id, req.params.id, body);
     if (!ok) {
       res.status(404).send({ msg: "Sessão não encontrada." });
       return;
     }
 
-    res.send(await app.api.workout.dataSession(trainer._id, req.params.id));
+    const updated = await app.api.workout.dataSession(trainer._id, req.params.id);
+
+    app.insertUserActionHistory(req, trainer, "update_session", {
+      category: "workouts",
+      local: { target_type: "workout_sessions", target_id: req.params.id + "" },
+      extra: { name: updated.name },
+      diff: app.api.actionHistory.diff(before, updated, ["exercises"]),
+    });
+
+    res.send(updated);
   });
 
   app.delete("/sessions/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
     if (trainer === false) return;
 
+    const before = await app.api.workout.dataSession(trainer._id, req.params.id);
+
     const ok = await app.api.workout.deleteSession(trainer._id, req.params.id);
     if (!ok) {
       res.status(404).send({ msg: "Sessão não encontrada." });
       return;
     }
+
+    app.insertUserActionHistory(req, trainer, "delete_session", {
+      category: "workouts",
+      local: { target_type: "workout_sessions", target_id: req.params.id + "" },
+      extra: { name: before ? before.name : null },
+    });
 
     res.send({ msg: "Sessão removida." });
   });
@@ -224,12 +286,29 @@ module.exports = function (app) {
       return;
     }
 
+    const before = await app.api.workout.dataSession(trainer._id, req.params.id);
+
     const ok = await app.api.workout.saveSessionExercises(trainer._id, req.params.id, exercises);
     if (!ok) {
       res.status(404).send({ msg: "Sessão não encontrada." });
       return;
     }
 
-    res.send(await app.api.workout.dataSession(trainer._id, req.params.id));
+    const updated = await app.api.workout.dataSession(trainer._id, req.params.id);
+
+    // A lista inteira e reescrita a cada save, entao um diff campo a campo nao
+    // diria nada. O que importa e quantos exercicios entraram e quais.
+    app.insertUserActionHistory(req, trainer, "update_session_exercises", {
+      category: "workouts",
+      local: { target_type: "workout_sessions", target_id: req.params.id + "" },
+      extra: {
+        session: updated.name,
+        countBefore: before && before.exercises ? before.exercises.length : 0,
+        countAfter: exercises.length,
+        exercises: exercises.map((e) => e.name).filter(Boolean),
+      },
+    });
+
+    res.send(updated);
   });
 };

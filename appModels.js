@@ -9,5 +9,6 @@ models.passwordReset = require("./model/PasswordReset_model.js");
 models.role = require("./model/Role_model.js");
 models.link = require("./model/Link_model.js");
 models.accessRequest = require("./model/AccessRequest_model.js");
+models.actionHistory = require("./model/ActionHistory_model.js");
 
 module.exports = models;

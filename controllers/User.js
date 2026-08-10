@@ -64,9 +64,17 @@ module.exports = function (app) {
     // Name, e-mail and the vocabulary. The password has its own route
     // (/auth/password); `type`, `role`, `admin` and `active` are not something
     // you change on yourself — that would make every permission optional.
+    const before = await app.api.user.data(user._id);
     await app.api.user.updateSelf(user._id, { name, email, peopleSingular, peoplePlural });
 
     const updated = await app.api.user.data(user._id);
+
+    app.insertUserActionHistory(req, user, "update_profile", {
+      category: "auth",
+      local: { target_type: "users", target_id: user._id + "" },
+      diff: app.api.actionHistory.diff(before, updated),
+    });
+
     res.send(await app.api.user.withRole(updated));
   });
 };

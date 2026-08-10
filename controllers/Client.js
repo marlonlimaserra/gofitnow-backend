@@ -77,7 +77,15 @@ module.exports = function (app) {
       admin: req.body.admin === true,
     });
 
-    res.status(201).send(await app.api.user.withRole(await app.api.user.data(id)));
+    const created = await app.api.user.data(id);
+
+    app.insertUserActionHistory(req, admin, "create_professional", {
+      category: "admin",
+      local: { target_type: "users", target_id: id + "" },
+      extra: { name: created.name, email: created.email, role: role ? role.name : null },
+    });
+
+    res.status(201).send(await app.api.user.withRole(created));
   });
 
   app.put("/clients/:id", async function (req, res) {
@@ -148,7 +156,16 @@ module.exports = function (app) {
       await app.api.auth.deleteAllTokensByUser(req.params.id);
     }
 
-    res.send(await app.api.user.withRole(await app.api.user.data(req.params.id)));
+    const updated = await app.api.user.data(req.params.id);
+
+    app.insertUserActionHistory(req, admin, "update_professional", {
+      category: "admin",
+      local: { target_type: "users", target_id: req.params.id + "" },
+      extra: { name: updated.name },
+      diff: app.api.actionHistory.diff(target, updated),
+    });
+
+    res.send(await app.api.user.withRole(updated));
   });
 
   app.delete("/clients/:id", async function (req, res) {
@@ -190,6 +207,12 @@ module.exports = function (app) {
 
     await app.api.user.deleteTrainer(req.params.id);
     await app.api.auth.deleteAllTokensByUser(req.params.id);
+
+    app.insertUserActionHistory(req, admin, "delete_professional", {
+      category: "admin",
+      local: { target_type: "users", target_id: req.params.id + "" },
+      extra: { name: target.name, email: target.email },
+    });
 
     res.send({ msg: "Personal removido." });
   });

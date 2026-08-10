@@ -131,7 +131,16 @@ module.exports = function (app) {
       await app.api.auth.deleteAllTokensByUser(req.params.id);
     }
 
-    res.send(await app.api.user.withRole(await app.api.user.data(req.params.id)));
+    const updated = await app.api.user.data(req.params.id);
+
+    app.insertUserActionHistory(req, admin, "update_user", {
+      category: "admin",
+      local: { target_type: "users", target_id: req.params.id + "" },
+      extra: { name: updated.name, email: updated.email },
+      diff: app.api.actionHistory.diff(target, updated),
+    });
+
+    res.send(await app.api.user.withRole(updated));
   });
 
   app.delete("/users/:id", async function (req, res) {
@@ -173,6 +182,12 @@ module.exports = function (app) {
 
     await app.api.user.deleteAny(req.params.id);
     await app.api.auth.deleteAllTokensByUser(req.params.id);
+
+    app.insertUserActionHistory(req, admin, "delete_user", {
+      category: "admin",
+      local: { target_type: "users", target_id: req.params.id + "" },
+      extra: { name: target.name, email: target.email, type: target.type },
+    });
 
     res.send({ msg: "Usuário removido." });
   });

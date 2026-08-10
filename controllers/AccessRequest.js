@@ -19,6 +19,15 @@ module.exports = function (app) {
 
     const found = await app.api.user.dataByEmail(email);
 
+    // A consulta e uma leitura, mas revela se um endereco tem conta. Registrar
+    // e o que permite perceber alguem varrendo e-mails para descobrir quem
+    // esta na plataforma.
+    app.insertUserActionHistory(req, professional, "lookup_person", {
+      category: "people",
+      local: { target_type: "people", target_id: found ? found._id + "" : null },
+      extra: { email: email.toLowerCase(), found: !!found },
+    });
+
     // Nobody uses this address: the professional registers the person here.
     if (!found) {
       res.send({ status: "free" });
@@ -92,6 +101,12 @@ module.exports = function (app) {
       return;
     }
 
+    app.insertUserActionHistory(req, professional, "request_access", {
+      category: "people",
+      local: { target_type: "people", target_id: person._id + "" },
+      extra: { email: person.email, name: person.name },
+    });
+
     const payload = { msg: "Pedido enviado. A pessoa precisa confirmar pelo e-mail." };
     if (sent.preview) payload.preview = sent.preview;
 
@@ -128,6 +143,11 @@ module.exports = function (app) {
       res.status(404).send({ msg: "Pedido não encontrado." });
       return;
     }
+
+    app.insertUserActionHistory(req, professional, "cancel_access_request", {
+      category: "people",
+      local: { target_type: "access_requests", target_id: req.params.id + "" },
+    });
 
     res.send({ msg: "Pedido cancelado." });
   });
@@ -172,6 +192,19 @@ module.exports = function (app) {
     if (approve) {
       await app.api.link.link(request.professional, request.person, "request");
     }
+
+    const person = await app.api.user.data(request.person);
+    const professional = await app.api.user.data(request.professional);
+
+    app.insertUserActionHistory(req, person, approve ? "approve_access" : "deny_access", {
+      category: "people",
+      local: { target_type: "people", target_id: request.person + "" },
+      extra: {
+        professional: professional ? professional.name : null,
+        professionalEmail: professional ? professional.email : null,
+        via: "link_email",
+      },
+    });
 
     res.send({
       msg: approve ? "Acesso liberado." : "Pedido recusado.",

@@ -7,6 +7,7 @@ routes.User = require("./controllers/User.js");
 routes.Client = require("./controllers/Client.js");
 routes.AdminUser = require("./controllers/AdminUser.js");
 routes.Role = require("./controllers/Role.js");
+routes.ActionHistory = require("./controllers/ActionHistory.js");
 routes.Student = require("./controllers/Student.js");
 routes.AccessRequest = require("./controllers/AccessRequest.js");
 routes.Workout = require("./controllers/Workout.js");

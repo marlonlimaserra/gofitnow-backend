@@ -39,6 +39,12 @@ module.exports = function (app) {
       return;
     }
 
+    app.insertUserActionHistory(req, trainer, "view_person", {
+      category: "people",
+      local: { target_type: "people", target_id: req.params.id + "" },
+      extra: { name: student.name },
+    });
+
     res.send(app.api.user.filter(student));
   });
 
@@ -83,7 +89,15 @@ module.exports = function (app) {
     const role = await app.api.role.dataByName("Pessoa");
 
     const id = await app.api.user.insertStudent(trainer._id, { ...body, role: role?._id });
-    res.status(201).send(app.api.user.filter(await app.api.user.data(id)));
+    const created = await app.api.user.data(id);
+
+    app.insertUserActionHistory(req, trainer, "create_person", {
+      category: "people",
+      local: { target_type: "people", target_id: id + "" },
+      extra: { name: created.name, email: created.email, hasAccess: !!created.password },
+    });
+
+    res.status(201).send(app.api.user.filter(created));
   });
 
   app.put("/people/:id", async function (req, res) {
@@ -123,7 +137,16 @@ module.exports = function (app) {
     }
 
     await app.api.user.updateStudent(trainer._id, req.params.id, body);
-    res.send(app.api.user.filter(await app.api.user.data(req.params.id)));
+    const updated = await app.api.user.data(req.params.id);
+
+    app.insertUserActionHistory(req, trainer, "update_person", {
+      category: "people",
+      local: { target_type: "people", target_id: req.params.id + "" },
+      extra: { name: updated.name },
+      diff: app.api.actionHistory.diff(target, updated),
+    });
+
+    res.send(app.api.user.filter(updated));
   });
 
   // Revokes the person's login while keeping the profile.
@@ -149,6 +172,13 @@ module.exports = function (app) {
     }
 
     await app.api.auth.deleteAllTokensByUser(req.params.id);
+
+    app.insertUserActionHistory(req, trainer, "revoke_person_access", {
+      category: "people",
+      local: { target_type: "people", target_id: req.params.id + "" },
+      extra: { name: target.name },
+    });
+
     res.send({ msg: "Acesso revogado." });
   });
 
@@ -172,12 +202,25 @@ module.exports = function (app) {
 
     if (others > 0 || ownsItself) {
       await app.api.user.unlinkStudent(trainer._id, req.params.id);
+
+      app.insertUserActionHistory(req, trainer, "unlink_person", {
+        category: "people",
+        local: { target_type: "people", target_id: req.params.id + "" },
+        extra: { name: target.name, reason: others > 0 ? "outros_profissionais" : "conta_propria" },
+      });
+
       res.send({ msg: "Pessoa removida da sua lista.", removed: "unlinked" });
       return;
     }
 
     await app.api.user.deleteStudent(trainer._id, req.params.id);
     await app.api.auth.deleteAllTokensByUser(req.params.id);
+
+    app.insertUserActionHistory(req, trainer, "delete_person", {
+      category: "people",
+      local: { target_type: "people", target_id: req.params.id + "" },
+      extra: { name: target.name, email: target.email },
+    });
 
     res.send({ msg: "Pessoa excluída.", removed: "deleted" });
   });

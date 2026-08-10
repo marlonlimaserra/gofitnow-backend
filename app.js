@@ -35,6 +35,18 @@ for (const k in appModels) app.api[k] = new appModels[k](app);
 app.helpers = {};
 for (const k in appHelpers) app.helpers[k] = new appHelpers[k](app);
 
+// Audit trail, on `app` directly so the call sites read the same as in
+// sprinthub-backend:
+//
+//   app.insertUserActionHistory(req, user, "create_person", { local, extra })
+//
+// It never rejects — see ActionHistory_model — so callers do not have to await
+// it or guard it. Left un-awaited on purpose: a log must not add a database
+// round trip to the critical path of a write.
+app.insertUserActionHistory = function (req, user, action, data) {
+  return app.api.actionHistory.record(req, user, action, data);
+};
+
 // ── Middleware ───────────────────────────────────────────────────────────
 app.use(bodyParser.urlencoded({ extended: true, limit: "10mb" }));
 app.use(bodyParser.json({ limit: "10mb" }));
