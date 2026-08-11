@@ -49,6 +49,9 @@ function monta({ sessao, usuario, roleName = "Tipo", permissoes = [], admin = fa
   };
   app.helpers.authSession = new AuthSession(app);
   app.helpers.ReqProtected = new ReqProtected(app);
+  // A porta da chave de API existe mas está fechada nestes casos: aqui o que
+  // se testa é a porta da SESSÃO. A da chave tem suíte própria.
+  app.helpers.apiKeyAuth = { present: () => false };
   return { app, apagados };
 }
 

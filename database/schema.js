@@ -15,6 +15,8 @@ const COLLECTIONS = [
   "workout_templates",
   "auto_fill_values",
   "avatars",
+  "api_keys",
+  "api_calls",
 ];
 
 module.exports = async function ensureSchema(app) {
@@ -230,6 +232,33 @@ async function moveNotesToLinks(db) {
 // órfã não concede nada — nenhuma rota pergunta por ela — mas continua sendo
 // exibida e contada na tela, o que faz o admin achar que ainda significa algo.
 async function dropRetiredPermissions(db) {
+  // api_keys — a busca de cada requisição é POR HASH, então o índice é nele.
+  // Único: dois documentos com o mesmo hash significariam a mesma chave valendo
+  // duas vezes, e revogar uma deixaria a outra viva.
+  await db.collection("api_keys").createIndex({ hash: 1 }, { unique: true, name: "hash_unique" });
+  // A tela lista as chaves de uma conta, as ativas primeiro.
+  await db
+    .collection("api_keys")
+    .createIndex({ user: 1, revokedAt: 1, createdAt: -1 }, { name: "by_user_state" });
+
+  // api_calls — a tela lê sempre por conta e por data decrescente.
+  await db.collection("api_calls").createIndex({ user: 1, createdAt: -1 }, { name: "by_user_date" });
+  // O filtro por chave dentro da conta.
+  await db
+    .collection("api_calls")
+    .createIndex({ user: 1, prefix: 1, createdAt: -1 }, { name: "by_user_key_date" });
+  // TTL: o log de tráfego cresce rápido e não tem valor histórico depois de um
+  // tempo. O de auditoria (user_action_history) é outro e não expira.
+  {
+    const { DIAS_RETENCAO } = require("../model/ApiCall_model.js");
+    await db
+      .collection("api_calls")
+      .createIndex(
+        { createdAt: 1 },
+        { expireAfterSeconds: DIAS_RETENCAO * 24 * 60 * 60, name: "ttl_created" }
+      );
+  }
+
   const { RETIRED } = require("../lib/permissions.js");
   if (!RETIRED.length) return;
 

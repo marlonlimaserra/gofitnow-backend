@@ -13,5 +13,7 @@ models.actionHistory = require("./model/ActionHistory_model.js");
 models.workoutTemplate = require("./model/WorkoutTemplate_model.js");
 models.autoFill = require("./model/AutoFill_model.js");
 models.avatar = require("./model/Avatar_model.js");
+models.apiKey = require("./model/ApiKey_model.js");
+models.apiCall = require("./model/ApiCall_model.js");
 
 module.exports = models;

@@ -14,7 +14,16 @@ function ReqProtected(app) {
 // Any signed-in user. `req._user.permissions` is always an array — empty for
 // someone whose role grants nothing, never undefined, so callers can check it
 // without guarding first.
+//
+// Duas portas de entrada: o cabeçalho `session`, que é o app, e a chave de API.
+// A chave só é tentada quando VEIO uma — assim uma requisição normal sem sessão
+// continua recebendo o 401 de sessão, que é o que manda a tela para o login, em
+// vez de um erro sobre chave que ela nunca usou.
 ReqProtected.prototype.verify = async function (req, res) {
+  if (this.app.helpers.apiKeyAuth.present(req)) {
+    return await this.app.helpers.apiKeyAuth.protect(req, res);
+  }
+
   const session = await this.app.helpers.authSession.protect(req, res);
   if (session === false) return false;
 

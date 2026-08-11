@@ -14,5 +14,6 @@ routes.Exercise = require("./controllers/Exercise.js");
 routes.WorkoutTemplate = require("./controllers/WorkoutTemplate.js");
 routes.AutoFill = require("./controllers/AutoFill.js");
 routes.Avatar = require("./controllers/Avatar.js");
+routes.ApiKey = require("./controllers/ApiKey.js");
 
 module.exports = routes;

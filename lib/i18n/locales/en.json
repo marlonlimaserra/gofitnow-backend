@@ -60,7 +60,14 @@
     "unavailableAccount": "Account unavailable.",
     "noPermission": "Your user type does not have permission for this.",
     "noSession": "No session provided.",
-    "invalidSession": "Invalid or expired session."
+    "invalidSession": "Invalid or expired session.",
+    "noApiKey": "No API key provided.",
+    "invalidApiKey": "Invalid or revoked API key.",
+    "rateLimited": "Limit of {{limit}} calls per minute reached. Try again in {{seconds}}s.",
+    "apiKeyCannotManage": "An API key cannot create or revoke keys. Sign in to the app for that.",
+    "requireApiKeyName": "Give the key a name.",
+    "tooManyApiKeys": "You already have {{max}} active keys. Revoke one before creating another.",
+    "apiKeyNotFound": "Key not found."
   },
   "ok": {
     "passwordChanged": "Password changed.",
@@ -78,7 +85,8 @@
     "accessRevoked": "Access revoked.",
     "requestCancelled": "Request cancelled.",
     "requestSent": "Request sent. The person has to confirm by e-mail.",
-    "resetLinkSent": "If an account exists for that e-mail, the reset link has been sent."
+    "resetLinkSent": "If an account exists for that e-mail, the reset link has been sent.",
+    "apiKeyRevoked": "Key revoked."
   },
   "permissions": {
     "groups": {
@@ -209,7 +217,9 @@
     "delete_user": "Deleted a user",
     "create_role": "Created a user type",
     "update_role": "Changed a type's permissions",
-    "delete_role": "Deleted a user type"
+    "delete_role": "Deleted a user type",
+    "create_api_key": "Created an API key",
+    "revoke_api_key": "Revoked an API key"
   },
   "categories": {
     "auth": "Access",
@@ -226,7 +236,8 @@
     "workout_sessions": "Session",
     "workout_templates": "Autofill option",
     "exercises": "Exercise",
-    "access_requests": "Access request"
+    "access_requests": "Access request",
+    "api_keys": "API key"
   },
   "autoFill": {
     "groups": {
@@ -290,6 +301,41 @@
       "button": "See and answer the request",
       "footer": "Do not know who is asking? Just ignore this e-mail — without your confirmation nobody sees anything.",
       "text": "{{name}}, {{professionalName}} ({{professionalEmail}}) wants to follow you on GoFitNow.\n\nIf you grant it, this person will see your history. You can revoke the access whenever you want.\n\nOpen this address to answer (valid for {{days}} days):\n{{url}}\n\nDo not know who is asking? Ignore this e-mail — without your confirmation nobody sees anything."
+    }
+  },
+  "apiDocs": {
+    "groups": {
+      "people": "People",
+      "workouts": "Workouts",
+      "sessions": "Sessions",
+      "exercises": "Exercises",
+      "account": "Account"
+    },
+    "routes": {
+      "listPeople": "Lists the people you follow.",
+      "peopleSummary": "Your list in numbers: total, active, with access and new this month.",
+      "getPerson": "A person's record.",
+      "createPerson": "Adds a person to your list.",
+      "updatePerson": "Changes the record. The e-mail is not included: only the person changes their own.",
+      "unlinkPerson": "Removes the person from your list. Their account still exists.",
+      "listWorkouts": "A person's workouts, with the count per status.",
+      "getWorkout": "A workout with its sessions.",
+      "createWorkout": "Creates a workout for a person.",
+      "updateWorkout": "Changes a workout.",
+      "deleteWorkout": "Deletes the workout with all of its sessions.",
+      "duplicateWorkout": "Copies the whole workout, sessions and exercises included.",
+      "getSession": "A session with the exercises built into it.",
+      "createSession": "Creates a session inside a workout.",
+      "updateSession": "Changes the session's name or position.",
+      "deleteSession": "Deletes the session with its exercises.",
+      "setSessionExercises": "Replaces the session's whole exercise list, in the order sent.",
+      "listExercises": "Your exercise catalog, paginated.",
+      "exerciseGroups": "The muscle groups in use, with each one's count.",
+      "getExercise": "One exercise from the catalog.",
+      "createExercise": "Creates an exercise in the catalog.",
+      "updateExercise": "Changes an exercise in the catalog.",
+      "deleteExercise": "Deletes an exercise. Workouts already built with it do not change.",
+      "getMe": "The data of the account that owns the key."
     }
   }
 }

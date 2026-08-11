@@ -5,6 +5,7 @@ const bodyParser = require("body-parser");
 const cookieParser = require("cookie-parser");
 
 const { fromAcceptLanguage, translator } = require("./lib/i18n");
+const clientIp = require("./lib/clientIp.js");
 const appRoutes = require("./appRoutes.js");
 const appModels = require("./appModels.js");
 const appHelpers = require("./appHelpers.js");
@@ -57,9 +58,11 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE, PATCH");
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "session,Accept-Language,Origin,Accept,X-Requested-With,Content-Type,Access-Control-Request-Method,Access-Control-Request-Headers"
+    "session,Authorization,X-API-Key,Accept-Language,Origin,Accept,X-Requested-With,Content-Type,Access-Control-Request-Method,Access-Control-Request-Headers"
   );
   res.setHeader("Access-Control-Allow-Credentials", "true");
+  // Sem isto o navegador recebe os cabeçalhos de limite mas não deixa o JS lê-los.
+  res.setHeader("Access-Control-Expose-Headers", "X-RateLimit-Limit,X-RateLimit-Remaining,Retry-After");
   res.setHeader("Access-Control-Allow-Origin", "*");
   if (req.method === "OPTIONS") return res.status(200).send("GET,POST,PUT,DELETE,PATCH");
   next();
@@ -79,6 +82,43 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   req.lang = fromAcceptLanguage(req.headers["accept-language"]);
   req.t = translator(req.lang);
+  next();
+});
+
+// De onde a requisição veio de verdade. Resolvido uma vez por requisição
+// porque o histórico e o log de chamadas por chave precisam do MESMO valor.
+app.use((req, res, next) => {
+  req.clientIp = clientIp(req);
+  next();
+});
+
+// Registro de saída das chamadas feitas com CHAVE de API.
+//
+// No `finish` da resposta, e não dentro de cada rota: aqui o status final já é
+// conhecido, e nenhuma rota precisa lembrar de registrar. Só grava quando a
+// requisição foi mesmo autenticada por chave — o que entrou pelo app já tem o
+// histórico de auditoria, e duplicar viraria ruído.
+//
+// As recusas (401 de chave inválida, 429 de limite) são gravadas no próprio
+// ApiKeyAuth, porque ali ainda se sabe o motivo.
+app.use((req, res, next) => {
+  const inicio = Date.now();
+
+  res.on("finish", () => {
+    if (!req._apiKey) return;
+    app.api.apiCall.record({
+      user: req._apiKey.user,
+      apiKey: req._apiKey._id,
+      prefix: req._apiKey.prefix,
+      method: req.method,
+      path: req.originalUrl || req.url,
+      status: res.statusCode,
+      ip: req.clientIp,
+      userAgent: req.headers["user-agent"],
+      ms: Date.now() - inicio,
+    });
+  });
+
   next();
 });
 

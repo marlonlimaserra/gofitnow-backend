@@ -60,7 +60,14 @@
     "unavailableAccount": "Cuenta no disponible.",
     "noPermission": "Tu tipo de usuario no tiene permiso para esto.",
     "noSession": "Sesión no informada.",
-    "invalidSession": "Sesión inválida o expirada."
+    "invalidSession": "Sesión inválida o expirada.",
+    "noApiKey": "Clave de API no informada.",
+    "invalidApiKey": "Clave de API inválida o revocada.",
+    "rateLimited": "Límite de {{limit}} llamadas por minuto alcanzado. Inténtalo de nuevo en {{seconds}}s.",
+    "apiKeyCannotManage": "Una clave de API no puede crear ni revocar claves. Entra en la app para eso.",
+    "requireApiKeyName": "Ponle un nombre a la clave.",
+    "tooManyApiKeys": "Ya tienes {{max}} claves activas. Revoca una antes de crear otra.",
+    "apiKeyNotFound": "Clave no encontrada."
   },
   "ok": {
     "passwordChanged": "Contraseña cambiada.",
@@ -78,7 +85,8 @@
     "accessRevoked": "Acceso revocado.",
     "requestCancelled": "Solicitud cancelada.",
     "requestSent": "Solicitud enviada. La persona tiene que confirmar por correo.",
-    "resetLinkSent": "Si existe una cuenta con ese correo, el enlace de restablecimiento fue enviado."
+    "resetLinkSent": "Si existe una cuenta con ese correo, el enlace de restablecimiento fue enviado.",
+    "apiKeyRevoked": "Clave revocada."
   },
   "permissions": {
     "groups": {
@@ -209,7 +217,9 @@
     "delete_user": "Eliminó un usuario",
     "create_role": "Creó un tipo de usuario",
     "update_role": "Alteró permisos de un tipo",
-    "delete_role": "Eliminó un tipo de usuario"
+    "delete_role": "Eliminó un tipo de usuario",
+    "create_api_key": "Creó una clave de API",
+    "revoke_api_key": "Revocó una clave de API"
   },
   "categories": {
     "auth": "Acceso",
@@ -226,7 +236,8 @@
     "workout_sessions": "Sesión",
     "workout_templates": "Opción de autocompletar",
     "exercises": "Ejercicio",
-    "access_requests": "Solicitud de acceso"
+    "access_requests": "Solicitud de acceso",
+    "api_keys": "Clave de API"
   },
   "autoFill": {
     "groups": {
@@ -290,6 +301,41 @@
       "button": "Ver y responder la solicitud",
       "footer": "¿No conoces a quien pide? Ignora este correo — sin tu confirmación nadie ve nada.",
       "text": "{{name}}, {{professionalName}} ({{professionalEmail}}) quiere acompañarte en GoFitNow.\n\nSi das acceso, esta persona verá tu historial. Puedes quitar el acceso cuando quieras.\n\nAbre esta dirección para responder (vale por {{days}} días):\n{{url}}\n\n¿No conoces a quien pide? Ignora este correo — sin tu confirmación nadie ve nada."
+    }
+  },
+  "apiDocs": {
+    "groups": {
+      "people": "Personas",
+      "workouts": "Entrenamientos",
+      "sessions": "Sesiones",
+      "exercises": "Ejercicios",
+      "account": "Cuenta"
+    },
+    "routes": {
+      "listPeople": "Lista las personas que acompañas.",
+      "peopleSummary": "Los números de tu lista: total, activos, con acceso y nuevos del mes.",
+      "getPerson": "La ficha de una persona.",
+      "createPerson": "Registra una persona en tu lista.",
+      "updatePerson": "Cambia la ficha. El correo no entra: solo la propia persona cambia el suyo.",
+      "unlinkPerson": "Quita la persona de tu lista. Su cuenta sigue existiendo.",
+      "listWorkouts": "Los entrenamientos de una persona, con el conteo por situación.",
+      "getWorkout": "Un entrenamiento con sus sesiones.",
+      "createWorkout": "Crea un entrenamiento para una persona.",
+      "updateWorkout": "Cambia un entrenamiento.",
+      "deleteWorkout": "Elimina el entrenamiento con todas sus sesiones.",
+      "duplicateWorkout": "Copia el entrenamiento entero, con sesiones y ejercicios.",
+      "getSession": "Una sesión con los ejercicios armados en ella.",
+      "createSession": "Crea una sesión dentro de un entrenamiento.",
+      "updateSession": "Cambia el nombre o la posición de la sesión.",
+      "deleteSession": "Elimina la sesión con sus ejercicios.",
+      "setSessionExercises": "Reemplaza toda la lista de ejercicios de la sesión, en el orden enviado.",
+      "listExercises": "Tu catálogo de ejercicios, paginado.",
+      "exerciseGroups": "Los grupos musculares en uso, con el conteo de cada uno.",
+      "getExercise": "Un ejercicio del catálogo.",
+      "createExercise": "Crea un ejercicio en el catálogo.",
+      "updateExercise": "Cambia un ejercicio del catálogo.",
+      "deleteExercise": "Elimina un ejercicio. Los entrenamientos ya armados con él no cambian.",
+      "getMe": "Los datos de la cuenta dueña de la clave."
     }
   }
 }
