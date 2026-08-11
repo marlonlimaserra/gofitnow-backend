@@ -135,15 +135,33 @@ module.exports = function (app) {
       res.status(400).send({ msg: "A senha precisa ter no mínimo 6 caracteres." });
       return;
     }
-    if (body.email) {
-      const exists = await app.api.user.dataByEmail(body.email);
-      if (exists && String(exists._id) !== String(target._id)) {
-        res.status(409).send({ msg: "Já existe um usuário com esse e-mail." });
+    // O e-mail de uma pessoa que JÁ existe não se troca por aqui.
+    //
+    // Ele é a identidade dela entre profissionais: é por ele que outro
+    // profissional a encontra em vez de cadastrar tudo de novo, e é com ele que
+    // ela entra no app. Deixar um profissional trocá-lo permitiria apontar a
+    // ficha para outra pessoa — ou reivindicar o endereço de quem já tem conta.
+    // Quem troca é a própria pessoa, em Meu perfil (PUT /me).
+    //
+    // Mandar o e-mail ATUAL continua valendo: o formulário envia a ficha inteira,
+    // e recusar um valor igual ao que já está gravado só quebraria o salvar.
+    if (body.email !== undefined) {
+      const enviado = String(body.email).trim().toLowerCase();
+      const atual = String(target.email || "").trim().toLowerCase();
+      if (enviado !== atual) {
+        res.status(403).send({
+          msg: "O e-mail só pode ser alterado pela própria pessoa.",
+          code: "email_not_editable",
+        });
         return;
       }
     }
 
-    await app.api.user.updateStudent(trainer._id, req.params.id, body);
+    // Sai do corpo em vez de só ser recusado acima: o modelo não deve nem ter a
+    // chance de gravar o campo.
+    const { email, ...semEmail } = body;
+
+    await app.api.user.updateStudent(trainer._id, req.params.id, semEmail);
 
     // Observação e status são do VÍNCULO, não da pessoa: cada profissional tem
     // os seus. Marcar inativo aqui não bloqueia o login de ninguém — isso é o
