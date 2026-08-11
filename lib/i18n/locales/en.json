@@ -219,7 +219,8 @@
     "update_role": "Changed a type's permissions",
     "delete_role": "Deleted a user type",
     "create_api_key": "Created an API key",
-    "revoke_api_key": "Revoked an API key"
+    "revoke_api_key": "Revoked an API key",
+    "duplicate_session": "Duplicated a session"
   },
   "categories": {
     "auth": "Access",
@@ -335,7 +336,8 @@
       "createExercise": "Creates an exercise in the catalog.",
       "updateExercise": "Changes an exercise in the catalog.",
       "deleteExercise": "Deletes an exercise. Workouts already built with it do not change.",
-      "getMe": "The data of the account that owns the key."
+      "getMe": "The data of the account that owns the key.",
+      "duplicateSession": "Copies the session with its exercises and sets. Without `workoutId`, the copy stays in the same workout."
     }
   }
 }

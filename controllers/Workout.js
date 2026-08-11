@@ -262,6 +262,48 @@ module.exports = function (app) {
     res.send(updated);
   });
 
+  // Copiar uma sessão, com os exercícios e as séries.
+  //
+  // `workoutId` é opcional: sem ele a cópia fica no mesmo treino. Com ele, o
+  // treino de destino é conferido contra ESTE profissional — é o que permite
+  // copiar para o treino de outra pessoa sem abrir a porta para o treino de
+  // outro profissional.
+  app.post("/sessions/:id/duplicate", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
+    if (trainer === false) return;
+
+    const { workoutId, name } = req.body || {};
+
+    if (name !== undefined && String(name).trim().length < 2) {
+      res.status(400).send({ msg: req.t("errors.requireCopyName") });
+      return;
+    }
+
+    if (workoutId) {
+      const destino = await app.api.workout.data(trainer._id, workoutId);
+      if (!destino) {
+        res.status(404).send({ msg: req.t("errors.workoutNotFound") });
+        return;
+      }
+    }
+
+    const newId = await app.api.workout.duplicateSession(trainer._id, req.params.id, workoutId, name);
+    if (!newId) {
+      res.status(404).send({ msg: req.t("errors.sessionNotFound") });
+      return;
+    }
+
+    const copy = await app.api.workout.dataSession(trainer._id, newId);
+
+    app.insertUserActionHistory(req, trainer, "duplicate_session", {
+      category: "workouts",
+      local: { target_type: "workout_sessions", target_id: newId + "" },
+      extra: { name: copy.name, copiedFrom: req.params.id + "", toWorkout: workoutId || null },
+    });
+
+    res.status(201).send(copy);
+  });
+
   app.delete("/sessions/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
     if (trainer === false) return;

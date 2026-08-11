@@ -237,6 +237,44 @@ Workout_model.prototype.insertSession = async function (trainerId, workoutId, ob
   return r.insertedId;
 };
 
+// Copia uma sessão com os exercícios e as séries dela.
+//
+// O destino é opcional: sem ele a cópia fica no MESMO treino, que é o caso
+// comum ("segunda e quarta são iguais"). Com ele, vai para outro treino — que
+// pode ser de outra pessoa, já que o controller confere que o treino de destino
+// é deste profissional.
+//
+// A cópia entra no FIM da fila do destino, como toda sessão nova: inserir no
+// meio empurraria as outras e mudaria uma ordem que ninguém pediu para mudar.
+Workout_model.prototype.duplicateSession = async function (trainerId, id, workoutId, name) {
+  const source = await this.dataSession(trainerId, id);
+  if (!source) return undefined;
+
+  const col = await this.sessionsCollection();
+  const destino = workoutId ? new ObjectId(workoutId) : source.workout;
+
+  const last = await col.findOne({ workout: destino }, { sort: { order: -1 } });
+  const escolhido = name !== undefined && String(name).trim() ? String(name).trim() : null;
+
+  // Cópia PROFUNDA dos exercícios: `structuredClone` evita que as séries da
+  // cópia e as da original apontem para os mesmos objetos — mexer numa mudaria
+  // a outra, que é o pior tipo de bug para descobrir depois.
+  const exercises = structuredClone(source.exercises || []);
+
+  const r = await col.insertOne({
+    workout: destino,
+    trainer: new ObjectId(trainerId),
+    name: escolhido || source.name + " (cópia)",
+    order: last ? last.order + 1 : 0,
+    calories: source.calories ?? null,
+    exercises,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  return r.insertedId;
+};
+
 Workout_model.prototype.updateSession = async function (trainerId, id, obj) {
   if (!ObjectId.isValid(id)) return false;
   const col = await this.sessionsCollection();

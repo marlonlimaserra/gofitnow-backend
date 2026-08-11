@@ -219,7 +219,8 @@
     "update_role": "A modifié les permissions d’un type",
     "delete_role": "A supprimé un type d’utilisateur",
     "create_api_key": "A créé une clé d’API",
-    "revoke_api_key": "A révoqué une clé d’API"
+    "revoke_api_key": "A révoqué une clé d’API",
+    "duplicate_session": "A dupliqué une séance"
   },
   "categories": {
     "auth": "Accès",
@@ -335,7 +336,8 @@
       "createExercise": "Crée un exercice dans le catalogue.",
       "updateExercise": "Modifie un exercice du catalogue.",
       "deleteExercise": "Supprime un exercice. Les entraînements déjà montés avec lui ne changent pas.",
-      "getMe": "Les données du compte propriétaire de la clé."
+      "getMe": "Les données du compte propriétaire de la clé.",
+      "duplicateSession": "Copie la séance avec ses exercices et ses séries. Sans `workoutId`, la copie reste dans le même entraînement."
     }
   }
 }
