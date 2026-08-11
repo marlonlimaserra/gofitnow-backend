@@ -62,10 +62,30 @@ Workout_model.prototype.list = async function (trainerId, studentId) {
 
   const byWorkout = new Map(counts.map((c) => [String(c._id), c.total]));
 
+  // Os grupos musculares que aparecem em cada treino, para as etiquetas da
+  // listagem. Vai num pipeline próprio porque o $unwind dos exercícios
+  // multiplicaria as linhas e estragaria a contagem de sessões acima — o que
+  // importa é não fazer uma consulta POR TREINO, e isto continua sendo uma só.
+  const groups = await sessions
+    .aggregate([
+      { $match: { workout: { $in: docs.map((d) => d._id) } } },
+      { $unwind: "$exercises" },
+      { $match: { "exercises.muscleGroup": { $nin: [null, ""] } } },
+      { $group: { _id: "$workout", groups: { $addToSet: "$exercises.muscleGroup" } } },
+    ])
+    .toArray();
+
+  // $addToSet não tem ordem; ordenar aqui deixa a etiqueta no mesmo lugar entre
+  // um carregamento e o outro.
+  const groupsByWorkout = new Map(
+    groups.map((g) => [String(g._id), (g.groups || []).sort((a, b) => a.localeCompare(b, "pt-BR"))])
+  );
+
   return docs.map((d) => ({
     ...d,
     status: statusOf(d),
     sessionCount: byWorkout.get(String(d._id)) || 0,
+    muscleGroups: groupsByWorkout.get(String(d._id)) || [],
   }));
 };
 
@@ -138,13 +158,18 @@ Workout_model.prototype.delete = async function (trainerId, id) {
 };
 
 // Copies the whole workout (with its sessions) to the same or another student.
-Workout_model.prototype.duplicate = async function (trainerId, id, studentId) {
+// `name` é opcional: quando a tela pede o nome da cópia, ela chega aqui e o
+// treino novo já nasce com ele — em vez de criar como "(cópia)" e renomear num
+// segundo request, que deixaria o nome errado se a segunda chamada falhasse.
+Workout_model.prototype.duplicate = async function (trainerId, id, studentId, name) {
   const source = await this.data(trainerId, id);
   if (!source) return undefined;
 
+  const escolhido = name !== undefined && String(name).trim() ? String(name).trim() : null;
+
   const newId = await this.insert(trainerId, studentId || source.student, {
     ...source,
-    name: source.name + " (cópia)",
+    name: escolhido || source.name + " (cópia)",
   });
 
   const sessions = await this.sessionsCollection();
@@ -247,6 +272,10 @@ Workout_model.prototype.saveSessionExercises = async function (trainerId, id, ex
     // exercise leaves the catalog, the assembled workout stays readable.
     exerciseId: ObjectId.isValid(e.exerciseId) ? new ObjectId(e.exerciseId) : null,
     name: String(e.name || "").trim(),
+    // O grupo é copiado pela MESMA razão do nome e da miniatura: a tela do treino
+    // mostra as etiquetas de grupo de cada sessão, e um exercício que saia do
+    // catálogo não pode apagar a etiqueta de um treino já montado.
+    muscleGroup: e.muscleGroup ? String(e.muscleGroup).trim() : "",
     thumbUrl: e.thumbUrl || null,
     videoUrl: e.videoUrl || null,
     order: i,

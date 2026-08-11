@@ -154,6 +154,14 @@ module.exports = function (app) {
     if (trainer === false) return;
 
     const targetStudent = (req.body || {}).studentId;
+    const name = (req.body || {}).name;
+
+    // Mesma regra do nome de treino em qualquer outro lugar: se veio, precisa ter
+    // conteúdo. Ausente é válido — aí a cópia herda o "(cópia)".
+    if (name !== undefined && String(name).trim().length < 2) {
+      res.status(400).send({ msg: "Informe o nome da cópia." });
+      return;
+    }
 
     if (targetStudent) {
       const student = await app.api.user.dataStudent(trainer._id, targetStudent);
@@ -163,7 +171,7 @@ module.exports = function (app) {
       }
     }
 
-    const newId = await app.api.workout.duplicate(trainer._id, req.params.id, targetStudent);
+    const newId = await app.api.workout.duplicate(trainer._id, req.params.id, targetStudent, name);
     if (!newId) {
       res.status(404).send({ msg: "Treino não encontrado." });
       return;
