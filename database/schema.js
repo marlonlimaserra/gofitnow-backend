@@ -17,6 +17,7 @@ const COLLECTIONS = [
   "avatars",
   "api_keys",
   "api_calls",
+  "tenants",
 ];
 
 module.exports = async function ensureSchema(app) {
@@ -258,6 +259,18 @@ async function dropRetiredPermissions(db) {
         { expireAfterSeconds: DIAS_RETENCAO * 24 * 60 * 60, name: "ttl_created" }
       );
   }
+
+  // tenants — um profissional, um domínio. Os dois índices são ÚNICOS e os dois
+  // importam: o de `user` impede dois documentos para a mesma conta, e o de
+  // `subdomain` é o que decide quem levou o nome quando duas contas pedem o
+  // mesmo ao mesmo tempo. Checar antes e gravar depois perderia essa corrida.
+  await db.collection("tenants").createIndex({ user: 1 }, { unique: true, name: "user_unique" });
+  await db
+    .collection("tenants")
+    .createIndex(
+      { subdomain: 1 },
+      { unique: true, partialFilterExpression: { subdomain: { $type: "string" } }, name: "subdomain_unique" }
+    );
 
   const { RETIRED } = require("../lib/permissions.js");
   if (!RETIRED.length) return;

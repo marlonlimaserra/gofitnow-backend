@@ -67,7 +67,10 @@
     "apiKeyCannotManage": "Uma chave de API não pode criar nem revogar chaves. Entre no app para isso.",
     "requireApiKeyName": "Dê um nome à chave.",
     "tooManyApiKeys": "Você já tem {{max}} chaves ativas. Revogue uma antes de criar outra.",
-    "apiKeyNotFound": "Chave não encontrada."
+    "apiKeyNotFound": "Chave não encontrada.",
+    "invalidSubdomain": "Use de 2 a 63 letras, números ou hífen — sem acento, espaço ou ponto.",
+    "reservedSubdomain": "Esse nome é reservado pelo sistema. Escolha outro.",
+    "subdomainTaken": "Esse endereço já é de outra conta."
   },
   "ok": {
     "passwordChanged": "Senha alterada.",
@@ -220,7 +223,9 @@
     "delete_role": "Excluiu um tipo de usuário",
     "create_api_key": "Criou uma chave de API",
     "revoke_api_key": "Revogou uma chave de API",
-    "duplicate_session": "Duplicou uma sessão"
+    "duplicate_session": "Duplicou uma sessão",
+    "claim_domain": "Escolheu o próprio domínio",
+    "update_theme": "Mudou a aparência"
   },
   "categories": {
     "auth": "Acesso",
@@ -238,7 +243,8 @@
     "workout_templates": "Opção de auto preencher",
     "exercises": "Exercício",
     "access_requests": "Pedido de acesso",
-    "api_keys": "Chave de API"
+    "api_keys": "Chave de API",
+    "tenants": "Domínio"
   },
   "autoFill": {
     "groups": {

@@ -67,7 +67,10 @@
     "apiKeyCannotManage": "An API key cannot create or revoke keys. Sign in to the app for that.",
     "requireApiKeyName": "Give the key a name.",
     "tooManyApiKeys": "You already have {{max}} active keys. Revoke one before creating another.",
-    "apiKeyNotFound": "Key not found."
+    "apiKeyNotFound": "Key not found.",
+    "invalidSubdomain": "Use 2 to 63 letters, numbers or hyphens — no accents, spaces or dots.",
+    "reservedSubdomain": "That name is reserved by the system. Pick another one.",
+    "subdomainTaken": "That address already belongs to another account."
   },
   "ok": {
     "passwordChanged": "Password changed.",
@@ -220,7 +223,9 @@
     "delete_role": "Deleted a user type",
     "create_api_key": "Created an API key",
     "revoke_api_key": "Revoked an API key",
-    "duplicate_session": "Duplicated a session"
+    "duplicate_session": "Duplicated a session",
+    "claim_domain": "Claimed their own domain",
+    "update_theme": "Changed the appearance"
   },
   "categories": {
     "auth": "Access",
@@ -238,7 +243,8 @@
     "workout_templates": "Autofill option",
     "exercises": "Exercise",
     "access_requests": "Access request",
-    "api_keys": "API key"
+    "api_keys": "API key",
+    "tenants": "Domain"
   },
   "autoFill": {
     "groups": {
