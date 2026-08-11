@@ -15,9 +15,9 @@ module.exports = function (app) {
     if (user === false) return;
 
     res.send({
-      actions: actions.ACTIONS,
-      categories: actions.CATEGORIES,
-      targetTypes: actions.TARGET_TYPES,
+      actions: actions.localizedActions(req.t),
+      categories: actions.localizedCategories(req.t),
+      targetTypes: actions.localizedTargetTypes(req.t),
       ...(await app.api.actionHistory.filterValues()),
     });
   });

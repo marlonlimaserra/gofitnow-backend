@@ -8,7 +8,7 @@ module.exports = function (app) {
   async function studentOfTrainer(req, res, trainer) {
     const student = await app.api.user.dataStudent(trainer._id, req.params.personId);
     if (!student) {
-      res.status(404).send({ msg: "Aluno não encontrado." });
+      res.status(404).send({ msg: req.t("errors.studentNotFound") });
       return false;
     }
     return student;
@@ -47,11 +47,11 @@ module.exports = function (app) {
     const body = req.body || {};
 
     if (!body.name || String(body.name).trim().length < 2) {
-      res.status(400).send({ msg: "Informe o nome do treino." });
+      res.status(400).send({ msg: req.t("errors.requireWorkoutName") });
       return;
     }
     if (body.startDate && body.endDate && body.endDate < body.startDate) {
-      res.status(400).send({ msg: "A data final não pode ser antes da inicial." });
+      res.status(400).send({ msg: req.t("errors.endBeforeStart") });
       return;
     }
 
@@ -78,7 +78,7 @@ module.exports = function (app) {
 
     const workout = await app.api.workout.data(trainer._id, req.params.id);
     if (!workout) {
-      res.status(404).send({ msg: "Treino não encontrado." });
+      res.status(404).send({ msg: req.t("errors.workoutNotFound") });
       return;
     }
 
@@ -99,11 +99,11 @@ module.exports = function (app) {
     const body = req.body || {};
 
     if (body.name !== undefined && String(body.name).trim().length < 2) {
-      res.status(400).send({ msg: "Informe o nome do treino." });
+      res.status(400).send({ msg: req.t("errors.requireWorkoutName") });
       return;
     }
     if (body.startDate && body.endDate && body.endDate < body.startDate) {
-      res.status(400).send({ msg: "A data final não pode ser antes da inicial." });
+      res.status(400).send({ msg: req.t("errors.endBeforeStart") });
       return;
     }
 
@@ -111,7 +111,7 @@ module.exports = function (app) {
 
     const ok = await app.api.workout.update(trainer._id, req.params.id, body);
     if (!ok) {
-      res.status(404).send({ msg: "Treino não encontrado." });
+      res.status(404).send({ msg: req.t("errors.workoutNotFound") });
       return;
     }
 
@@ -135,7 +135,7 @@ module.exports = function (app) {
 
     const ok = await app.api.workout.delete(trainer._id, req.params.id);
     if (!ok) {
-      res.status(404).send({ msg: "Treino não encontrado." });
+      res.status(404).send({ msg: req.t("errors.workoutNotFound") });
       return;
     }
 
@@ -145,7 +145,7 @@ module.exports = function (app) {
       extra: { name: before ? before.name : null },
     });
 
-    res.send({ msg: "Treino removido." });
+    res.send({ msg: req.t("ok.workoutRemoved") });
   });
 
   // Copies the workout (with its sessions) to the same or another student.
@@ -159,21 +159,21 @@ module.exports = function (app) {
     // Mesma regra do nome de treino em qualquer outro lugar: se veio, precisa ter
     // conteúdo. Ausente é válido — aí a cópia herda o "(cópia)".
     if (name !== undefined && String(name).trim().length < 2) {
-      res.status(400).send({ msg: "Informe o nome da cópia." });
+      res.status(400).send({ msg: req.t("errors.requireCopyName") });
       return;
     }
 
     if (targetStudent) {
       const student = await app.api.user.dataStudent(trainer._id, targetStudent);
       if (!student) {
-        res.status(404).send({ msg: "Aluno de destino não encontrado." });
+        res.status(404).send({ msg: req.t("errors.targetStudentNotFound") });
         return;
       }
     }
 
     const newId = await app.api.workout.duplicate(trainer._id, req.params.id, targetStudent, name);
     if (!newId) {
-      res.status(404).send({ msg: "Treino não encontrado." });
+      res.status(404).send({ msg: req.t("errors.workoutNotFound") });
       return;
     }
 
@@ -196,13 +196,13 @@ module.exports = function (app) {
 
     const workout = await app.api.workout.data(trainer._id, req.params.id);
     if (!workout) {
-      res.status(404).send({ msg: "Treino não encontrado." });
+      res.status(404).send({ msg: req.t("errors.workoutNotFound") });
       return;
     }
 
     const body = req.body || {};
     if (!body.name || String(body.name).trim().length < 2) {
-      res.status(400).send({ msg: "Informe o nome da sessão." });
+      res.status(400).send({ msg: req.t("errors.requireSessionName") });
       return;
     }
 
@@ -224,7 +224,7 @@ module.exports = function (app) {
 
     const session = await app.api.workout.dataSession(trainer._id, req.params.id);
     if (!session) {
-      res.status(404).send({ msg: "Sessão não encontrada." });
+      res.status(404).send({ msg: req.t("errors.sessionNotFound") });
       return;
     }
 
@@ -238,7 +238,7 @@ module.exports = function (app) {
 
     const body = req.body || {};
     if (body.name !== undefined && String(body.name).trim().length < 2) {
-      res.status(400).send({ msg: "Informe o nome da sessão." });
+      res.status(400).send({ msg: req.t("errors.requireSessionName") });
       return;
     }
 
@@ -246,7 +246,7 @@ module.exports = function (app) {
 
     const ok = await app.api.workout.updateSession(trainer._id, req.params.id, body);
     if (!ok) {
-      res.status(404).send({ msg: "Sessão não encontrada." });
+      res.status(404).send({ msg: req.t("errors.sessionNotFound") });
       return;
     }
 
@@ -270,7 +270,7 @@ module.exports = function (app) {
 
     const ok = await app.api.workout.deleteSession(trainer._id, req.params.id);
     if (!ok) {
-      res.status(404).send({ msg: "Sessão não encontrada." });
+      res.status(404).send({ msg: req.t("errors.sessionNotFound") });
       return;
     }
 
@@ -280,7 +280,7 @@ module.exports = function (app) {
       extra: { name: before ? before.name : null },
     });
 
-    res.send({ msg: "Sessão removida." });
+    res.send({ msg: req.t("ok.sessionRemoved") });
   });
 
   // Saves the session's whole exercise list at once (order + sets).
@@ -290,7 +290,7 @@ module.exports = function (app) {
 
     const { exercises } = req.body || {};
     if (!Array.isArray(exercises)) {
-      res.status(400).send({ msg: "Envie a lista de exercícios." });
+      res.status(400).send({ msg: req.t("errors.requireExerciseList") });
       return;
     }
 
@@ -298,7 +298,7 @@ module.exports = function (app) {
 
     const ok = await app.api.workout.saveSessionExercises(trainer._id, req.params.id, exercises);
     if (!ok) {
-      res.status(404).send({ msg: "Sessão não encontrada." });
+      res.status(404).send({ msg: req.t("errors.sessionNotFound") });
       return;
     }
 

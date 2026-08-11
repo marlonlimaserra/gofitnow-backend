@@ -23,7 +23,7 @@ ReqProtected.prototype.verify = async function (req, res) {
   // Valid token pointing at a removed/disabled user: drop the session.
   if (!user || user.active === 0) {
     await this.app.api.auth.deleteToken(session.token);
-    res.status(401).send({ msg: "Conta indisponível." });
+    res.status(401).send({ msg: req.t("errors.unavailableAccount") });
     return false;
   }
 
@@ -46,7 +46,7 @@ ReqProtected.prototype.can = async function (req, res, permission) {
 
   if (!this.has(user, permission)) {
     res.status(403).send({
-      msg: "Seu tipo de usuário não tem permissão para isso.",
+      msg: req.t("errors.noPermission"),
       permission: permission,
     });
     return false;
@@ -64,7 +64,7 @@ ReqProtected.prototype.canAll = async function (req, res, permissions) {
   const missing = permissions.filter((p) => !this.has(user, p));
   if (missing.length > 0) {
     res.status(403).send({
-      msg: "Seu tipo de usuário não tem permissão para isso.",
+      msg: req.t("errors.noPermission"),
       permission: missing[0],
     });
     return false;

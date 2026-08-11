@@ -9,14 +9,14 @@ AuthSession.prototype.protect = async function (req, res) {
   const token = req.headers.session;
 
   if (token === undefined || token === "") {
-    res.status(401).send({ msg: "Sessão não informada." });
+    res.status(401).send({ msg: req.t("errors.noSession") });
     return false;
   }
 
   const check = await this.app.api.auth.verify(token);
 
   if (check === false) {
-    res.status(401).send({ msg: "Sessão inválida ou expirada." });
+    res.status(401).send({ msg: req.t("errors.invalidSession") });
     return false;
   }
 

@@ -12,7 +12,7 @@ module.exports = function (app) {
     const user = await app.helpers.ReqProtected.can(req, res, "roles.view");
     if (user === false) return;
 
-    res.send({ groups: permissions.GROUPS });
+    res.send({ groups: permissions.localized(req.t) });
   });
 
   app.get("/roles", async function (req, res) {
@@ -28,7 +28,7 @@ module.exports = function (app) {
 
     const role = await app.api.role.data(req.params.id);
     if (!role) {
-      res.status(404).send({ msg: "Tipo de usuário não encontrado." });
+      res.status(404).send({ msg: req.t("errors.roleNotFound") });
       return;
     }
 
@@ -42,13 +42,13 @@ module.exports = function (app) {
     const { name, description, permissions: list } = req.body || {};
 
     if (!name || String(name).trim().length < 2) {
-      res.status(400).send({ msg: "Informe o nome do tipo." });
+      res.status(400).send({ msg: req.t("errors.requireRoleName") });
       return;
     }
 
     const exists = await app.api.role.dataByName(name);
     if (exists) {
-      res.status(409).send({ msg: "Já existe um tipo com esse nome." });
+      res.status(409).send({ msg: req.t("errors.roleNameTaken") });
       return;
     }
 
@@ -70,7 +70,7 @@ module.exports = function (app) {
 
     const target = await app.api.role.data(req.params.id);
     if (!target) {
-      res.status(404).send({ msg: "Tipo de usuário não encontrado." });
+      res.status(404).send({ msg: req.t("errors.roleNotFound") });
       return;
     }
 
@@ -81,19 +81,19 @@ module.exports = function (app) {
     // no account able to fix it.
     if (target.system === true && target.name === app.api.role.adminName) {
       res.status(409).send({
-        msg: "O tipo Administrador não pode ser alterado. Crie outro tipo para ajustar permissões.",
+        msg: req.t("errors.adminRoleLocked"),
       });
       return;
     }
 
     if (body.name !== undefined) {
       if (String(body.name).trim().length < 2) {
-        res.status(400).send({ msg: "Informe o nome do tipo." });
+        res.status(400).send({ msg: req.t("errors.requireRoleName") });
         return;
       }
       const exists = await app.api.role.dataByName(body.name);
       if (exists && String(exists._id) !== String(target._id)) {
-        res.status(409).send({ msg: "Já existe um tipo com esse nome." });
+        res.status(409).send({ msg: req.t("errors.roleNameTaken") });
         return;
       }
     }
@@ -111,7 +111,7 @@ module.exports = function (app) {
 
       if (iUseIt && others === 0) {
         res.status(409).send({
-          msg: "Este é o único tipo que ainda gerencia permissões, e é o seu. Dê essa permissão a outro tipo antes.",
+          msg: req.t("errors.lastRoleManagingRoles"),
         });
         return;
       }
@@ -138,12 +138,12 @@ module.exports = function (app) {
 
     const target = await app.api.role.data(req.params.id);
     if (!target) {
-      res.status(404).send({ msg: "Tipo de usuário não encontrado." });
+      res.status(404).send({ msg: req.t("errors.roleNotFound") });
       return;
     }
 
     if (target.system === true) {
-      res.status(409).send({ msg: "Os tipos padrão do sistema não podem ser excluídos." });
+      res.status(409).send({ msg: req.t("errors.systemRoleNotDeletable") });
       return;
     }
 
@@ -168,6 +168,6 @@ module.exports = function (app) {
       extra: { name: target.name, permissions: target.permissions },
     });
 
-    res.send({ msg: "Tipo removido." });
+    res.send({ msg: req.t("ok.roleRemoved") });
   });
 };

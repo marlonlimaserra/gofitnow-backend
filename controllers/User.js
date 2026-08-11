@@ -25,10 +25,10 @@ module.exports = function (app) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;
 
-    const { name, email, peopleSingular, peoplePlural } = req.body || {};
+    const { name, email, peopleSingular, peoplePlural, lang } = req.body || {};
 
     if (name !== undefined && String(name).trim().length < 2) {
-      res.status(400).send({ msg: "Informe seu nome." });
+      res.status(400).send({ msg: req.t("errors.requireOwnName") });
       return;
     }
 
@@ -43,7 +43,7 @@ module.exports = function (app) {
       const clean = String(value).trim();
       if (clean.length < 3 || clean.length > 20) {
         res.status(400).send({
-          msg: `Use entre 3 e 20 letras para o ${field} (ex.: aluno / alunos).`,
+          msg: req.t("errors.vocabularyLength", { field }),
         });
         return;
       }
@@ -51,12 +51,12 @@ module.exports = function (app) {
 
     if (email !== undefined) {
       if (!app.validator.isEmail(String(email).trim())) {
-        res.status(400).send({ msg: "E-mail inválido." });
+        res.status(400).send({ msg: req.t("errors.invalidEmail") });
         return;
       }
       const exists = await app.api.user.dataByEmail(email);
       if (exists && String(exists._id) !== String(user._id)) {
-        res.status(409).send({ msg: "Esse e-mail já está em uso." });
+        res.status(409).send({ msg: req.t("errors.emailInUse") });
         return;
       }
     }
@@ -65,7 +65,7 @@ module.exports = function (app) {
     // (/auth/password); `type`, `role`, `admin` and `active` are not something
     // you change on yourself — that would make every permission optional.
     const before = await app.api.user.data(user._id);
-    await app.api.user.updateSelf(user._id, { name, email, peopleSingular, peoplePlural });
+    await app.api.user.updateSelf(user._id, { name, email, peopleSingular, peoplePlural, lang });
 
     const updated = await app.api.user.data(user._id);
 

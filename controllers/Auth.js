@@ -8,21 +8,21 @@ module.exports = function (app) {
     const { name, email, password } = req.body || {};
 
     if (!name || String(name).trim().length < 2) {
-      res.status(400).send({ msg: "Informe seu nome." });
+      res.status(400).send({ msg: req.t("errors.requireOwnName") });
       return;
     }
     if (!email || !app.validator.isEmail(String(email).trim())) {
-      res.status(400).send({ msg: "E-mail inválido." });
+      res.status(400).send({ msg: req.t("errors.invalidEmail") });
       return;
     }
     if (!password || String(password).length < 6) {
-      res.status(400).send({ msg: "A senha precisa ter no mínimo 6 caracteres." });
+      res.status(400).send({ msg: req.t("errors.passwordTooShort") });
       return;
     }
 
     const exists = await app.api.user.dataByEmail(email);
     if (exists) {
-      res.status(409).send({ msg: "Já existe uma conta com esse e-mail." });
+      res.status(409).send({ msg: req.t("errors.accountWithEmailExists") });
       return;
     }
 
@@ -52,7 +52,7 @@ module.exports = function (app) {
     const { email, password } = req.body || {};
 
     if (!email || !password) {
-      res.status(400).send({ msg: "Informe e-mail e senha." });
+      res.status(400).send({ msg: req.t("errors.requireEmailAndPassword") });
       return;
     }
 
@@ -69,7 +69,7 @@ module.exports = function (app) {
         extra: { email: String(email).trim().toLowerCase() },
       });
 
-      res.status(401).send({ msg: "E-mail ou senha inválidos." });
+      res.status(401).send({ msg: req.t("errors.badCredentials") });
       return;
     }
 
@@ -96,7 +96,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, user, "logout", { category: "auth" });
 
-    res.send({ msg: "Sessão encerrada." });
+    res.send({ msg: req.t("ok.signedOut") });
   });
 
   // ── Forgot password ─────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ module.exports = function (app) {
     const { email } = req.body || {};
 
     const generic = {
-      msg: "Se existir uma conta com esse e-mail, o link de redefinição foi enviado.",
+      msg: req.t("ok.resetLinkSent"),
     };
 
     if (!email || !app.validator.isEmail(String(email).trim())) {
@@ -132,6 +132,10 @@ module.exports = function (app) {
     });
 
     const mail = passwordReset({
+      // Idioma de QUEM RECEBE: quem lê o e-mail é o dono da conta, não quem
+      // disparou o pedido — que, aqui, é a mesma pessoa, mas nos outros dois
+      // e-mails não é.
+      lang: user.lang,
       name: user.name,
       url: url,
       minutes: app.api.passwordReset.validityMinutes,
@@ -157,13 +161,13 @@ module.exports = function (app) {
   app.get("/auth/reset-password/:token", async function (req, res) {
     const reset = await app.api.passwordReset.verify(req.params.token);
     if (!reset) {
-      res.status(400).send({ msg: "Link inválido ou expirado." });
+      res.status(400).send({ msg: req.t("errors.invalidOrExpiredLink") });
       return;
     }
 
     const user = await app.api.user.data(reset.user);
     if (!user) {
-      res.status(400).send({ msg: "Link inválido ou expirado." });
+      res.status(400).send({ msg: req.t("errors.invalidOrExpiredLink") });
       return;
     }
 
@@ -174,19 +178,19 @@ module.exports = function (app) {
     const { token, password } = req.body || {};
 
     if (!password || String(password).length < 6) {
-      res.status(400).send({ msg: "A senha precisa ter no mínimo 6 caracteres." });
+      res.status(400).send({ msg: req.t("errors.passwordTooShort") });
       return;
     }
 
     const reset = await app.api.passwordReset.verify(token);
     if (!reset) {
-      res.status(400).send({ msg: "Link inválido ou expirado." });
+      res.status(400).send({ msg: req.t("errors.invalidOrExpiredLink") });
       return;
     }
 
     const user = await app.api.user.data(reset.user);
     if (!user) {
-      res.status(400).send({ msg: "Link inválido ou expirado." });
+      res.status(400).send({ msg: req.t("errors.invalidOrExpiredLink") });
       return;
     }
 
@@ -205,7 +209,7 @@ module.exports = function (app) {
     });
 
     res.send({
-      msg: "Senha alterada.",
+      msg: req.t("ok.passwordChanged"),
       session: session,
       user: await app.api.user.withRole(await app.api.user.data(user._id)),
     });
@@ -219,13 +223,13 @@ module.exports = function (app) {
     const { currentPassword, newPassword } = req.body || {};
 
     if (!newPassword || String(newPassword).length < 6) {
-      res.status(400).send({ msg: "A nova senha precisa ter no mínimo 6 caracteres." });
+      res.status(400).send({ msg: req.t("errors.newPasswordTooShort") });
       return;
     }
 
     const check = await app.api.user.authenticate(user.email, currentPassword);
     if (!check) {
-      res.status(401).send({ msg: "Senha atual incorreta." });
+      res.status(401).send({ msg: req.t("errors.wrongCurrentPassword") });
       return;
     }
 
@@ -242,6 +246,6 @@ module.exports = function (app) {
       extra: { sessions_revoked: true },
     });
 
-    res.send({ msg: "Senha alterada.", session: token });
+    res.send({ msg: req.t("ok.passwordChanged"), session: token });
   });
 };

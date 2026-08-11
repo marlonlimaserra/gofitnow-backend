@@ -13,7 +13,7 @@ module.exports = function (app) {
     const email = String((req.body || {}).email || "").trim();
 
     if (!app.validator.isEmail(email)) {
-      res.status(400).send({ msg: "E-mail inválido." });
+      res.status(400).send({ msg: req.t("errors.invalidEmail") });
       return;
     }
 
@@ -63,21 +63,21 @@ module.exports = function (app) {
     const email = String((req.body || {}).email || "").trim();
 
     if (!app.validator.isEmail(email)) {
-      res.status(400).send({ msg: "E-mail inválido." });
+      res.status(400).send({ msg: req.t("errors.invalidEmail") });
       return;
     }
 
     const person = await app.api.user.dataByEmail(email);
     if (!person) {
-      res.status(404).send({ msg: "Não existe conta com esse e-mail." });
+      res.status(404).send({ msg: req.t("errors.noAccountWithEmail") });
       return;
     }
     if (String(person._id) === String(professional._id)) {
-      res.status(400).send({ msg: "Esse e-mail é o seu." });
+      res.status(400).send({ msg: req.t("errors.emailIsYours") });
       return;
     }
     if (await app.api.link.exists(professional._id, person._id)) {
-      res.status(409).send({ msg: "Essa pessoa já está na sua lista." });
+      res.status(409).send({ msg: req.t("errors.alreadyInYourList") });
       return;
     }
 
@@ -85,6 +85,9 @@ module.exports = function (app) {
     const url = `${app.helpers.mailer.appUrl()}/access-request?token=${token}`;
 
     const body = templates.accessRequest({
+      // O e-mail sai no idioma da PESSOA que vai decidir, não no do profissional
+      // que pediu. É ela quem lê e quem dá o consentimento.
+      lang: person.lang,
       name: person.name,
       professionalName: professional.name,
       professionalEmail: professional.email,
@@ -97,7 +100,7 @@ module.exports = function (app) {
       sent = await app.helpers.mailer.send({ to: person.email, ...body });
     } catch (error) {
       console.error("[access-request] mail failed:", error.message);
-      res.status(502).send({ msg: "Não foi possível enviar o e-mail agora. Tente de novo." });
+      res.status(502).send({ msg: req.t("errors.emailSendFailed") });
       return;
     }
 
@@ -107,7 +110,7 @@ module.exports = function (app) {
       extra: { email: person.email, name: person.name },
     });
 
-    const payload = { msg: "Pedido enviado. A pessoa precisa confirmar pelo e-mail." };
+    const payload = { msg: req.t("ok.requestSent") };
     if (sent.preview) payload.preview = sent.preview;
 
     res.status(201).send(payload);
@@ -140,7 +143,7 @@ module.exports = function (app) {
 
     const ok = await app.api.accessRequest.cancel(professional._id, req.params.id);
     if (!ok) {
-      res.status(404).send({ msg: "Pedido não encontrado." });
+      res.status(404).send({ msg: req.t("errors.requestNotFound") });
       return;
     }
 
@@ -149,7 +152,7 @@ module.exports = function (app) {
       local: { target_type: "access_requests", target_id: req.params.id + "" },
     });
 
-    res.send({ msg: "Pedido cancelado." });
+    res.send({ msg: req.t("ok.requestCancelled") });
   });
 
   // ── The person's side. Public: the token arrived in their inbox, which is
@@ -159,7 +162,7 @@ module.exports = function (app) {
   app.get("/access-requests/:token", async function (req, res) {
     const request = await app.api.accessRequest.verify(req.params.token);
     if (!request) {
-      res.status(400).send({ msg: "Este pedido não é mais válido." });
+      res.status(400).send({ msg: req.t("errors.requestNoLongerValid") });
       return;
     }
 
@@ -167,7 +170,7 @@ module.exports = function (app) {
     const person = await app.api.user.data(request.person);
 
     if (!professional || !person) {
-      res.status(400).send({ msg: "Este pedido não é mais válido." });
+      res.status(400).send({ msg: req.t("errors.requestNoLongerValid") });
       return;
     }
 
@@ -181,7 +184,7 @@ module.exports = function (app) {
   app.post("/access-requests/:token/respond", async function (req, res) {
     const request = await app.api.accessRequest.verify(req.params.token);
     if (!request) {
-      res.status(400).send({ msg: "Este pedido não é mais válido." });
+      res.status(400).send({ msg: req.t("errors.requestNoLongerValid") });
       return;
     }
 

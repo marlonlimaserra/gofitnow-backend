@@ -1,0 +1,295 @@
+{
+  "errors": {
+    "invalidEmail": "Invalid e-mail.",
+    "passwordTooShort": "The password needs at least 6 characters.",
+    "newPasswordTooShort": "The new password needs at least 6 characters.",
+    "requireOwnName": "Enter your name.",
+    "requireName": "Enter the name.",
+    "requirePersonName": "Enter the person's name.",
+    "requirePersonEmail": "Enter the person's e-mail.",
+    "requireWorkoutName": "Enter the workout name.",
+    "requireSessionName": "Enter the session name.",
+    "requireExerciseName": "Enter the exercise name.",
+    "requireRoleName": "Enter the type name.",
+    "requireCopyName": "Enter a name for the copy.",
+    "requireEmailAndPassword": "Enter e-mail and password.",
+    "requireText": "Enter the text to save.",
+    "textTooLong": "That text is too long for an option.",
+    "invalidField": "Invalid field.",
+    "invalidType": "Invalid type.",
+    "invalidRole": "Invalid user type.",
+    "endBeforeStart": "The end date cannot be before the start date.",
+    "requireExerciseList": "Send the exercise list.",
+    "invalidImage": "Send a JPG, PNG or WEBP image of up to 2 MB.",
+    "vocabularyLength": "Use between 3 and 20 letters for the {{field}} (e.g. student / students).",
+    "personNotFound": "Person not found.",
+    "userNotFound": "User not found.",
+    "studentNotFound": "Student not found.",
+    "targetStudentNotFound": "Target student not found.",
+    "workoutNotFound": "Workout not found.",
+    "sessionNotFound": "Session not found.",
+    "exerciseNotFound": "Exercise not found.",
+    "roleNotFound": "User type not found.",
+    "optionNotFound": "Option not found.",
+    "requestNotFound": "Request not found.",
+    "routeNotFound": "Route not found.",
+    "noPhoto": "You have no photo.",
+    "noPhotoShort": "No photo.",
+    "emailInUse": "That e-mail is already in use.",
+    "userWithEmailExists": "A user with that e-mail already exists.",
+    "accountWithEmailExists": "An account with that e-mail already exists.",
+    "accountExistsAskAccess": "An account with that e-mail already exists. Ask them for access instead of registering again.",
+    "noAccountWithEmail": "There is no account with that e-mail.",
+    "emailIsYours": "That e-mail is your own.",
+    "alreadyInYourList": "That person is already in your list.",
+    "roleNameTaken": "A type with that name already exists.",
+    "emailNotEditable": "Only the person themselves can change their e-mail.",
+    "ownAccountAccess": "This account belongs to the person themselves — only they can change their access.",
+    "cannotDeleteSelf": "You cannot delete your own account.",
+    "systemRoleNotDeletable": "The system default types cannot be deleted.",
+    "adminRoleLocked": "The Administrator type cannot be changed. Create another type to adjust permissions.",
+    "lastRoleManagingRoles": "This is the only type that still manages permissions, and it is yours. Give that permission to another type first.",
+    "lastAccountManagingRoles": "This is the last active account that manages permissions.",
+    "lastAccountManagingRolesEdit": "This is the last active account that manages permissions — promote another one before changing this.",
+    "badCredentials": "Wrong e-mail or password.",
+    "wrongCurrentPassword": "Current password is wrong.",
+    "invalidOrExpiredLink": "Invalid or expired link.",
+    "requestNoLongerValid": "This request is no longer valid.",
+    "emailSendFailed": "Could not send the e-mail right now. Please try again.",
+    "internal": "Internal error.",
+    "unavailableAccount": "Account unavailable.",
+    "noPermission": "Your user type does not have permission for this.",
+    "noSession": "No session provided.",
+    "invalidSession": "Invalid or expired session."
+  },
+  "ok": {
+    "passwordChanged": "Password changed.",
+    "signedOut": "Signed out.",
+    "photoUpdated": "Photo updated.",
+    "photoRemoved": "Photo removed.",
+    "optionRemoved": "Option removed.",
+    "personUnlinked": "Person removed from your list.",
+    "personDeleted": "Person deleted.",
+    "userRemoved": "User removed.",
+    "workoutRemoved": "Workout removed.",
+    "sessionRemoved": "Session removed.",
+    "exerciseRemoved": "Exercise removed.",
+    "roleRemoved": "Type removed.",
+    "accessRevoked": "Access revoked.",
+    "requestCancelled": "Request cancelled.",
+    "requestSent": "Request sent. The person has to confirm by e-mail.",
+    "resetLinkSent": "If an account exists for that e-mail, the reset link has been sent."
+  },
+  "permissions": {
+    "groups": {
+      "people": {
+        "title": "People",
+        "description": "Who the professional follows"
+      },
+      "workouts": {
+        "title": "Workouts",
+        "description": "Workout plans and sessions"
+      },
+      "exercises": {
+        "title": "Exercises",
+        "description": "The professional's exercise catalog"
+      },
+      "users": {
+        "title": "Users",
+        "description": "Every account on the platform"
+      },
+      "logs": {
+        "title": "History",
+        "description": "The record of everything done on the platform"
+      },
+      "roles": {
+        "title": "User types",
+        "description": "The types themselves and what each one may do"
+      }
+    },
+    "items": {
+      "people.view": {
+        "label": "View people",
+        "hint": "Open the list and the record of whoever is already linked."
+      },
+      "people.create": {
+        "label": "Add person",
+        "hint": "Register a new record and ask access from whoever already has an account."
+      },
+      "people.edit": {
+        "label": "Edit record",
+        "hint": "Change data, measurements and notes."
+      },
+      "people.delete": {
+        "label": "Remove from list",
+        "hint": "Undo the link. The person still exists if another professional follows them."
+      },
+      "people.access": {
+        "label": "Manage the person's access",
+        "hint": "Set or revoke the password of whoever you registered."
+      },
+      "workouts.view": {
+        "label": "View workouts",
+        "hint": "Open the workouts and the sessions."
+      },
+      "workouts.manage": {
+        "label": "Build workouts",
+        "hint": "Create, edit, duplicate and delete workouts, sessions and session exercises."
+      },
+      "exercises.view": {
+        "label": "View the catalog",
+        "hint": "Browse exercises and groups."
+      },
+      "exercises.manage": {
+        "label": "Edit the catalog",
+        "hint": "Create, change and delete exercises."
+      },
+      "users.view": {
+        "label": "View users",
+        "hint": "Open the Users menu."
+      },
+      "users.manage": {
+        "label": "Manage users",
+        "hint": "Register professionals, edit, deactivate and delete any account."
+      },
+      "logs.view": {
+        "label": "View the history",
+        "hint": "See who did what, when and from which address."
+      },
+      "roles.view": {
+        "label": "View types",
+        "hint": "Open the User types menu."
+      },
+      "roles.manage": {
+        "label": "Manage types",
+        "hint": "Create types and change each one's permissions. Whoever has this can give themselves any power."
+      }
+    }
+  },
+  "actions": {
+    "login": "Signed in",
+    "login_failed": "Failed sign-in",
+    "logout": "Signed out",
+    "register": "Created their own account",
+    "forgot_password": "Asked for a password reset",
+    "reset_password": "Reset the password by e-mail",
+    "change_password": "Changed the password",
+    "update_profile": "Edited their own profile",
+    "update_avatar": "Changed the profile photo",
+    "delete_avatar": "Removed the profile photo",
+    "view_person": "Opened a record",
+    "lookup_person": "Looked up an e-mail",
+    "create_person": "Added a person",
+    "update_person": "Edited a record",
+    "delete_person": "Deleted a person",
+    "unlink_person": "Removed from their own list",
+    "revoke_person_access": "Revoked a person's access",
+    "request_access": "Asked someone for access",
+    "cancel_access_request": "Cancelled an access request",
+    "approve_access": "Granted access to a professional",
+    "deny_access": "Refused a professional",
+    "create_workout": "Created a workout",
+    "update_workout": "Edited a workout",
+    "delete_workout": "Deleted a workout",
+    "duplicate_workout": "Duplicated a workout",
+    "create_session": "Created a session",
+    "update_session": "Edited a session",
+    "delete_session": "Deleted a session",
+    "update_session_exercises": "Changed the session exercises",
+    "create_workout_template": "Created an autofill option",
+    "update_workout_template": "Edited an autofill option",
+    "delete_workout_template": "Deleted an autofill option",
+    "create_exercise": "Created an exercise",
+    "update_exercise": "Edited an exercise",
+    "delete_exercise": "Deleted an exercise",
+    "create_professional": "Registered a professional",
+    "update_professional": "Edited a professional",
+    "delete_professional": "Deleted a professional",
+    "update_user": "Edited a user",
+    "delete_user": "Deleted a user",
+    "create_role": "Created a user type",
+    "update_role": "Changed a type's permissions",
+    "delete_role": "Deleted a user type"
+  },
+  "categories": {
+    "auth": "Access",
+    "people": "People",
+    "workouts": "Workouts",
+    "exercises": "Exercises",
+    "admin": "Administration"
+  },
+  "targetTypes": {
+    "users": "User",
+    "people": "Person",
+    "roles": "User type",
+    "workouts": "Workout",
+    "workout_sessions": "Session",
+    "workout_templates": "Autofill option",
+    "exercises": "Exercise",
+    "access_requests": "Access request"
+  },
+  "autoFill": {
+    "groups": {
+      "workout": "Workout",
+      "people": "People"
+    },
+    "fields": {
+      "workout.name": {
+        "label": "Workout name",
+        "hint": "e.g. Hypertrophy 4 weeks"
+      },
+      "workout.goal": {
+        "label": "Workout goal",
+        "hint": "e.g. Muscle gain"
+      },
+      "workout.tip": {
+        "label": "Workout tip",
+        "hint": "What you usually advise"
+      },
+      "workout.calories": {
+        "label": "Workout calories burned",
+        "hint": "e.g. 400"
+      },
+      "workout.totalSessions": {
+        "label": "Workout total sessions",
+        "hint": "e.g. 12"
+      },
+      "session.name": {
+        "label": "Session name",
+        "hint": "e.g. Workout A — Chest and triceps"
+      },
+      "person.goal": {
+        "label": "Record goal",
+        "hint": "e.g. Weight loss"
+      }
+    }
+  },
+  "email": {
+    "greeting": "Hello",
+    "fallbackLink": "If the button does not work, copy and paste this address into your browser:",
+    "reset": {
+      "subject": "Reset your GoFitNow password",
+      "title": "{{name}}, let's reset your password",
+      "body": "You asked to reset the password of your GoFitNow account. Click the button below to choose a new one. The link is valid for <strong>{{minutes}} minutes</strong> and can be used only once.",
+      "button": "Create a new password",
+      "footer": "If it was not you who asked, ignore this e-mail — your password stays the same and nobody accessed your account.",
+      "text": "{{name}}, you asked to reset your GoFitNow password.\n\nOpen this address to choose a new password (valid for {{minutes}} minutes, single use):\n{{url}}\n\nIf it was not you who asked, ignore this e-mail — your password stays the same."
+    },
+    "invite": {
+      "subject": "Your GoFitNow access is ready",
+      "title": "{{name}}, your access is open",
+      "body": "<strong>{{trainerName}}</strong> granted you access to GoFitNow. There you follow your workouts and your record.<br><br>Sign in with the e-mail <strong>{{email}}</strong> and the password {{trainerName}} agreed with you.",
+      "button": "Open GoFitNow",
+      "footer": "Do not know your password? Use \"I forgot my password\" on the sign-in screen, or talk to your professional.",
+      "text": "{{name}}, {{trainerName}} granted you access to GoFitNow.\n\nSign in at {{url}} with the e-mail {{email}} and the password agreed with {{trainerName}}.\n\nDo not know the password? Use \"I forgot my password\" on the sign-in screen."
+    },
+    "request": {
+      "subject": "{{professionalName}} wants to follow you on GoFitNow",
+      "title": "{{name}}, {{professionalName}} asked for access to your history",
+      "body": "<strong>{{professionalName}}</strong> ({{professionalEmail}}) wants to follow you on GoFitNow.<br><br>If you grant it, this person will see your history and build plans together with the other professionals who already care for you. You can revoke this access whenever you want.<br><br>The link is valid for <strong>{{days}} days</strong>.",
+      "button": "See and answer the request",
+      "footer": "Do not know who is asking? Just ignore this e-mail — without your confirmation nobody sees anything.",
+      "text": "{{name}}, {{professionalName}} ({{professionalEmail}}) wants to follow you on GoFitNow.\n\nIf you grant it, this person will see your history. You can revoke the access whenever you want.\n\nOpen this address to answer (valid for {{days}} days):\n{{url}}\n\nDo not know who is asking? Ignore this e-mail — without your confirmation nobody sees anything."
+    }
+  }
+}

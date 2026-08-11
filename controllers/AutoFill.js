@@ -12,7 +12,7 @@ module.exports = function (app) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;
 
-    res.send({ fields: fields.FIELDS });
+    res.send({ fields: fields.localized(req.t) });
   });
 
   app.get("/auto-fill", async function (req, res) {
@@ -36,15 +36,15 @@ module.exports = function (app) {
     const { field, value } = req.body || {};
 
     if (!fields.isValid(field)) {
-      res.status(400).send({ msg: "Campo inválido." });
+      res.status(400).send({ msg: req.t("errors.invalidField") });
       return;
     }
     if (!value || String(value).trim().length < 2) {
-      res.status(400).send({ msg: "Informe o texto a salvar." });
+      res.status(400).send({ msg: req.t("errors.requireText") });
       return;
     }
     if (String(value).trim().length > 500) {
-      res.status(400).send({ msg: "Texto muito longo para uma opção." });
+      res.status(400).send({ msg: req.t("errors.textTooLong") });
       return;
     }
 
@@ -58,10 +58,10 @@ module.exports = function (app) {
 
     const ok = await app.api.autoFill.delete(user._id, req.params.id);
     if (!ok) {
-      res.status(404).send({ msg: "Opção não encontrada." });
+      res.status(404).send({ msg: req.t("errors.optionNotFound") });
       return;
     }
 
-    res.send({ msg: "Opção removida." });
+    res.send({ msg: req.t("ok.optionRemoved") });
   });
 };

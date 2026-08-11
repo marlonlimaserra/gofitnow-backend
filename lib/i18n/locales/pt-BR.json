@@ -1,0 +1,295 @@
+{
+  "errors": {
+    "invalidEmail": "E-mail inválido.",
+    "passwordTooShort": "A senha precisa ter no mínimo 6 caracteres.",
+    "newPasswordTooShort": "A nova senha precisa ter no mínimo 6 caracteres.",
+    "requireOwnName": "Informe seu nome.",
+    "requireName": "Informe o nome.",
+    "requirePersonName": "Informe o nome da pessoa.",
+    "requirePersonEmail": "Informe o e-mail da pessoa.",
+    "requireWorkoutName": "Informe o nome do treino.",
+    "requireSessionName": "Informe o nome da sessão.",
+    "requireExerciseName": "Informe o nome do exercício.",
+    "requireRoleName": "Informe o nome do tipo.",
+    "requireCopyName": "Informe o nome da cópia.",
+    "requireEmailAndPassword": "Informe e-mail e senha.",
+    "requireText": "Informe o texto a salvar.",
+    "textTooLong": "Texto muito longo para uma opção.",
+    "invalidField": "Campo inválido.",
+    "invalidType": "Tipo inválido.",
+    "invalidRole": "Tipo de usuário inválido.",
+    "endBeforeStart": "A data final não pode ser antes da inicial.",
+    "requireExerciseList": "Envie a lista de exercícios.",
+    "invalidImage": "Envie uma imagem JPG, PNG ou WEBP de até 2 MB.",
+    "personNotFound": "Pessoa não encontrada.",
+    "userNotFound": "Usuário não encontrado.",
+    "studentNotFound": "Aluno não encontrado.",
+    "targetStudentNotFound": "Aluno de destino não encontrado.",
+    "workoutNotFound": "Treino não encontrado.",
+    "sessionNotFound": "Sessão não encontrada.",
+    "exerciseNotFound": "Exercício não encontrado.",
+    "roleNotFound": "Tipo de usuário não encontrado.",
+    "optionNotFound": "Opção não encontrada.",
+    "requestNotFound": "Pedido não encontrado.",
+    "routeNotFound": "Rota não encontrada.",
+    "noPhoto": "Você não tem foto.",
+    "noPhotoShort": "Sem foto.",
+    "emailInUse": "Esse e-mail já está em uso.",
+    "userWithEmailExists": "Já existe um usuário com esse e-mail.",
+    "accountWithEmailExists": "Já existe uma conta com esse e-mail.",
+    "accountExistsAskAccess": "Já existe uma conta com esse e-mail. Peça acesso a ela em vez de cadastrar de novo.",
+    "noAccountWithEmail": "Não existe conta com esse e-mail.",
+    "emailIsYours": "Esse e-mail é o seu.",
+    "alreadyInYourList": "Essa pessoa já está na sua lista.",
+    "roleNameTaken": "Já existe um tipo com esse nome.",
+    "emailNotEditable": "O e-mail só pode ser alterado pela própria pessoa.",
+    "ownAccountAccess": "Essa conta é da própria pessoa — só ela pode mudar o acesso dela.",
+    "cannotDeleteSelf": "Você não pode excluir a própria conta.",
+    "systemRoleNotDeletable": "Os tipos padrão do sistema não podem ser excluídos.",
+    "adminRoleLocked": "O tipo Administrador não pode ser alterado. Crie outro tipo para ajustar permissões.",
+    "lastRoleManagingRoles": "Este é o único tipo que ainda gerencia permissões, e é o seu. Dê essa permissão a outro tipo antes.",
+    "lastAccountManagingRoles": "Esta é a última conta ativa que gerencia permissões.",
+    "lastAccountManagingRolesEdit": "Esta é a última conta ativa que gerencia permissões — promova outra antes de alterar esta.",
+    "badCredentials": "E-mail ou senha inválidos.",
+    "wrongCurrentPassword": "Senha atual incorreta.",
+    "invalidOrExpiredLink": "Link inválido ou expirado.",
+    "requestNoLongerValid": "Este pedido não é mais válido.",
+    "emailSendFailed": "Não foi possível enviar o e-mail agora. Tente de novo.",
+    "internal": "Erro interno.",
+    "vocabularyLength": "Use entre 3 e 20 letras para o {{field}} (ex.: aluno / alunos).",
+    "unavailableAccount": "Conta indisponível.",
+    "noPermission": "Seu tipo de usuário não tem permissão para isso.",
+    "noSession": "Sessão não informada.",
+    "invalidSession": "Sessão inválida ou expirada."
+  },
+  "ok": {
+    "passwordChanged": "Senha alterada.",
+    "signedOut": "Sessão encerrada.",
+    "photoUpdated": "Foto atualizada.",
+    "photoRemoved": "Foto removida.",
+    "optionRemoved": "Opção removida.",
+    "personUnlinked": "Pessoa removida da sua lista.",
+    "personDeleted": "Pessoa excluída.",
+    "userRemoved": "Usuário removido.",
+    "workoutRemoved": "Treino removido.",
+    "sessionRemoved": "Sessão removida.",
+    "exerciseRemoved": "Exercício removido.",
+    "roleRemoved": "Tipo removido.",
+    "accessRevoked": "Acesso revogado.",
+    "requestCancelled": "Pedido cancelado.",
+    "requestSent": "Pedido enviado. A pessoa precisa confirmar pelo e-mail.",
+    "resetLinkSent": "Se existir uma conta com esse e-mail, o link de redefinição foi enviado."
+  },
+  "permissions": {
+    "groups": {
+      "people": {
+        "title": "Pessoas",
+        "description": "Quem o profissional acompanha"
+      },
+      "workouts": {
+        "title": "Treinos",
+        "description": "Planos e sessões de treino"
+      },
+      "exercises": {
+        "title": "Exercícios",
+        "description": "O catálogo de exercícios do profissional"
+      },
+      "users": {
+        "title": "Usuários",
+        "description": "Todas as contas da plataforma"
+      },
+      "logs": {
+        "title": "Histórico",
+        "description": "O registro de tudo que foi feito na plataforma"
+      },
+      "roles": {
+        "title": "Tipos de usuário",
+        "description": "Os próprios tipos e o que cada um pode"
+      }
+    },
+    "items": {
+      "people.view": {
+        "label": "Ver pessoas",
+        "hint": "Abrir a lista e a ficha de quem já está vinculado."
+      },
+      "people.create": {
+        "label": "Adicionar pessoa",
+        "hint": "Cadastrar uma nova ficha e pedir acesso a quem já tem conta."
+      },
+      "people.edit": {
+        "label": "Editar ficha",
+        "hint": "Alterar dados, medidas e observações."
+      },
+      "people.delete": {
+        "label": "Remover da lista",
+        "hint": "Desfazer o vínculo. A pessoa continua existindo se outro profissional a acompanhar."
+      },
+      "people.access": {
+        "label": "Gerenciar o acesso da pessoa",
+        "hint": "Definir ou tirar a senha de quem foi cadastrado por você."
+      },
+      "workouts.view": {
+        "label": "Ver treinos",
+        "hint": "Abrir os treinos e as sessões."
+      },
+      "workouts.manage": {
+        "label": "Montar treinos",
+        "hint": "Criar, editar, duplicar e excluir treinos, sessões e exercícios da sessão."
+      },
+      "exercises.view": {
+        "label": "Ver o catálogo",
+        "hint": "Consultar exercícios e grupos."
+      },
+      "exercises.manage": {
+        "label": "Editar o catálogo",
+        "hint": "Criar, alterar e excluir exercícios."
+      },
+      "users.view": {
+        "label": "Ver usuários",
+        "hint": "Abrir o menu Usuários."
+      },
+      "users.manage": {
+        "label": "Gerenciar usuários",
+        "hint": "Cadastrar profissionais, editar, desativar e excluir qualquer conta."
+      },
+      "logs.view": {
+        "label": "Ver o histórico",
+        "hint": "Consultar quem fez o quê, quando e de qual endereço."
+      },
+      "roles.view": {
+        "label": "Ver tipos",
+        "hint": "Abrir o menu Tipos de usuário."
+      },
+      "roles.manage": {
+        "label": "Gerenciar tipos",
+        "hint": "Criar tipos e mudar as permissões de cada um. Quem tem isso pode dar qualquer poder a si mesmo."
+      }
+    }
+  },
+  "actions": {
+    "login": "Entrou",
+    "login_failed": "Falha no login",
+    "logout": "Saiu",
+    "register": "Criou a própria conta",
+    "forgot_password": "Pediu redefinição de senha",
+    "reset_password": "Redefiniu a senha pelo e-mail",
+    "change_password": "Trocou a senha",
+    "update_profile": "Editou o próprio perfil",
+    "update_avatar": "Trocou a foto de perfil",
+    "delete_avatar": "Removeu a foto de perfil",
+    "view_person": "Abriu uma ficha",
+    "lookup_person": "Consultou um e-mail",
+    "create_person": "Cadastrou uma pessoa",
+    "update_person": "Editou uma ficha",
+    "delete_person": "Excluiu uma pessoa",
+    "unlink_person": "Removeu da própria lista",
+    "revoke_person_access": "Tirou o acesso de uma pessoa",
+    "request_access": "Pediu acesso a alguém",
+    "cancel_access_request": "Cancelou um pedido de acesso",
+    "approve_access": "Liberou acesso a um profissional",
+    "deny_access": "Recusou um profissional",
+    "create_workout": "Criou um treino",
+    "update_workout": "Editou um treino",
+    "delete_workout": "Excluiu um treino",
+    "duplicate_workout": "Duplicou um treino",
+    "create_session": "Criou uma sessão",
+    "update_session": "Editou uma sessão",
+    "delete_session": "Excluiu uma sessão",
+    "update_session_exercises": "Alterou exercícios da sessão",
+    "create_workout_template": "Criou uma opção de auto preencher",
+    "update_workout_template": "Editou uma opção de auto preencher",
+    "delete_workout_template": "Excluiu uma opção de auto preencher",
+    "create_exercise": "Criou um exercício",
+    "update_exercise": "Editou um exercício",
+    "delete_exercise": "Excluiu um exercício",
+    "create_professional": "Cadastrou um profissional",
+    "update_professional": "Editou um profissional",
+    "delete_professional": "Excluiu um profissional",
+    "update_user": "Editou um usuário",
+    "delete_user": "Excluiu um usuário",
+    "create_role": "Criou um tipo de usuário",
+    "update_role": "Alterou permissões de um tipo",
+    "delete_role": "Excluiu um tipo de usuário"
+  },
+  "categories": {
+    "auth": "Acesso",
+    "people": "Pessoas",
+    "workouts": "Treinos",
+    "exercises": "Exercícios",
+    "admin": "Administração"
+  },
+  "targetTypes": {
+    "users": "Usuário",
+    "people": "Pessoa",
+    "roles": "Tipo de usuário",
+    "workouts": "Treino",
+    "workout_sessions": "Sessão",
+    "workout_templates": "Opção de auto preencher",
+    "exercises": "Exercício",
+    "access_requests": "Pedido de acesso"
+  },
+  "autoFill": {
+    "groups": {
+      "workout": "Treino",
+      "people": "Pessoas"
+    },
+    "fields": {
+      "workout.name": {
+        "label": "Nome do treino",
+        "hint": "Ex.: Hipertrofia 4 semanas"
+      },
+      "workout.goal": {
+        "label": "Objetivo do treino",
+        "hint": "Ex.: Ganho de massa muscular"
+      },
+      "workout.tip": {
+        "label": "Dica do treino",
+        "hint": "O que você costuma orientar"
+      },
+      "workout.calories": {
+        "label": "Gasto calórico do treino",
+        "hint": "Ex.: 400"
+      },
+      "workout.totalSessions": {
+        "label": "Total de sessões do treino",
+        "hint": "Ex.: 12"
+      },
+      "session.name": {
+        "label": "Nome da sessão",
+        "hint": "Ex.: Treino A — Peito e tríceps"
+      },
+      "person.goal": {
+        "label": "Objetivo da ficha",
+        "hint": "Ex.: Emagrecimento"
+      }
+    }
+  },
+  "email": {
+    "greeting": "Olá",
+    "fallbackLink": "Se o botão não funcionar, copie e cole este endereço no navegador:",
+    "reset": {
+      "subject": "Redefinir sua senha do GoFitNow",
+      "title": "{{name}}, vamos redefinir sua senha",
+      "body": "Você pediu para redefinir a senha da sua conta no GoFitNow. Clique no botão abaixo para escolher uma nova. O link vale por <strong>{{minutes}} minutos</strong> e só pode ser usado uma vez.",
+      "button": "Criar nova senha",
+      "footer": "Se não foi você que pediu, ignore este e-mail — sua senha continua a mesma e ninguém teve acesso à sua conta.",
+      "text": "{{name}}, você pediu para redefinir a senha do GoFitNow.\n\nAbra este endereço para escolher uma nova senha (vale por {{minutes}} minutos e só pode ser usado uma vez):\n{{url}}\n\nSe não foi você que pediu, ignore este e-mail — sua senha continua a mesma."
+    },
+    "invite": {
+      "subject": "Seu acesso ao GoFitNow está pronto",
+      "title": "{{name}}, seu acesso está liberado",
+      "body": "<strong>{{trainerName}}</strong> liberou seu acesso ao GoFitNow. Lá você acompanha seus treinos e sua ficha.<br><br>Entre com o e-mail <strong>{{email}}</strong> e a senha que {{trainerName}} combinou com você.",
+      "button": "Acessar o GoFitNow",
+      "footer": "Não sabe sua senha? Use a opção \"Esqueci minha senha\" na tela de login, ou fale com o seu profissional.",
+      "text": "{{name}}, {{trainerName}} liberou seu acesso ao GoFitNow.\n\nEntre em {{url}} com o e-mail {{email}} e a senha combinada com {{trainerName}}.\n\nNão sabe a senha? Use \"Esqueci minha senha\" na tela de login."
+    },
+    "request": {
+      "subject": "{{professionalName}} quer acompanhar você no GoFitNow",
+      "title": "{{name}}, {{professionalName}} pediu acesso ao seu histórico",
+      "body": "<strong>{{professionalName}}</strong> ({{professionalEmail}}) quer acompanhar você no GoFitNow.<br><br>Se você liberar, essa pessoa passa a ver o seu histórico e a montar planos junto com os outros profissionais que já cuidam de você. Você pode tirar esse acesso quando quiser.<br><br>O link vale por <strong>{{days}} dias</strong>.",
+      "button": "Ver e responder o pedido",
+      "footer": "Não conhece quem está pedindo? É só ignorar este e-mail — sem a sua confirmação ninguém vê nada.",
+      "text": "{{name}}, {{professionalName}} ({{professionalEmail}}) quer acompanhar você no GoFitNow.\n\nSe liberar, essa pessoa passa a ver o seu histórico. Você pode tirar o acesso quando quiser.\n\nAbra este endereço para responder (vale por {{days}} dias):\n{{url}}\n\nNão conhece quem está pedindo? Ignore este e-mail — sem a sua confirmação ninguém vê nada."
+    }
+  }
+}

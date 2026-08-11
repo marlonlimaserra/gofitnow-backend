@@ -34,7 +34,7 @@ module.exports = function (app) {
 
     const user = await app.api.user.data(req.params.id);
     if (!user) {
-      res.status(404).send({ msg: "Usuário não encontrado." });
+      res.status(404).send({ msg: req.t("errors.userNotFound") });
       return;
     }
 
@@ -56,21 +56,21 @@ module.exports = function (app) {
     const { name, email, password, phone, active } = req.body || {};
 
     if (!name || String(name).trim().length < 2) {
-      res.status(400).send({ msg: "Informe o nome." });
+      res.status(400).send({ msg: req.t("errors.requireName") });
       return;
     }
     if (!email || !app.validator.isEmail(String(email).trim())) {
-      res.status(400).send({ msg: "E-mail inválido." });
+      res.status(400).send({ msg: req.t("errors.invalidEmail") });
       return;
     }
     if (!password || String(password).length < 6) {
-      res.status(400).send({ msg: "A senha precisa ter no mínimo 6 caracteres." });
+      res.status(400).send({ msg: req.t("errors.passwordTooShort") });
       return;
     }
 
     const exists = await app.api.user.dataByEmail(email);
     if (exists) {
-      res.status(409).send({ msg: "Já existe um usuário com esse e-mail." });
+      res.status(409).send({ msg: req.t("errors.userWithEmailExists") });
       return;
     }
 
@@ -79,7 +79,7 @@ module.exports = function (app) {
     // not sent at all falls back to the plain professional type.
     let role = req.body.role ? await app.api.role.data(req.body.role) : undefined;
     if (req.body.role && !role) {
-      res.status(400).send({ msg: "Tipo de usuário inválido." });
+      res.status(400).send({ msg: req.t("errors.invalidRole") });
       return;
     }
     if (!role) role = await app.api.role.dataByName("Profissional");
@@ -116,38 +116,38 @@ module.exports = function (app) {
 
     const target = await app.api.user.data(req.params.id);
     if (!target) {
-      res.status(404).send({ msg: "Usuário não encontrado." });
+      res.status(404).send({ msg: req.t("errors.userNotFound") });
       return;
     }
 
     const body = req.body || {};
 
     if (body.name !== undefined && String(body.name).trim().length < 2) {
-      res.status(400).send({ msg: "Informe o nome." });
+      res.status(400).send({ msg: req.t("errors.requireName") });
       return;
     }
     if (body.password && String(body.password).length < 6) {
-      res.status(400).send({ msg: "A senha precisa ter no mínimo 6 caracteres." });
+      res.status(400).send({ msg: req.t("errors.passwordTooShort") });
       return;
     }
     if (body.type !== undefined && !["trainer", "student"].includes(String(body.type))) {
-      res.status(400).send({ msg: "Tipo inválido." });
+      res.status(400).send({ msg: req.t("errors.invalidType") });
       return;
     }
     if (body.email !== undefined && String(body.email).trim() !== "") {
       if (!app.validator.isEmail(String(body.email).trim())) {
-        res.status(400).send({ msg: "E-mail inválido." });
+        res.status(400).send({ msg: req.t("errors.invalidEmail") });
         return;
       }
       const exists = await app.api.user.dataByEmail(body.email);
       if (exists && String(exists._id) !== String(target._id)) {
-        res.status(409).send({ msg: "Esse e-mail já está em uso." });
+        res.status(409).send({ msg: req.t("errors.emailInUse") });
         return;
       }
     }
 
     if (body.role !== undefined && !(await app.api.role.data(body.role))) {
-      res.status(400).send({ msg: "Tipo de usuário inválido." });
+      res.status(400).send({ msg: req.t("errors.invalidRole") });
       return;
     }
 
@@ -168,7 +168,7 @@ module.exports = function (app) {
       const others = await app.api.role.countActiveUsersWith("roles.manage", target._id);
       if (others === 0) {
         res.status(409).send({
-          msg: "Esta é a última conta ativa que gerencia permissões — promova outra antes de alterar esta.",
+          msg: req.t("errors.lastAccountManagingRolesEdit"),
         });
         return;
       }
@@ -215,20 +215,20 @@ module.exports = function (app) {
     if (admin === false) return;
 
     if (String(req.params.id) === String(admin._id)) {
-      res.status(409).send({ msg: "Você não pode excluir a própria conta." });
+      res.status(409).send({ msg: req.t("errors.cannotDeleteSelf") });
       return;
     }
 
     const target = await app.api.user.data(req.params.id);
     if (!target) {
-      res.status(404).send({ msg: "Usuário não encontrado." });
+      res.status(404).send({ msg: req.t("errors.userNotFound") });
       return;
     }
 
     if (await app.api.user.hasPermission(target, "roles.manage")) {
       const others = await app.api.role.countActiveUsersWith("roles.manage", target._id);
       if (others === 0) {
-        res.status(409).send({ msg: "Esta é a última conta ativa que gerencia permissões." });
+        res.status(409).send({ msg: req.t("errors.lastAccountManagingRoles") });
         return;
       }
     }
@@ -256,6 +256,6 @@ module.exports = function (app) {
       extra: { name: target.name, email: target.email, type: target.type },
     });
 
-    res.send({ msg: "Usuário removido." });
+    res.send({ msg: req.t("ok.userRemoved") });
   });
 };

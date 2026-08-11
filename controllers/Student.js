@@ -35,7 +35,7 @@ module.exports = function (app) {
 
     const student = await app.api.user.dataStudent(trainer._id, req.params.id);
     if (!student) {
-      res.status(404).send({ msg: "Pessoa não encontrada." });
+      res.status(404).send({ msg: req.t("errors.personNotFound") });
       return;
     }
 
@@ -58,7 +58,7 @@ module.exports = function (app) {
     const body = req.body || {};
 
     if (!body.name || String(body.name).trim().length < 2) {
-      res.status(400).send({ msg: "Informe o nome da pessoa." });
+      res.status(400).send({ msg: req.t("errors.requirePersonName") });
       return;
     }
     // The e-mail is REQUIRED, always. It is the identity of a person across
@@ -66,11 +66,11 @@ module.exports = function (app) {
     // the same human would end up registered twice — the exact duplication
     // this app exists to remove.
     if (!body.email || !app.validator.isEmail(String(body.email).trim())) {
-      res.status(400).send({ msg: "Informe o e-mail da pessoa." });
+      res.status(400).send({ msg: req.t("errors.requirePersonEmail") });
       return;
     }
     if (body.password && String(body.password).length < 6) {
-      res.status(400).send({ msg: "A senha precisa ter no mínimo 6 caracteres." });
+      res.status(400).send({ msg: req.t("errors.passwordTooShort") });
       return;
     }
     {
@@ -79,7 +79,7 @@ module.exports = function (app) {
         // Registering a second copy of someone who is already here is exactly
         // what this app exists to stop. The way in is to ask them.
         res.status(409).send({
-          msg: "Já existe uma conta com esse e-mail. Peça acesso a ela em vez de cadastrar de novo.",
+          msg: req.t("errors.accountExistsAskAccess"),
           code: "email_taken",
         });
         return;
@@ -115,12 +115,12 @@ module.exports = function (app) {
     const target = await app.api.user.dataStudent(trainer._id, req.params.id);
 
     if (!target) {
-      res.status(404).send({ msg: "Pessoa não encontrada." });
+      res.status(404).send({ msg: req.t("errors.personNotFound") });
       return;
     }
 
     if (body.name !== undefined && String(body.name).trim().length < 2) {
-      res.status(400).send({ msg: "Informe o nome da pessoa." });
+      res.status(400).send({ msg: req.t("errors.requirePersonName") });
       return;
     }
     // Sending the field at all means it has to be valid: a person cannot be
@@ -128,11 +128,11 @@ module.exports = function (app) {
     // by the other professionals who care for them. Not sending it keeps
     // whatever is stored, so a partial update still works.
     if (body.email !== undefined && !app.validator.isEmail(String(body.email).trim())) {
-      res.status(400).send({ msg: "Informe o e-mail da pessoa." });
+      res.status(400).send({ msg: req.t("errors.requirePersonEmail") });
       return;
     }
     if (body.password && String(body.password).length < 6) {
-      res.status(400).send({ msg: "A senha precisa ter no mínimo 6 caracteres." });
+      res.status(400).send({ msg: req.t("errors.passwordTooShort") });
       return;
     }
     // O e-mail de uma pessoa que JÁ existe não se troca por aqui.
@@ -150,7 +150,7 @@ module.exports = function (app) {
       const atual = String(target.email || "").trim().toLowerCase();
       if (enviado !== atual) {
         res.status(403).send({
-          msg: "O e-mail só pode ser alterado pela própria pessoa.",
+          msg: req.t("errors.emailNotEditable"),
           code: "email_not_editable",
         });
         return;
@@ -196,7 +196,7 @@ module.exports = function (app) {
 
     const target = await app.api.user.dataStudent(trainer._id, req.params.id);
     if (!target) {
-      res.status(404).send({ msg: "Pessoa não encontrada." });
+      res.status(404).send({ msg: req.t("errors.personNotFound") });
       return;
     }
 
@@ -206,7 +206,7 @@ module.exports = function (app) {
     const ok = await app.api.user.revokeStudentAccess(trainer._id, req.params.id);
     if (!ok) {
       res.status(409).send({
-        msg: "Essa conta é da própria pessoa — só ela pode mudar o acesso dela.",
+        msg: req.t("errors.ownAccountAccess"),
       });
       return;
     }
@@ -219,7 +219,7 @@ module.exports = function (app) {
       extra: { name: target.name },
     });
 
-    res.send({ msg: "Acesso revogado." });
+    res.send({ msg: req.t("ok.accessRevoked") });
   });
 
   // "Remove from my list" and "erase this person" are the same button to the
@@ -233,7 +233,7 @@ module.exports = function (app) {
 
     const target = await app.api.user.dataStudent(trainer._id, req.params.id);
     if (!target) {
-      res.status(404).send({ msg: "Pessoa não encontrada." });
+      res.status(404).send({ msg: req.t("errors.personNotFound") });
       return;
     }
 
@@ -249,7 +249,7 @@ module.exports = function (app) {
         extra: { name: target.name, reason: others > 0 ? "outros_profissionais" : "conta_propria" },
       });
 
-      res.send({ msg: "Pessoa removida da sua lista.", removed: "unlinked" });
+      res.send({ msg: req.t("ok.personUnlinked"), removed: "unlinked" });
       return;
     }
 
@@ -262,6 +262,6 @@ module.exports = function (app) {
       extra: { name: target.name, email: target.email },
     });
 
-    res.send({ msg: "Pessoa excluída.", removed: "deleted" });
+    res.send({ msg: req.t("ok.personDeleted"), removed: "deleted" });
   });
 };

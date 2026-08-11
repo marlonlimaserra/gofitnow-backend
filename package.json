@@ -6,7 +6,8 @@
   "scripts": {
     "start": "nodemon app.js",
     "start:prod": "node app.js",
-    "db:init": "node database/init.js"
+    "db:init": "node database/init.js",
+    "i18n:check": "node lib/i18n/check.js"
   },
   "author": "",
   "license": "ISC",

@@ -32,7 +32,7 @@ module.exports = function (app) {
 
     const body = req.body || {};
     if (!body.name || String(body.name).trim().length < 2) {
-      res.status(400).send({ msg: "Informe o nome do exercício." });
+      res.status(400).send({ msg: req.t("errors.requireExerciseName") });
       return;
     }
 
@@ -54,7 +54,7 @@ module.exports = function (app) {
 
     const exercise = await app.api.exercise.data(trainer._id, req.params.id);
     if (!exercise) {
-      res.status(404).send({ msg: "Exercício não encontrado." });
+      res.status(404).send({ msg: req.t("errors.exerciseNotFound") });
       return;
     }
 
@@ -67,13 +67,13 @@ module.exports = function (app) {
 
     const body = req.body || {};
     if (body.name !== undefined && String(body.name).trim().length < 2) {
-      res.status(400).send({ msg: "Informe o nome do exercício." });
+      res.status(400).send({ msg: req.t("errors.requireExerciseName") });
       return;
     }
 
     const ok = await app.api.exercise.update(trainer._id, req.params.id, body);
     if (!ok) {
-      res.status(404).send({ msg: "Exercício não encontrado." });
+      res.status(404).send({ msg: req.t("errors.exerciseNotFound") });
       return;
     }
 
@@ -97,7 +97,7 @@ module.exports = function (app) {
 
     const ok = await app.api.exercise.delete(trainer._id, req.params.id);
     if (!ok) {
-      res.status(404).send({ msg: "Exercício não encontrado." });
+      res.status(404).send({ msg: req.t("errors.exerciseNotFound") });
       return;
     }
 
@@ -106,6 +106,6 @@ module.exports = function (app) {
       local: { target_type: "exercises", target_id: req.params.id + "" },
     });
 
-    res.send({ msg: "Exercício removido." });
+    res.send({ msg: req.t("ok.exerciseRemoved") });
   });
 };

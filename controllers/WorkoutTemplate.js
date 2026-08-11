@@ -19,7 +19,7 @@ module.exports = function (app) {
     const body = req.body || {};
 
     if (!body.name || String(body.name).trim().length < 2) {
-      res.status(400).send({ msg: "Informe o nome do treino." });
+      res.status(400).send({ msg: req.t("errors.requireWorkoutName") });
       return;
     }
 
@@ -42,13 +42,13 @@ module.exports = function (app) {
     const body = req.body || {};
 
     if (body.name !== undefined && String(body.name).trim().length < 2) {
-      res.status(400).send({ msg: "Informe o nome do treino." });
+      res.status(400).send({ msg: req.t("errors.requireWorkoutName") });
       return;
     }
 
     const before = await app.api.workoutTemplate.data(trainer._id, req.params.id);
     if (!before) {
-      res.status(404).send({ msg: "Opção não encontrada." });
+      res.status(404).send({ msg: req.t("errors.optionNotFound") });
       return;
     }
 
@@ -71,7 +71,7 @@ module.exports = function (app) {
 
     const before = await app.api.workoutTemplate.data(trainer._id, req.params.id);
     if (!before) {
-      res.status(404).send({ msg: "Opção não encontrada." });
+      res.status(404).send({ msg: req.t("errors.optionNotFound") });
       return;
     }
 
@@ -83,6 +83,6 @@ module.exports = function (app) {
       extra: { name: before.name },
     });
 
-    res.send({ msg: "Opção removida." });
+    res.send({ msg: req.t("ok.optionRemoved") });
   });
 };

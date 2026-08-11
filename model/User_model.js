@@ -426,6 +426,17 @@ User_model.prototype.updateSelf = async function (id, obj) {
 
   if (obj.name !== undefined) set.name = String(obj.name).trim();
 
+  // O idioma escolhido na tela, guardado na conta.
+  //
+  // Não é para responder às requisições dela — para isso vem o Accept-Language,
+  // que é sempre o idioma da aba que está aberta agora. É para os E-MAILS: quem
+  // dispara um e-mail é outra pessoa, e o que vale é a língua de quem vai ler.
+  // Quem nunca escolheu não tem o campo, e aí o e-mail sai em pt-BR.
+  if (obj.lang !== undefined) {
+    const { normalizeLanguage } = require("../lib/i18n");
+    set.lang = normalizeLanguage(obj.lang);
+  }
+
   // What this professional calls the people they follow: aluno, paciente,
   // cliente. Stored lowercase — the screens capitalise where they need to, so
   // "Aluno" typed here does not become "ALunos" in the middle of a sentence.

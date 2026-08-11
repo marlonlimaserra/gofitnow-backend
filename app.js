@@ -4,6 +4,7 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const cookieParser = require("cookie-parser");
 
+const { fromAcceptLanguage, translator } = require("./lib/i18n");
 const appRoutes = require("./appRoutes.js");
 const appModels = require("./appModels.js");
 const appHelpers = require("./appHelpers.js");
@@ -56,7 +57,7 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE, PATCH");
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "session,Origin,Accept,X-Requested-With,Content-Type,Access-Control-Request-Method,Access-Control-Request-Headers"
+    "session,Accept-Language,Origin,Accept,X-Requested-With,Content-Type,Access-Control-Request-Method,Access-Control-Request-Headers"
   );
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -66,6 +67,18 @@ app.use((req, res, next) => {
 
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.originalUrl}`);
+  next();
+});
+
+// Idioma da resposta, resolvido do Accept-Language que o frontend manda a partir
+// do idioma escolhido na tela.
+//
+// Vale para o que a PESSOA DA REQUISIÇÃO lê: mensagens de erro, confirmações e
+// os catálogos que a tela renderiza. E-mail é outro caso — quem lê é o
+// destinatário, então lá o tradutor é criado a partir do `lang` da conta dele.
+app.use((req, res, next) => {
+  req.lang = fromAcceptLanguage(req.headers["accept-language"]);
+  req.t = translator(req.lang);
   next();
 });
 
@@ -84,7 +97,7 @@ for (const k in appRoutes) appRoutes[k](app);
 
 app.use((req, res) => {
   if (res.headersSent) return;
-  res.status(404).send({ msg: "Rota não encontrada." });
+  res.status(404).send({ msg: (req.t || translator())("errors.routeNotFound") });
 });
 
 // eslint-disable-next-line no-unused-vars
@@ -92,7 +105,11 @@ app.use((err, req, res, next) => {
   console.error("Route error:", req && req.method, req && req.originalUrl, err);
   if (res.headersSent) return;
 
-  const body = { msg: (err && err.message) || "Erro interno." };
+  // A mensagem crua do erro só vai para o cliente com DEBUG_ERRORS; caso
+  // contrário sai o texto traduzido, porque `err.message` é inglês de biblioteca
+  // e às vezes vaza caminho de arquivo.
+  const t = req.t || translator();
+  const body = { msg: process.env.DEBUG_ERRORS == "1" && err?.message ? err.message : t("errors.internal") };
   if (process.env.DEBUG_ERRORS == "1" && err && err.stack) body.stack = err.stack;
 
   res.status(500).send(body);

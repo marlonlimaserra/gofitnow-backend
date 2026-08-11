@@ -12,7 +12,7 @@ module.exports = function (app) {
 
     const avatar = await app.api.avatar.data(req.params.userId);
     if (!avatar) {
-      res.status(404).send({ msg: "Sem foto." });
+      res.status(404).send({ msg: req.t("errors.noPhotoShort") });
       return;
     }
 
@@ -38,7 +38,7 @@ module.exports = function (app) {
 
     const parsed = app.api.avatar.parseDataUri((req.body || {}).image);
     if (!parsed) {
-      res.status(400).send({ msg: "Envie uma imagem JPG, PNG ou WEBP de até 2 MB." });
+      res.status(400).send({ msg: req.t("errors.invalidImage") });
       return;
     }
 
@@ -50,7 +50,7 @@ module.exports = function (app) {
       extra: { size: parsed.buffer.length, mime: parsed.mime },
     });
 
-    res.send({ msg: "Foto atualizada.", avatarAt: at });
+    res.send({ msg: req.t("ok.photoUpdated"), avatarAt: at });
   });
 
   app.delete("/me/avatar", async function (req, res) {
@@ -59,7 +59,7 @@ module.exports = function (app) {
 
     const ok = await app.api.avatar.delete(user._id);
     if (!ok) {
-      res.status(404).send({ msg: "Você não tem foto." });
+      res.status(404).send({ msg: req.t("errors.noPhoto") });
       return;
     }
 
@@ -68,6 +68,6 @@ module.exports = function (app) {
       local: { target_type: "users", target_id: user._id + "" },
     });
 
-    res.send({ msg: "Foto removida." });
+    res.send({ msg: req.t("ok.photoRemoved") });
   });
 };
