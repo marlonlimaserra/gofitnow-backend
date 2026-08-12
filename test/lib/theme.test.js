@@ -270,3 +270,14 @@ test("a logo do menu só aceita http(s)", () => {
   assert.equal(theme.sanitize({ menuLogo: "https://x.com/a.png" }).menuLogo, "https://x.com/a.png");
   assert.equal(theme.sanitize({ menuLogo: "javascript:alert(1)" }).menuLogo, "");
 });
+
+test("o painel do cartão tem cores próprias, e cor ruim vira vazio", () => {
+  // Vazio aqui é "usa a cor interna", como em todo campo de cor do tema.
+  const t = theme.sanitize({ cardFrom: "#f97316", cardTo: "DB2777" });
+  assert.equal(t.cardFrom, "#f97316");
+  assert.equal(t.cardTo, "#db2777");
+
+  for (const ruim of ["red; url(x)", "#12345", "", null]) {
+    assert.equal(theme.sanitize({ cardFrom: ruim }).cardFrom, "", JSON.stringify(ruim));
+  }
+});
