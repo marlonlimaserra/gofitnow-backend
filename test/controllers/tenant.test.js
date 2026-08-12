@@ -440,7 +440,8 @@ test("a tela do profissional recebe o que precisa para se montar", async () => {
   assert.ok(r.body.layouts.length >= 3, "as composições");
   assert.ok(r.body.backgrounds.length >= 4, "os fundos, que agora são escolha à parte");
   assert.ok(r.body.effects.length >= 3);
-  assert.ok(r.body.logoSizes.length >= 3);
+  assert.ok(r.body.motions.length >= 3);
+  assert.ok(r.body.logoRange.min < r.body.logoRange.max);
   assert.ok(r.body.speedRange.min < r.body.speedRange.max);
   assert.ok(r.body.presets.length >= 4);
   assert.equal(typeof r.body.dnsReady, "boolean");

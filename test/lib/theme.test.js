@@ -106,12 +106,44 @@ test("velocidade que não é número cai no padrão", () => {
   }
 });
 
-test("efeito e tamanho da logo só aceitam o que existe", () => {
+test("efeito e movimento só aceitam o que existe", () => {
   for (const e of theme.EFFECTS) assert.equal(theme.sanitize({ sliderEffect: e }).sliderEffect, e);
-  for (const s of theme.LOGO_SIZES) assert.equal(theme.sanitize({ logoSize: s }).logoSize, s);
+  for (const m of theme.MOTIONS) assert.equal(theme.sanitize({ gradientMotion: m }).gradientMotion, m);
 
   assert.equal(theme.sanitize({ sliderEffect: "explodir" }).sliderEffect, theme.defaults().sliderEffect);
-  assert.equal(theme.sanitize({ logoSize: "gigante" }).logoSize, theme.defaults().logoSize);
+  assert.equal(theme.sanitize({ gradientMotion: "girar" }).gradientMotion, theme.defaults().gradientMotion);
+});
+
+test("o tamanho da logo é em pixels, dentro da faixa", () => {
+  assert.equal(theme.sanitize({ logoSize: 72 }).logoSize, 72);
+  assert.equal(theme.sanitize({ logoSize: "72" }).logoSize, 72);
+  assert.equal(theme.sanitize({ logoSize: 5000 }).logoSize, theme.MAX_LOGO);
+  assert.equal(theme.sanitize({ logoSize: 1 }).logoSize, theme.MIN_LOGO);
+  assert.equal(theme.sanitize({ logoSize: "grande" }).logoSize, theme.defaults().logoSize);
+});
+
+test("os degraus antigos da logo viram o pixel que valiam", () => {
+  // Quem já tinha escolhido não pode ver a logo mudar de tamanho sozinha.
+  assert.equal(theme.sanitize({ logoSize: "sm" }).logoSize, 32);
+  assert.equal(theme.sanitize({ logoSize: "md" }).logoSize, 44);
+  assert.equal(theme.sanitize({ logoSize: "lg" }).logoSize, 56);
+  assert.equal(theme.sanitize({ logoSize: "xl" }).logoSize, 80);
+});
+
+test("as cores do fundo são hex, e cor ruim vira VAZIO — não o padrão", () => {
+  // Vazio quer dizer "tira da marca", que é exatamente o que fazer quando não
+  // se sabe o que a pessoa quis. Cair no padrão fixaria uma cor que ninguém
+  // escolheu e pararia de acompanhar a marca.
+  const t = theme.sanitize({ bgColor: "#0a0", gradientFrom: "2563EB", gradientTo: "#dc2626" });
+  assert.equal(t.bgColor, "#00aa00");
+  assert.equal(t.gradientFrom, "#2563eb");
+  assert.equal(t.gradientTo, "#dc2626");
+
+  for (const campo of ["bgColor", "gradientFrom", "gradientTo"]) {
+    for (const ruim of ["red; background: url(x)", "var(--x)", "#12345", "", null, 7]) {
+      assert.equal(theme.sanitize({ [campo]: ruim })[campo], "", `${campo}: ${JSON.stringify(ruim)}`);
+    }
+  }
 });
 
 test("os pontos do degradê nascem ligados, e um false explícito sobrevive", () => {
