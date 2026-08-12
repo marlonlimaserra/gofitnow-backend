@@ -9,6 +9,7 @@
 // aqui não existem. Cobre o que quebra calado: uma validação que passa quando
 // devia barrar.
 const { fromAcceptLanguage, translator } = require("../../lib/i18n");
+const instanceContext = require("../../lib/instance.js");
 
 // Um express suficiente para os controllers: eles chamam app.get/post/put/delete
 // com (rota, handler) e nada mais.
@@ -41,7 +42,19 @@ function fakeApp({ api = {}, helpers = {}, ...extras } = {}) {
 
 // Encontra a rota registrada e a executa, devolvendo o que a resposta recebeu.
 // Casa `:param` posicionalmente, que é tudo que este projeto usa.
-async function call(app, metodo, caminho, { body, params, query, headers } = {}) {
+// `instance` é a instância em cujo contexto o handler roda.
+//
+// Em produção NENHUMA rota fechada roda fora de um contexto de instância — o
+// middleware (lib/instanceGate.js) o estabelece antes de qualquer handler, e os
+// modelos leem dele para saber qual banco abrir. Um harness que chamasse o handler
+// solto testaria uma situação que não existe, e faria `instanceContext.required()`
+// estourar em teste enquanto funciona no ar.
+async function call(
+  app,
+  metodo,
+  caminho,
+  { body, params, query, headers, instance = "marlon" } = {}
+) {
   const rota = app._rotas.find(
     (r) => r.metodo === metodo.toLowerCase() && mesmaRota(r.caminho, caminho)
   );
@@ -86,7 +99,7 @@ async function call(app, metodo, caminho, { body, params, query, headers } = {})
     },
   };
 
-  await rota.handler(req, res);
+  await instanceContext.run(instance, () => rota.handler(req, res));
   return { ...resposta, req };
 }
 

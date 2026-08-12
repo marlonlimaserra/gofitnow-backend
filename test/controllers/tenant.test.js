@@ -8,6 +8,9 @@ const themeLib = require("../../lib/theme.js");
 const USER = { _id: "u1", name: "Marlon" };
 
 function monta({
+  // Os endereços que o CENTRAL conhece. Padrão: o subdomínio da instância, que é
+  // o que o painel grava ao criar o cliente.
+  hosts = ["marlon.gofitnow.fit"],
   tenant,
   livre = true,
   viaApiKey = false,
@@ -21,6 +24,9 @@ function monta({
   const estados = [];
   const naCloudflare = [];
   const faxina = [];
+  const hostsAdicionados = [];
+  const hostsRemovidos = [];
+  const hostsDaInstancia = [...hosts];
 
   const app = fakeApp({
     // As integrações de rede entram como dublê: um teste que batesse na
@@ -61,13 +67,23 @@ function monta({
     api: {
       // O registro central: é ele que diz de quem é um endereço antes de
       // existir sessão.
+      // O registro central é INDEPENDENTE do tenant, e o dublê tem de refletir
+      // isso — era justamente o acoplamento daqui que escondia o defeito de "salvo
+      // e invisível". Na realidade quem escreve `instances.hosts` é o painel (na
+      // criação do cliente) e as rotas de domínio deste controller; o documento do
+      // profissional não tem voz nenhuma nessa tabela.
       center: {
         async byHost(host) {
-          if (!tenant) return undefined;
-          const sub = tenant.subdomain ? `${tenant.subdomain}.gofitnow.fit` : null;
-          return host === sub || host === tenant.customDomain
-            ? { instance: "marlon" }
-            : undefined;
+          return hostsDaInstancia.includes(host) ? { instance: "marlon" } : undefined;
+        },
+        async addHost(instance, host) {
+          hostsAdicionados.push({ instance, host });
+          hostsDaInstancia.push(host);
+          return { ok: true, host };
+        },
+        async removeHost(instance, host) {
+          hostsRemovidos.push({ instance, host });
+          return true;
         },
       },
       brandImage: {
@@ -87,6 +103,12 @@ function monta({
           if (!tenant) return undefined;
           const sub = tenant.subdomain ? `${tenant.subdomain}.gofitnow.fit` : null;
           return host === sub || host === tenant.customDomain ? tenant : undefined;
+        },
+        // A aparência da instância, quando ninguém reivindicou o endereço. O
+        // dublê devolve o MESMO documento porque é o que o real faz numa
+        // instância de um profissional: o mais antigo é ele.
+        async dataOfInstance() {
+          return tenant;
         },
         async isFree() {
           return livre;
@@ -125,7 +147,17 @@ function monta({
   });
 
   TenantController(app);
-  return { app, salvos, reservas, dominios, estados, naCloudflare, faxina };
+  return {
+    app,
+    salvos,
+    reservas,
+    dominios,
+    estados,
+    naCloudflare,
+    faxina,
+    hostsAdicionados,
+    hostsRemovidos,
+  };
 }
 
 test("o tema público sai sem sessão nenhuma", async () => {
@@ -135,6 +167,30 @@ test("o tema público sai sem sessão nenhuma", async () => {
   assert.equal(r.status, 200);
   assert.equal(r.body.theme.brand, "#2563eb");
   assert.equal(r.body.custom, true);
+});
+
+test("tema salvo SEM endereço reivindicado ainda chega à tela de entrada", async () => {
+  // O defeito mais confuso que este projeto teve: a pessoa salvava a tela de
+  // entrada, o tema ia para o banco, e a tela continuava a original. Salvo e
+  // invisível.
+  //
+  // A causa era o descompasso do banco-por-cliente: o endereço pertence à
+  // INSTÂNCIA (quem registra é o painel, na coleção `instances`), mas a busca da
+  // aparência exigia que o PROFISSIONAL tivesse reivindicado aquele subdomínio
+  // por dentro, numa segunda tela. Sem isso, caía no tema padrão.
+  const { app } = monta({
+    // Nem `subdomain` nem `customDomain`: exatamente o estado em que o banco
+    // estava quando o defeito apareceu.
+    tenant: { user: "u1", status: "none", theme: { brand: "#7c3aed", layout: "side" } },
+  });
+
+  const r = await call(app, "get", "/public/theme", { query: { host: "marlon.gofitnow.fit" } });
+
+  assert.equal(r.status, 200);
+  assert.equal(r.body.known, true);
+  assert.equal(r.body.theme.brand, "#7c3aed", "o tema salvo tinha de chegar aqui");
+  assert.equal(r.body.theme.layout, "side", "a composição escolhida também");
+  assert.equal(r.body.custom, true, "é aparência de alguém, não o padrão");
 });
 
 test("o tema público NÃO entrega de quem é o domínio", async () => {
@@ -258,7 +314,12 @@ test("a checagem de disponibilidade explica o motivo", async () => {
 
 test("o tema público também sai pelo domínio próprio do profissional", async () => {
   // É o ponto do recurso: `treinos.marlon.com.br` tem de abrir com a marca dele.
+  //
+  // O host precisa estar no CENTRAL, e não só no documento do profissional: é o
+  // central que diz de qual instância é um endereço, antes de existir sessão. Quem
+  // o coloca lá é a rota de cadastro de domínio (ver os testes abaixo).
   const { app } = monta({
+    hosts: ["marlon.gofitnow.fit", "treinos.marlon.com.br"],
     tenant: { customDomain: "treinos.marlon.com.br", theme: { brand: "#7c3aed" } },
   });
   const r = await call(app, "get", "/public/theme", { query: { host: "treinos.marlon.com.br" } });
@@ -478,4 +539,61 @@ test("a tela do profissional recebe o que precisa para se montar", async () => {
   assert.ok(r.body.speedRange.min < r.body.speedRange.max);
   assert.ok(r.body.presets.length >= 4);
   assert.equal(typeof r.body.dnsReady, "boolean");
+});
+
+// ── O endereço no registro central ──────────────────────────────────────────
+//
+// Um endereço que existe só por dentro da instância é um endereço TRANCADO: o
+// portão (lib/instanceGate.js) resolve host → instância consultando
+// `instances.hosts`, e o que não está lá responde "domínio não identificado". Por
+// meses o `addHost` do Center_model não tinha um único chamador — registrar o
+// próprio endereço o deixaria inacessível.
+test("escolher subdomínio registra o endereço no central", async () => {
+  const { app, hostsAdicionados } = monta({ tenant: undefined });
+
+  await call(app, "post", "/me/tenant/domain", { body: { subdomain: "marlon" } });
+
+  assert.deepEqual(hostsAdicionados, [{ instance: "marlon", host: "marlon.gofitnow.fit" }]);
+});
+
+test("cadastrar domínio próprio registra o endereço no central", async () => {
+  const { app, hostsAdicionados } = monta({ tenant: { subdomain: "marlon" } });
+
+  await call(app, "post", "/me/tenant/custom-domain", {
+    body: { domain: "treinos.marlon.com.br" },
+  });
+
+  assert.deepEqual(hostsAdicionados, [{ instance: "marlon", host: "treinos.marlon.com.br" }]);
+});
+
+test("registra ANTES de a Cloudflare entrar na conversa", async () => {
+  // Sem credencial de Pages a rota devolve "pending" e para. O endereço tem de
+  // resolver mesmo assim, senão a tela abriria em "domínio não identificado"
+  // durante toda a espera do DNS — que é justamente quando a pessoa fica
+  // conferindo se funcionou.
+  const { app, hostsAdicionados } = monta({
+    tenant: { subdomain: "marlon" },
+    pages: false,
+  });
+
+  const r = await call(app, "post", "/me/tenant/custom-domain", {
+    body: { domain: "treinos.marlon.com.br" },
+  });
+
+  assert.equal(r.body.customStatus, "pending");
+  assert.equal(hostsAdicionados.length, 1, "o host tinha de entrar no central mesmo assim");
+});
+
+test("remover o domínio próprio tira o endereço do central", async () => {
+  // Deixá-lo lá manteria o endereço resolvendo para uma instância que já não o
+  // quer — e impediria outro cliente de registrar o mesmo domínio, porque o
+  // índice de host é único.
+  const { app, hostsRemovidos } = monta({
+    hosts: ["marlon.gofitnow.fit", "treinos.marlon.com.br"],
+    tenant: { subdomain: "marlon", customDomain: "treinos.marlon.com.br" },
+  });
+
+  await call(app, "delete", "/me/tenant/custom-domain");
+
+  assert.deepEqual(hostsRemovidos, [{ instance: "marlon", host: "treinos.marlon.com.br" }]);
 });

@@ -47,6 +47,33 @@ Tenant_model.prototype.dataByHost = async function (host) {
   return this.dataByCustomDomain(host);
 };
 
+// A aparência DA INSTÂNCIA, quando nenhum documento reivindica o endereço.
+//
+// Existe por causa de um descompasso que o banco-por-cliente criou. O endereço
+// `marlon.gofitnow.fit` pertence à INSTÂNCIA — quem o registra é o painel, na
+// coleção `instances` do central. Mas a aparência mora no documento do
+// profissional, e ele só era achado por host se o profissional tivesse
+// reivindicado aquele subdomínio por dentro, numa segunda tela.
+//
+// O resultado era o defeito mais confuso possível: a pessoa salvava a tela de
+// entrada, o tema ia para o banco, e a tela de entrada continuava a original —
+// porque a busca por host não achava nada e caía no padrão. Salvo e invisível.
+//
+// A regra é o profissional MAIS ANTIGO da instância: é a conta criada quando o
+// cliente foi provisionado, o dono do negócio. Uma instância é UM negócio com uma
+// marca; se um profissional de dentro quiser aparência própria, ele reivindica um
+// endereço e o `dataByHost` acima o acha primeiro.
+Tenant_model.prototype.dataOfInstance = async function () {
+  const users = await this.app.api.user.collection();
+
+  // `createdAt: 1` e não o `_id`: o ObjectId cresce com o tempo, mas depender
+  // disso é depender de um detalhe do driver, não de um campo que a gente grava.
+  const dono = await users.findOne({ type: "trainer" }, { sort: { createdAt: 1 } });
+  if (!dono) return undefined;
+
+  return this.dataByUser(dono._id);
+};
+
 // Livre = nome válido, não reservado e ainda não tomado por outra conta.
 Tenant_model.prototype.isFree = async function (subdomain, exceptUserId) {
   if (!domainLib.isAvailableName(subdomain)) return false;

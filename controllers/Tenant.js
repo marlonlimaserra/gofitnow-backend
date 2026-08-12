@@ -51,10 +51,19 @@ module.exports = function (app) {
 
     const conhecido = { known: true };
 
-    // Um host, dois jeitos de ser de alguém: subdomínio nosso ou domínio dele.
-    const tenant = await instanceContext.run(registro.instance, () =>
-      app.api.tenant.dataByHost(host)
-    );
+    // Um host, três jeitos de chegar à aparência, nesta ordem:
+    //
+    //   1. um profissional que reivindicou ESTE endereço (subdomínio ou domínio
+    //      próprio) — é o caso de quem quer aparência só sua;
+    //   2. a aparência da INSTÂNCIA, que é a do profissional mais antigo dela.
+    //
+    // O (2) existe porque o endereço pertence à instância, e não ao profissional:
+    // quem registra `marlon.gofitnow.fit` é o painel. Sem ele, a pessoa salvava a
+    // tela de entrada e continuava vendo a original, porque a busca por host não
+    // achava nada e caía no padrão.
+    const tenant = await instanceContext.run(registro.instance, async () => {
+      return (await app.api.tenant.dataByHost(host)) || (await app.api.tenant.dataOfInstance());
+    });
     // Registrado mas sem tema escolhido: o endereço é de alguém, o visual é o
     // padrão. São coisas diferentes e a resposta diz as duas.
     if (!tenant) return res.send({ ...padrao, custom: false, ...conhecido });
@@ -151,6 +160,15 @@ module.exports = function (app) {
       return res.status(409).send({ msg: req.t(chave), code: reserva.erro });
     }
 
+    // O endereço entra no REGISTRO CENTRAL.
+    //
+    // Sem esta linha o subdomínio existiria só por dentro da instância, e o portão
+    // (lib/instanceGate.js) o barraria: ele resolve host → instância consultando
+    // `instances.hosts`, e um endereço que não está lá é "domínio não
+    // identificado". A pessoa registraria o próprio endereço e o receberia
+    // trancado.
+    await app.api.center.addHost(instanceContext.required(), reserva.host);
+
     app.insertUserActionHistory(req, user, "claim_domain", {
       category: "admin",
       local: { target_type: "tenants", target_id: String(user._id) },
@@ -230,6 +248,12 @@ module.exports = function (app) {
       extra: { host },
     });
 
+    // No registro central antes de qualquer conversa com a Cloudflare: o
+    // endereço precisa resolver para esta instância mesmo enquanto o certificado
+    // não sai, senão a tela abriria em "domínio não identificado" durante toda a
+    // espera do DNS.
+    await app.api.center.addHost(instanceContext.required(), host);
+
     if (!cf.isPagesConfigured()) {
       await app.api.tenant.setCustomStatus(user._id, "pending", "cloudflare_not_configured");
       return res.send({ customDomain: host, customStatus: "pending", customError: "cloudflare_not_configured" });
@@ -299,6 +323,11 @@ module.exports = function (app) {
     // sair do nome dele assim mesmo — senão fica preso a um domínio que ele já
     // não quer, e ninguém mais pode usar.
     await app.api.tenant.removeCustomDomain(user._id);
+
+    // E sai do registro central junto. Deixá-lo lá manteria o endereço resolvendo
+    // para esta instância depois de ela já não o querer — e, pior, impediria outro
+    // cliente de registrar o mesmo domínio, porque o índice é único.
+    await app.api.center.removeHost(instanceContext.required(), tenant.customDomain);
     if (cf.isPagesConfigured()) await cf.removePagesDomain(tenant.customDomain);
 
     app.insertUserActionHistory(req, user, "remove_custom_domain", {
