@@ -74,7 +74,9 @@
     "invalidDomain": "Escribe el dominio tal como es, sin http:// y sin barra — por ejemplo, entrenos.tusitio.com.",
     "ourDomain": "Esa dirección es nuestra. Para una dirección en {{base}}, usa la opción de subdominio.",
     "domainTaken": "Ese dominio ya está en otra cuenta.",
-    "noCustomDomain": "No hay ningún dominio propio configurado."
+    "noCustomDomain": "No hay ningún dominio propio configurado.",
+    "invalidBrandImage": "Envía una imagen JPEG, PNG o WebP de hasta 4 MB.",
+    "tooManyBrandImages": "Ya tienes {{max}} imágenes guardadas. Guarda la apariencia para liberar las que no están en uso."
   },
   "ok": {
     "passwordChanged": "Contraseña cambiada.",
@@ -231,7 +233,8 @@
     "claim_domain": "Eligió su propio dominio",
     "claim_custom_domain": "Registró un dominio propio",
     "remove_custom_domain": "Quitó el dominio propio",
-    "update_theme": "Cambió la apariencia"
+    "update_theme": "Cambió la apariencia",
+    "upload_brand_image": "Subió una imagen de la marca"
   },
   "categories": {
     "auth": "Acceso",

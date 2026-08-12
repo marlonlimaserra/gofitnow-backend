@@ -16,5 +16,6 @@ routes.AutoFill = require("./controllers/AutoFill.js");
 routes.Avatar = require("./controllers/Avatar.js");
 routes.ApiKey = require("./controllers/ApiKey.js");
 routes.Tenant = require("./controllers/Tenant.js");
+routes.Brand = require("./controllers/Brand.js");
 
 module.exports = routes;

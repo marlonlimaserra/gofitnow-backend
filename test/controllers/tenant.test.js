@@ -20,6 +20,7 @@ function monta({
   const dominios = [];
   const estados = [];
   const naCloudflare = [];
+  const faxina = [];
 
   const app = fakeApp({
     // As integrações de rede entram como dublê: um teste que batesse na
@@ -58,6 +59,12 @@ function monta({
       },
     },
     api: {
+      brandImage: {
+        async pruneUnused(userId, emUso) {
+          faxina.push(emUso);
+          return 0;
+        },
+      },
       tenant: {
         async dataByUser() {
           return tenant;
@@ -107,7 +114,7 @@ function monta({
   });
 
   TenantController(app);
-  return { app, salvos, reservas, dominios, estados, naCloudflare };
+  return { app, salvos, reservas, dominios, estados, naCloudflare, faxina };
 }
 
 test("o tema público sai sem sessão nenhuma", async () => {
@@ -387,6 +394,34 @@ test("salvar tema limpa o que veio de fora", async () => {
   assert.equal(salvos[0].brand, themeLib.defaults().brand);
   assert.equal(salvos[0].layout, themeLib.defaults().layout);
   assert.deepEqual(salvos[0].photos, []);
+});
+
+test("salvar tema recolhe as imagens que ele deixou de usar", async () => {
+  // Trocar a logo não pode deixar a antiga pendurada no banco, e uma imagem
+  // enviada e não usada também não fica.
+  const { app, faxina } = monta();
+  await call(app, "put", "/me/tenant/theme", {
+    body: {
+      logo: "https://backend.gofitnow.fit/public/brand/a",
+      photo: "https://backend.gofitnow.fit/public/brand/b",
+      photos: ["https://backend.gofitnow.fit/public/brand/c"],
+    },
+  });
+
+  assert.equal(faxina.length, 1);
+  assert.equal(faxina[0].length, 3, "a logo, a foto e as do carrossel, todas de uma vez");
+});
+
+test("a faxina falhando NÃO derruba o salvar", async () => {
+  // O tema já está gravado; falhar aqui faria a tela dizer que não salvou o
+  // que salvou.
+  const { app } = monta();
+  app.api.brandImage.pruneUnused = async () => {
+    throw new Error("banco fora do ar");
+  };
+
+  const r = await call(app, "put", "/me/tenant/theme", { body: { brand: "#2563eb" } });
+  assert.equal(r.status, 200);
 });
 
 test("salvar tema devolve a escala junto, para a tela aplicar de imediato", async () => {

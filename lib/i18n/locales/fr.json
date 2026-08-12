@@ -74,7 +74,9 @@
     "invalidDomain": "Écrivez le domaine tel quel, sans http:// ni barre oblique — par exemple, entrainements.votresite.com.",
     "ourDomain": "Cette adresse est la nôtre. Pour une adresse en {{base}}, utilisez l’option de sous-domaine.",
     "domainTaken": "Ce domaine est déjà sur un autre compte.",
-    "noCustomDomain": "Aucun domaine personnel n’est configuré."
+    "noCustomDomain": "Aucun domaine personnel n’est configuré.",
+    "invalidBrandImage": "Envoyez une image JPEG, PNG ou WebP de 4 Mo maximum.",
+    "tooManyBrandImages": "Vous avez déjà {{max}} images enregistrées. Enregistrez l’apparence pour libérer celles qui ne servent plus."
   },
   "ok": {
     "passwordChanged": "Mot de passe modifié.",
@@ -231,7 +233,8 @@
     "claim_domain": "A choisi son propre domaine",
     "claim_custom_domain": "A enregistré un domaine personnel",
     "remove_custom_domain": "A supprimé son domaine personnel",
-    "update_theme": "A changé l’apparence"
+    "update_theme": "A changé l’apparence",
+    "upload_brand_image": "A envoyé une image de la marque"
   },
   "categories": {
     "auth": "Accès",

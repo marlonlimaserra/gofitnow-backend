@@ -59,10 +59,17 @@ async function call(app, metodo, caminho, { body, params, query, headers } = {})
     t: translator(lang),
   };
 
-  const resposta = { status: 200, body: undefined, enviou: false };
+  // Os cabeçalhos ficam guardados porque em algumas rotas eles SÃO a regra: o
+  // cache de uma imagem pública e o de uma foto de sessão não podem ser o
+  // mesmo, e isso não aparece no corpo da resposta.
+  const resposta = { status: 200, body: undefined, enviou: false, headers: {} };
   const res = {
     status(code) {
       resposta.status = code;
+      return res;
+    },
+    setHeader(nome, valor) {
+      resposta.headers[String(nome).toLowerCase()] = valor;
       return res;
     },
     send(payload) {
@@ -72,6 +79,10 @@ async function call(app, metodo, caminho, { body, params, query, headers } = {})
     },
     json(payload) {
       return res.send(payload);
+    },
+    end() {
+      resposta.enviou = true;
+      return res;
     },
   };
 

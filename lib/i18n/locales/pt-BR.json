@@ -74,7 +74,9 @@
     "invalidDomain": "Escreva o domínio como ele é, sem http:// e sem barra — por exemplo, treinos.seusite.com.br.",
     "ourDomain": "Esse endereço é nosso. Para um endereço em {{base}}, use a opção de subdomínio.",
     "domainTaken": "Esse domínio já está em outra conta.",
-    "noCustomDomain": "Nenhum domínio próprio cadastrado."
+    "noCustomDomain": "Nenhum domínio próprio cadastrado.",
+    "invalidBrandImage": "Envie uma imagem JPEG, PNG ou WebP de até 4 MB.",
+    "tooManyBrandImages": "Você já tem {{max}} imagens guardadas. Salve a aparência para liberar as que não estão em uso."
   },
   "ok": {
     "passwordChanged": "Senha alterada.",
@@ -231,7 +233,8 @@
     "claim_domain": "Escolheu o próprio domínio",
     "claim_custom_domain": "Cadastrou um domínio próprio",
     "remove_custom_domain": "Removeu o domínio próprio",
-    "update_theme": "Mudou a aparência"
+    "update_theme": "Mudou a aparência",
+    "upload_brand_image": "Enviou uma imagem da marca"
   },
   "categories": {
     "auth": "Acesso",

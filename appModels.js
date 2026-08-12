@@ -16,5 +16,6 @@ models.avatar = require("./model/Avatar_model.js");
 models.apiKey = require("./model/ApiKey_model.js");
 models.apiCall = require("./model/ApiCall_model.js");
 models.tenant = require("./model/Tenant_model.js");
+models.brandImage = require("./model/BrandImage_model.js");
 
 module.exports = models;

@@ -278,6 +278,18 @@ module.exports = function (app) {
 
     const salvo = await app.api.tenant.saveTheme(user._id, req.body);
 
+    // O tema salvo é o dono da verdade sobre quais imagens ainda importam, e é
+    // por isso que o lixo é recolhido AQUI e não num botão de "remover imagem":
+    // trocar a logo, ou enviar uma e não usar, não pode deixar arquivo pendurado.
+    //
+    // Nunca derruba a rota: o tema já está gravado, e falhar a resposta por
+    // causa da faxina faria a tela dizer que não salvou o que salvou.
+    try {
+      await app.api.brandImage.pruneUnused(user._id, [salvo.logo, salvo.photo, ...salvo.photos]);
+    } catch (error) {
+      // Fica para a próxima gravação.
+    }
+
     app.insertUserActionHistory(req, user, "update_theme", {
       category: "admin",
       local: { target_type: "tenants", target_id: String(user._id) },

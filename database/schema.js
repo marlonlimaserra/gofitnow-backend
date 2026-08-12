@@ -280,6 +280,11 @@ async function dropRetiredPermissions(db) {
       { unique: true, partialFilterExpression: { customDomain: { $type: "string" } }, name: "custom_domain_unique" }
     );
 
+  // brand_images — a logo e as fotos da tela de entrada. O índice é por dono
+  // porque as duas operações que existem são "quantas esta conta tem" e
+  // "apaga as desta conta que o tema não usa mais".
+  await db.collection("brand_images").createIndex({ user: 1 }, { name: "user" });
+
   const { RETIRED } = require("../lib/permissions.js");
   if (!RETIRED.length) return;
 
