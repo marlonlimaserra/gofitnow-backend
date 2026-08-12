@@ -76,7 +76,8 @@
     "noCustomDomain": "No hay ningún dominio propio configurado.",
     "invalidBrandImage": "Envía una imagen JPEG, PNG o WebP de hasta 4 MB.",
     "tooManyBrandImages": "Ya tienes {{max}} imágenes guardadas. Guarda la apariencia para liberar las que no están en uso.",
-    "noInstance": "Instancia no informada. Envía el encabezado X-Instance, o entra por la dirección de la instancia."
+    "noInstance": "Instancia no informada. Envía el encabezado X-Instance, o entra por la dirección de la instancia.",
+    "unknownInstance": "Dominio no identificado. Esta dirección no está vinculada a ningún cliente registrado."
   },
   "ok": {
     "passwordChanged": "Contraseña cambiada.",

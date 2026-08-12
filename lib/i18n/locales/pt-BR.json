@@ -76,7 +76,8 @@
     "noCustomDomain": "Nenhum domínio próprio cadastrado.",
     "invalidBrandImage": "Envie uma imagem JPEG, PNG ou WebP de até 4 MB.",
     "tooManyBrandImages": "Você já tem {{max}} imagens guardadas. Salve a aparência para liberar as que não estão em uso.",
-    "noInstance": "Instância não informada. Mande o cabeçalho X-Instance, ou acesse pelo endereço da instância."
+    "noInstance": "Instância não informada. Mande o cabeçalho X-Instance, ou acesse pelo endereço da instância.",
+    "unknownInstance": "Domínio não identificado. Este endereço não está ligado a nenhum cliente cadastrado."
   },
   "ok": {
     "passwordChanged": "Senha alterada.",

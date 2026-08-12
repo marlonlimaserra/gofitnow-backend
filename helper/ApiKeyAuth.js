@@ -51,7 +51,9 @@ ApiKeyAuth.prototype.protect = async function (req, res) {
 
   // O limite é POR CHAVE, não por conta: uma integração com defeito não pode
   // derrubar as outras chaves da mesma pessoa.
-  const limite = rateLimit.check(String(doc._id));
+  // `checkShared` e não `check`: com o cluster ligado, quem tem o contador é o
+  // primário. Um Map por worker faria o limite valer N vezes o prometido.
+  const limite = await rateLimit.checkShared(String(doc._id));
   res.setHeader("X-RateLimit-Limit", limite.limit);
   res.setHeader("X-RateLimit-Remaining", limite.remaining);
 

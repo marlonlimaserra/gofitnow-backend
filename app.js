@@ -7,6 +7,9 @@ const cookieParser = require("cookie-parser");
 const { fromAcceptLanguage, translator } = require("./lib/i18n");
 const instanceContext = require("./lib/instance.js");
 const clientIp = require("./lib/clientIp.js");
+const clusterLib = require("./lib/cluster.js");
+const instanceGate = require("./lib/instanceGate.js");
+const rateLimit = require("./lib/rateLimit.js");
 const appRoutes = require("./appRoutes.js");
 const appModels = require("./appModels.js");
 const appHelpers = require("./appHelpers.js");
@@ -59,7 +62,10 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE, PATCH");
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "session,Authorization,X-API-Key,Accept-Language,Origin,Accept,X-Requested-With,Content-Type,Access-Control-Request-Method,Access-Control-Request-Headers"
+    // X-Instance e X-Instance-Host TÊM de estar aqui: sem eles o navegador barra a
+    // requisição no preflight e a tela não fala com a API — o erro apareceria como
+    // "falha de CORS", sem dizer qual cabeçalho faltou.
+    "session,Authorization,X-API-Key,X-Instance,X-Instance-Host,Accept-Language,Origin,Accept,X-Requested-With,Content-Type,Access-Control-Request-Method,Access-Control-Request-Headers"
   );
   res.setHeader("Access-Control-Allow-Credentials", "true");
   // Sem isto o navegador recebe os cabeçalhos de limite mas não deixa o JS lê-los.
@@ -86,35 +92,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// De qual INSTÂNCIA é esta requisição.
-//
-// Tem de vir ANTES de qualquer coisa que toque o banco: os modelos leem a
-// instância do contexto assíncrono, e fora dele eles estouram de propósito.
-//
-// As rotas abertas são a exceção que prova a regra — elas não têm instância e
-// nem precisam: `/public/theme` é resolvido por host e `/` é só um ping. Sem
-// esta lista, elas responderiam 400 pedindo um cabeçalho que ninguém tem como
-// mandar de uma tela de login.
-const SEM_INSTANCIA = [/^\/$/, /^\/public\//, /^\/internal\//];
-
-app.use((req, res, next) => {
-  const caminho = req.path || "";
-  if (SEM_INSTANCIA.some((r) => r.test(caminho))) return next();
-
-  const instance = instanceContext.fromRequest(req);
-  if (!instance) {
-    // 400 e não 401: não é falta de credencial, é falta de endereço. A mensagem
-    // diz COMO mandar, senão quem integra fica adivinhando.
-    return res.status(400).send({
-      msg: req.t("errors.noInstance"),
-      code: "no_instance",
-    });
-  }
-
-  req.instance = instance;
-  // Daqui para dentro, tudo o que rodar nesta requisição vê a instância.
-  instanceContext.run(instance, next);
-});
+// De qual INSTÂNCIA é esta requisição — ver lib/instanceGate.js.
+app.use(instanceGate(app));
 
 // De onde a requisição veio de verdade. Resolvido uma vez por requisição
 // porque o histórico e o log de chamadas por chave precisam do MESMO valor.
@@ -187,10 +166,18 @@ app.use((err, req, res, next) => {
 });
 
 // ── Boot ─────────────────────────────────────────────────────────────────
-// Connect to Mongo and ensure the collections/indexes BEFORE accepting any
-// request: booting with the database down would only push the failure onto the
-// first request.
-(async () => {
+//
+// Em dois passos, porque com o cluster eles rodam em processos diferentes.
+//
+// `preparar` roda UMA vez, em quem coordena: conecta e garante coleções e
+// índices antes de existir worker. Subir com o banco fora do ar só empurraria a
+// falha para a primeira requisição, e criar os mesmos índices de N processos ao
+// mesmo tempo é o mesmo trabalho feito N vezes.
+//
+// `servir` roda em cada processo que atende. Ele também conecta — o custo é uma
+// conexão que ele vai precisar de todo jeito, e é o que mantém a garantia de que
+// nenhum processo começa a aceitar requisição com o banco inalcançável.
+const preparar = async () => {
   try {
     await app.mongodb.centralDb();
     await ensureSchema(app);
@@ -198,11 +185,29 @@ app.use((err, req, res, next) => {
     console.error("[boot] could not prepare MongoDB:", error.message);
     process.exit(1);
   }
+};
 
-  app.listen(PORT, HOST, () => {
-    console.log("GoFitNow API running on " + HOST + ":" + PORT);
+const servir = async () => {
+  try {
+    await app.mongodb.centralDb();
+  } catch (error) {
+    console.error("[boot] could not reach MongoDB:", error.message);
+    process.exit(1);
+  }
+
+  return app.listen(PORT, HOST, () => {
+    console.log(`GoFitNow API running on ${HOST}:${PORT} (pid ${process.pid})`);
   });
-})();
+};
+
+clusterLib.start({
+  nome: "gofitnow",
+  preparar,
+  servir,
+  // O primário é o dono do contador de limite de chamadas: um por worker faria o
+  // limite valer N vezes o prometido.
+  aoNascerWorker: (worker) => rateLimit.atenderWorker(worker),
+});
 
 process.on("uncaughtException", function (error) {
   console.error("uncaughtException:", error);

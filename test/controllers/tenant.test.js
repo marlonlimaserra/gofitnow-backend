@@ -138,7 +138,13 @@ test("o tema público sai sem sessão nenhuma", async () => {
 });
 
 test("o tema público NÃO entrega de quem é o domínio", async () => {
-  // Um endereço aberto não pode dizer quem existe nem de quem é.
+  // Um endereço aberto diz SE é de alguém, nunca DE QUEM.
+  //
+  // `known` é a diferença entre a tela desenhar o formulário e dizer "domínio não
+  // identificado" — sem ele, um subdomínio qualquer apontado para nós ganha uma
+  // porta de entrada com cara de oficial. Mas ele é um booleano: o nome da
+  // instância não pode aparecer, senão esta rota sem autenticação viraria o mapa
+  // de qual domínio próprio pertence a qual cliente nosso.
   const { app } = monta({
     tenant: { subdomain: "marlon", user: "u1", theme: { brand: "#2563eb" } },
   });
@@ -146,19 +152,35 @@ test("o tema público NÃO entrega de quem é o domínio", async () => {
 
   const texto = JSON.stringify(r.body);
   assert.ok(!texto.includes("u1"), "vazou o id do dono");
-  assert.deepEqual(Object.keys(r.body).sort(), ["custom", "scale", "theme"]);
+  assert.deepEqual(Object.keys(r.body).sort(), ["custom", "known", "scale", "theme"]);
+  assert.equal(r.body.known, true);
 });
 
-test("host desconhecido devolve o tema padrão, não 404", async () => {
-  // A tela de login tem de abrir bonita em qualquer endereço, inclusive num
-  // digitado errado.
+test("host desconhecido responde 200 e diz que não conhece", async () => {
+  // 200 e não 404 de propósito: a rota RESPONDEU, e a resposta é "este endereço
+  // não é de ninguém". É a tela que decide o que fazer com isso — hoje, mostrar
+  // "domínio não identificado" em vez do formulário.
+  //
+  // O tema padrão continua vindo para a tela ter com o que se pintar enquanto diz
+  // que não conhece o endereço.
   const { app } = monta({ tenant: undefined });
   for (const host of ["ninguem.gofitnow.fit", "outro.com", "app.gofitnow.fit", ""]) {
     const r = await call(app, "get", "/public/theme", { query: { host } });
     assert.equal(r.status, 200, host);
     assert.equal(r.body.custom, false, host);
+    assert.equal(r.body.known, false, host);
     assert.equal(r.body.theme.brand, themeLib.defaults().brand, host);
   }
+});
+
+test("app.gofitnow.fit não é de ninguém, e isso é de propósito", async () => {
+  // A entrada genérica não pode existir num mundo de um banco por cliente: ela não
+  // tem como dizer QUAL banco conferiria a senha. Quem entra, entra pelo endereço
+  // do próprio cliente.
+  const { app } = monta({ tenant: { subdomain: "marlon", theme: {} } });
+  const r = await call(app, "get", "/public/theme", { query: { host: "app.gofitnow.fit" } });
+
+  assert.equal(r.body.known, false, "app.gofitnow.fit não pode ser reconhecido como cliente");
 });
 
 test("o tema público vem com a escala pronta", async () => {

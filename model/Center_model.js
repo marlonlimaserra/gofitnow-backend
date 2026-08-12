@@ -16,6 +16,52 @@ const instanceContext = require("../lib/instance.js");
 // central pode responder "de quem é este endereço". E é aqui que o índice único
 // de host faz sentido: dois clientes não podem disputar o mesmo endereço, e um
 // índice dentro de cada banco não veria o outro.
+//
+// ── O cache ────────────────────────────────────────────────────────────────
+//
+// `isActive` é consultada em TODA requisição que traz instância — é o portão que
+// impede um subdomínio inventado de abrir um banco fantasma. Uma ida ao Mongo por
+// requisição só para isso seria um custo fixo em tudo, então a resposta fica
+// guardada por alguns segundos.
+//
+// Os prazos são diferentes de propósito. O SIM vale mais tempo porque cliente
+// cadastrado raramente deixa de existir. O NÃO vale pouco porque ele é o estado
+// que acontece por um instante logo depois de cadastrar: sem isso, quem acabou de
+// criar um cliente veria "domínio não identificado" por meio minuto e acharia que
+// o cadastro falhou. O provisionamento também limpa a chave (ver Internal.js).
+const CACHE_SIM_MS = 30 * 1000;
+const CACHE_NAO_MS = 5 * 1000;
+
+// Teto para o cache não virar caminho de esgotar memória: quem varre
+// `aaa.gofitnow.fit`, `aab.gofitnow.fit`… acumularia uma entrada por tentativa.
+const CACHE_MAX = 500;
+
+// Uma tabela só, com a chave prefixada: `i:` para instância ativa, `h:` para o
+// endereço. Prefixo porque um host e um nome de instância podem colidir —
+// `marlon` e `marlon.gofitnow.fit` são perguntas diferentes com respostas
+// diferentes.
+const cache = new Map();
+
+function guardar(chave, valor) {
+  if (cache.size >= CACHE_MAX) {
+    const agora = Date.now();
+    for (const [k, v] of cache) if (agora >= v.vale) cache.delete(k);
+    // Se depois da limpeza ainda está cheio, começa de novo. Perder cache é
+    // lento, não errado.
+    if (cache.size >= CACHE_MAX) cache.clear();
+  }
+
+  // Achou vale mais tempo que não achou: ver o comentário dos prazos acima.
+  cache.set(chave, { valor, vale: Date.now() + (valor ? CACHE_SIM_MS : CACHE_NAO_MS) });
+  return valor;
+}
+
+function lido(chave) {
+  const guardado = cache.get(chave);
+  if (!guardado || Date.now() >= guardado.vale) return undefined;
+  return guardado.valor;
+}
+
 function Center_model(app) {
   this.app = app;
 }
@@ -32,6 +78,63 @@ Center_model.prototype.byInstance = async function (instance) {
   if (!nome) return undefined;
   const col = await this.collection();
   return (await col.findOne({ instance: nome })) || undefined;
+};
+
+// Esta instância existe e está ativa?
+//
+// É o portão do middleware. `lib/instance.js` sabe se o NOME é bem formado, o que
+// é outra coisa: `bruna` é um nome válido e não é cliente nenhum. Sem esta
+// conferência, `bruna.gofitnow.fit` abriria o banco `gofitnow_bruna` — que o Mongo
+// cria na primeira escrita — e passaria a existir um cliente que ninguém cadastrou.
+Center_model.prototype.isActive = async function (instance) {
+  const nome = instanceContext.normalize(instance);
+  if (!nome) return false;
+
+  const guardado = lido("i:" + nome);
+  if (guardado !== undefined) return guardado;
+
+  const doc = await this.byInstance(nome);
+  // `active` ausente é ATIVA: os registros antigos não têm o campo, e tratá-los
+  // como desativados trancaria clientes que funcionam.
+  const ativa = Boolean(doc) && doc.active !== false && doc.active !== 0;
+
+  return guardar("i:" + nome, ativa);
+};
+
+// De qual instância é este ENDEREÇO — a pergunta que o app do navegador faz.
+//
+// Ele é servido em `marlon.gofitnow.fit` mas chama `backend.gofitnow.fit`, então o
+// Host que chega ao servidor é o do backend: o subdomínio da tela não atravessa a
+// requisição por si. O app manda o endereço dele em `X-Instance-Host` e a
+// resolução acontece AQUI, contra o registro — nunca no navegador, que poderia
+// dizer qualquer coisa.
+//
+// Devolve "" quando o endereço não é de ninguém, para o cache poder guardar o
+// "não achei" (undefined significaria "não perguntei ainda").
+Center_model.prototype.instanceForHost = async function (host) {
+  const limpo = String(host || "").trim().toLowerCase().split(":")[0];
+  if (!limpo) return "";
+
+  const guardado = lido("h:" + limpo);
+  if (guardado !== undefined) return guardado;
+
+  const doc = await this.byHost(limpo);
+  const ativo = doc && doc.active !== false && doc.active !== 0;
+
+  return guardar("h:" + limpo, ativo ? doc.instance : "");
+};
+
+// Esquecer o que está guardado de uma instância. Chamado quando o painel acabou
+// de criar ou provisionar uma — e pelos testes, que senão vazariam contagem de um
+// caso para o outro.
+Center_model.prototype.forget = function (instance) {
+  const nome = instanceContext.normalize(instance);
+  if (!nome) return cache.clear();
+
+  cache.delete("i:" + nome);
+  // Os endereços dela também: o cadastro que acabou de nascer tem host novo, e
+  // um "não é de ninguém" guardado sobre esse host duraria o prazo inteiro.
+  for (const k of cache.keys()) if (k.startsWith("h:")) cache.delete(k);
 };
 
 Center_model.prototype.byEmail = async function (email) {

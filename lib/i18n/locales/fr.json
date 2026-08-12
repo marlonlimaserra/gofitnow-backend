@@ -76,7 +76,8 @@
     "noCustomDomain": "Aucun domaine personnel n’est configuré.",
     "invalidBrandImage": "Envoyez une image JPEG, PNG ou WebP de 4 Mo maximum.",
     "tooManyBrandImages": "Vous avez déjà {{max}} images enregistrées. Enregistrez l’apparence pour libérer celles qui ne servent plus.",
-    "noInstance": "Instance non fournie. Envoyez l’en-tête X-Instance, ou passez par l’adresse de l’instance."
+    "noInstance": "Instance non fournie. Envoyez l’en-tête X-Instance, ou passez par l’adresse de l’instance.",
+    "unknownInstance": "Adresse non reconnue. Cette adresse n’est liée à aucun client enregistré."
   },
   "ok": {
     "passwordChanged": "Mot de passe modifié.",

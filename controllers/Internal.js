@@ -58,6 +58,14 @@ module.exports = function (app) {
 
     await ensureSchema.ensureInstance(app, nome);
 
+    // Esquece o que ficou guardado sobre esta instância.
+    //
+    // O portão do middleware guarda por alguns segundos que um nome NÃO é de
+    // ninguém. Sem esta linha, o cliente que acabou de ser criado veria "domínio
+    // não identificado" nesses segundos — o pior momento possível, porque é
+    // exatamente quando alguém está conferindo se o cadastro funcionou.
+    app.api.center.forget(nome);
+
     res.send({ ok: true, instance: nome, db: app.mongodb.dbNameFor(nome) });
   });
 

@@ -1,10 +1,10 @@
 {
   "name": "gofitnow-backend",
   "version": "0.1.0",
-  "description": "API do GoFitNow — personal trainers e alunos",
+  "description": "API do GoFitNow \u2014 personal trainers e alunos",
   "main": "app.js",
   "scripts": {
-    "start": "nodemon app.js",
+    "start": "WORKERS=1 nodemon app.js",
     "start:prod": "node app.js",
     "db:init": "node database/init.js",
     "i18n:check": "node lib/i18n/check.js",

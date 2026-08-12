@@ -31,15 +31,35 @@ module.exports = function (app) {
     // que sabe de quem é cada endereço, e só depois se abre o banco daquele
     // cliente para ler o tema.
     const registro = await app.api.center.byHost(host);
-    if (!registro) return res.send({ ...padrao, custom: false });
+
+    // `known` é o que a tela de login espera antes de se desenhar.
+    //
+    // Antes daqui a resposta era sempre 200 com o tema padrão, e a tela não tinha
+    // como distinguir "cliente sem tema escolhido" de "endereço que não é de
+    // ninguém" — então desenhava o formulário nos dois casos, e um subdomínio
+    // qualquer apontado para nós virava uma porta de entrada com cara de oficial.
+    //
+    // `known` é um booleano de propósito, e o nome da instância NÃO vai na
+    // resposta. Dizer "este endereço é de alguém" é o que a tela precisa; dizer
+    // "é do cliente marlon" seria entregar, numa rota sem autenticação, o mapa de
+    // qual domínio próprio pertence a qual cliente nosso. Quem precisa saber a
+    // instância é o servidor, e ele descobre sozinho pelo endereço da tela
+    // (cabeçalho X-Instance-Host, ver app.js).
+    if (!registro || registro.active === false || registro.active === 0) {
+      return res.send({ ...padrao, custom: false, known: false });
+    }
+
+    const conhecido = { known: true };
 
     // Um host, dois jeitos de ser de alguém: subdomínio nosso ou domínio dele.
     const tenant = await instanceContext.run(registro.instance, () =>
       app.api.tenant.dataByHost(host)
     );
-    if (!tenant) return res.send({ ...padrao, custom: false });
+    // Registrado mas sem tema escolhido: o endereço é de alguém, o visual é o
+    // padrão. São coisas diferentes e a resposta diz as duas.
+    if (!tenant) return res.send({ ...padrao, custom: false, ...conhecido });
 
-    res.send({ ...app.api.tenant.publicTheme(tenant), custom: true });
+    res.send({ ...app.api.tenant.publicTheme(tenant), custom: true, ...conhecido });
   });
 
   // ── Do profissional ─────────────────────────────────────────────────────
