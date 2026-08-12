@@ -297,3 +297,9 @@ test("a velocidade do movimento tem faixa própria", () => {
   assert.equal(theme.sanitize({ motionSpeed: 0 }).motionSpeed, theme.MIN_MOTION_SPEED);
   assert.equal(theme.sanitize({ motionSpeed: 9999 }).motionSpeed, theme.MAX_MOTION_SPEED);
 });
+
+test("o degradê tem TRÊS cores, e a do meio segue a mesma regra", () => {
+  const t = theme.sanitize({ gradientFrom: "#2563eb", gradientVia: "#f59e0b", gradientTo: "#dc2626" });
+  assert.equal(t.gradientVia, "#f59e0b");
+  assert.equal(theme.sanitize({ gradientVia: "nao-e-cor" }).gradientVia, "");
+});
