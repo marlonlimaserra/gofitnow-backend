@@ -303,3 +303,22 @@ test("o degradê tem TRÊS cores, e a do meio segue a mesma regra", () => {
   assert.equal(t.gradientVia, "#f59e0b");
   assert.equal(theme.sanitize({ gradientVia: "nao-e-cor" }).gradientVia, "");
 });
+
+test("frase e título têm cor própria, e podem ser escondidos", () => {
+  const t = theme.sanitize({
+    titleColor: "#f59e0b",
+    subtitleColor: "FFF",
+    hideTitle: true,
+    hideSubtitle: 1,
+  });
+
+  assert.equal(t.titleColor, "#f59e0b");
+  assert.equal(t.subtitleColor, "#ffffff");
+  assert.equal(t.hideTitle, true);
+  assert.equal(t.hideSubtitle, true, "valor de formulário também conta");
+
+  // O padrão é MOSTRAR: quem nunca mexeu não pode perder o texto da tela.
+  assert.equal(theme.sanitize({}).hideTitle, false);
+  assert.equal(theme.sanitize({}).hideSubtitle, false);
+  assert.equal(theme.sanitize({ titleColor: "nao-e-cor" }).titleColor, "");
+});
