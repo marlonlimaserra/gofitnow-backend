@@ -67,13 +67,54 @@ test("editar mandando o MESMO e-mail continua funcionando", async () => {
   assert.equal(chamadas.updateStudent.length, 1);
 });
 
-test("editar mandando OUTRO e-mail é recusado com 403", async () => {
+// O e-mail PODE ser trocado.
+//
+// Ficou travado enquanto o backend era de banco único: o endereço era a
+// identidade da pessoa entre profissionais de contas diferentes. Com um banco por
+// cliente, o mesmo ser humano em duas instâncias já são dois cadastros distintos,
+// e aqui dentro quem cadastrou é quem cuida do dado.
+test("editar mandando OUTRO e-mail grava o novo", async () => {
   const { app, chamadas } = monta();
   const r = await put(app, { name: "Ana", email: "outro@x.com" });
 
-  assert.equal(r.status, 403);
-  assert.equal(r.body.code, "email_not_editable");
+  assert.equal(r.status, 200);
+  assert.equal(chamadas.updateStudent[0].email, "outro@x.com", "o modelo tinha de receber");
+});
+
+test("e-mail que já é de OUTRA conta é recusado com 409", async () => {
+  // Duas fichas com o mesmo e-mail seriam duas contas disputando o mesmo login.
+  const { app, chamadas } = monta({ existente: { _id: "outra-pessoa" } });
+  const r = await put(app, { email: "ocupado@x.com" });
+
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, "email_in_use");
   assert.equal(chamadas.updateStudent.length, 0, "não pode nem chegar ao modelo");
+});
+
+test("o e-mail que já é DESTA pessoa não conta como ocupado", async () => {
+  // `dataByEmail` acha o próprio documento: recusar aqui impediria de salvar
+  // qualquer outro campo da ficha.
+  const { app } = monta({ existente: { _id: PESSOA._id } });
+  const r = await put(app, { email: "novo@x.com", name: "Ana Paula" });
+
+  assert.equal(r.status, 200);
+});
+
+test("colisão de corrida vira 409, não 500", async () => {
+  // A checagem acima perde a corrida entre duas requisições simultâneas; quem
+  // garante é o índice único. Sem traduzir o 11000, a pessoa levaria um erro
+  // interno sem explicação no lugar de "esse e-mail já é de outra".
+  const { app } = monta();
+  app.api.user.updateStudent = async () => {
+    const erro = new Error("E11000 duplicate key");
+    erro.code = 11000;
+    throw erro;
+  };
+
+  const r = await put(app, { email: "corrida@x.com" });
+
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, "email_in_use");
 });
 
 test("a recusa do e-mail não depende de caixa nem de espaço em volta", async () => {
@@ -82,22 +123,14 @@ test("a recusa do e-mail não depende de caixa nem de espaço em volta", async (
   assert.equal(r.status, 200, "é o mesmo endereço, só escrito diferente");
 });
 
-test("o e-mail sai do corpo mesmo quando é aceito — o modelo não pode gravá-lo", async () => {
-  const { app, chamadas } = monta();
-  await put(app, { name: "Ana Paula", email: "ana@x.com" });
-
-  assert.equal("email" in chamadas.updateStudent[0], false);
-  assert.equal(chamadas.updateStudent[0].name, "Ana Paula");
-});
-
-test("a mensagem de recusa sai no idioma do pedido", async () => {
+test("a recusa sai no idioma do pedido", async () => {
   for (const [lang, trecho] of [
-    ["pt-BR", /própria pessoa/],
-    ["en", /Only the person themselves/],
-    ["fr", /Seule la personne/],
+    ["pt-BR", /em uso/i],
+    ["en", /in use/i],
+    ["es", /en uso/i],
   ]) {
-    const { app } = monta();
-    const r = await put(app, { email: "outro@x.com" }, { "accept-language": lang });
+    const { app } = monta({ existente: { _id: "outra-pessoa" } });
+    const r = await put(app, { email: "ocupado@x.com" }, { "accept-language": lang });
     assert.match(r.body.msg, trecho, lang);
   }
 });

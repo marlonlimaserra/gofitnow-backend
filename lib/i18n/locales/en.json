@@ -42,7 +42,6 @@
     "emailIsYours": "That e-mail is your own.",
     "alreadyInYourList": "That person is already in your list.",
     "roleNameTaken": "A type with that name already exists.",
-    "emailNotEditable": "Only the person themselves can change their e-mail.",
     "ownAccountAccess": "This account belongs to the person themselves — only they can change their access.",
     "cannotDeleteSelf": "You cannot delete your own account.",
     "systemRoleNotDeletable": "The system default types cannot be deleted.",

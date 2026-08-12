@@ -138,33 +138,42 @@ module.exports = function (app) {
       res.status(400).send({ msg: req.t("errors.passwordTooShort") });
       return;
     }
-    // O e-mail de uma pessoa que JÁ existe não se troca por aqui.
+    // O e-mail PODE ser trocado aqui.
     //
-    // Ele é a identidade dela entre profissionais: é por ele que outro
-    // profissional a encontra em vez de cadastrar tudo de novo, e é com ele que
-    // ela entra no app. Deixar um profissional trocá-lo permitiria apontar a
-    // ficha para outra pessoa — ou reivindicar o endereço de quem já tem conta.
-    // Quem troca é a própria pessoa, em Meu perfil (PUT /me).
+    // Ficou travado por um bom tempo, e a razão era do mundo de banco único: o
+    // e-mail era a identidade da pessoa ENTRE profissionais de contas diferentes,
+    // e trocá-lo permitiria apontar a ficha para outra pessoa ou reivindicar o
+    // endereço de quem já tinha conta. Com um banco por cliente isso deixou de
+    // existir — o mesmo ser humano em duas instâncias já são dois cadastros
+    // distintos, e aqui dentro quem cadastrou é quem cuida do dado.
     //
-    // Mandar o e-mail ATUAL continua valendo: o formulário envia a ficha inteira,
-    // e recusar um valor igual ao que já está gravado só quebraria o salvar.
+    // O que continua valendo é a UNICIDADE dentro da instância: dois cadastros
+    // com o mesmo e-mail seriam duas fichas disputando o mesmo login.
     if (body.email !== undefined) {
       const enviado = String(body.email).trim().toLowerCase();
       const atual = String(target.email || "").trim().toLowerCase();
+
       if (enviado !== atual) {
-        res.status(403).send({
-          msg: req.t("errors.emailNotEditable"),
-          code: "email_not_editable",
-        });
-        return;
+        const dono = await app.api.user.dataByEmail(enviado);
+        if (dono && String(dono._id) !== String(req.params.id)) {
+          res.status(409).send({ msg: req.t("errors.emailInUse"), code: "email_in_use" });
+          return;
+        }
       }
     }
 
-    // Sai do corpo em vez de só ser recusado acima: o modelo não deve nem ter a
-    // chance de gravar o campo.
-    const { email, ...semEmail } = body;
-
-    await app.api.user.updateStudent(trainer._id, req.params.id, semEmail);
+    try {
+      await app.api.user.updateStudent(trainer._id, req.params.id, body);
+    } catch (error) {
+      // A checagem acima perde a corrida entre duas requisições simultâneas; quem
+      // garante é o índice único. Traduzir o 11000 aqui é a diferença entre "esse
+      // e-mail já é de outra pessoa" e um 500 sem explicação.
+      if (error?.code === 11000) {
+        res.status(409).send({ msg: req.t("errors.emailInUse"), code: "email_in_use" });
+        return;
+      }
+      throw error;
+    }
 
     // Observação e status são do VÍNCULO, não da pessoa: cada profissional tem
     // os seus. Marcar inativo aqui não bloqueia o login de ninguém — isso é o

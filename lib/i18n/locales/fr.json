@@ -42,7 +42,6 @@
     "emailIsYours": "Cet e-mail est le vôtre.",
     "alreadyInYourList": "Cette personne est déjà dans votre liste.",
     "roleNameTaken": "Un type portant ce nom existe déjà.",
-    "emailNotEditable": "Seule la personne elle-même peut changer son e-mail.",
     "ownAccountAccess": "Ce compte appartient à la personne elle-même — elle seule peut changer son accès.",
     "cannotDeleteSelf": "Vous ne pouvez pas supprimer votre propre compte.",
     "systemRoleNotDeletable": "Les types par défaut du système ne peuvent pas être supprimés.",
