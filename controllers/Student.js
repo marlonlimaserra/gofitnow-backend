@@ -92,7 +92,7 @@ module.exports = function (app) {
     // Someone being followed always starts as "Pessoa". The type is resolved
     // here and never taken from the body, so a crafted request cannot create
     // an account with more power than the screen offers.
-    const role = await app.api.role.dataByName("Pessoa");
+    const role = await app.api.role.dataByName(app.api.role.clientName);
 
     const id = await app.api.user.insertStudent(trainer._id, { ...body, role: role?._id });
 

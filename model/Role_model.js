@@ -7,11 +7,17 @@ const permissions = require("../lib/permissions.js");
 // permission keys. That is the whole authorization model: routes ask for a
 // key, never for "is this an admin".
 //
-// Three roles are seeded and marked `system: true`:
+// Três papéis são semeados e marcados `system: true`:
 //
-//   Administrador  every permission, kept in sync as new ones ship
-//   Profissional   the people/workouts/exercises side
-//   Pessoa         nothing — someone being followed only ever reads /me
+//   Administrador  toda permissão, mantido em dia conforme novas surgem
+//   Usuário        o lado de pessoas / treinos / exercícios
+//   Cliente        nada — quem é acompanhado só lê os próprios dados
+//
+// Os dois últimos já se chamaram "Profissional" e "Pessoa". Os nomes mudaram
+// quando "profissional" deixou de ser um tipo de conta visível, e a migração está
+// em `ensureSystemRoles`: renomear o documento existente, e não semear um novo,
+// porque as contas apontam para o `_id` e um papel novo deixaria o antigo órfão
+// com gente dentro.
 //
 // System roles cannot be deleted. Administrador additionally cannot be edited:
 // it is the way back in, and letting it lose `roles.manage` would lock the
@@ -22,7 +28,15 @@ function Role_model(app) {
 
 const ADMIN_NAME = "Administrador";
 
+// O papel que uma conta recebe quando ninguém escolheu um. Fica aqui, e não
+// escrito à mão nos controllers, porque um nome com acento repetido em dois
+// lugares é um erro de digitação esperando para virar conta sem permissão.
+const DEFAULT_NAME = "Usuário";
+const CLIENT_NAME = "Cliente";
+
 Role_model.prototype.adminName = ADMIN_NAME;
+Role_model.prototype.defaultName = DEFAULT_NAME;
+Role_model.prototype.clientName = CLIENT_NAME;
 
 Role_model.prototype.collection = async function () {
   const db = await this.app.mongodb.connectToServer();
@@ -134,6 +148,32 @@ Role_model.prototype.countActiveUsersWith = async function (permission, ignoreUs
 Role_model.prototype.ensureSystemRoles = async function () {
   const col = await this.collection();
 
+  // Renomeia os semeados antigos ANTES de semear.
+  //
+  // Sem este passo o laço abaixo não acharia "Usuário", criaria um novo, e
+  // "Profissional" ficaria para trás — com as contas que apontam para ele, já que
+  // a referência é por `_id`. Ficariam dois papéis quase iguais e ninguém saberia
+  // qual é o que vale.
+  //
+  // Só mexe no que é `system`, e só quando o nome novo ainda não existe: se
+  // alguém já criou um papel chamado "Usuário" à mão, o dele fica.
+  const RENOMES = [
+    ["Profissional", DEFAULT_NAME, "Atende, monta treinos e mantém o próprio catálogo de exercícios."],
+    ["Pessoa", CLIENT_NAME, "Vê apenas os próprios dados."],
+  ];
+
+  for (const [antigo, novo, descricao] of RENOMES) {
+    const doc = await col.findOne({ name: antigo, system: true });
+    if (!doc) continue;
+    if (await col.findOne({ name: novo })) continue;
+
+    await col.updateOne(
+      { _id: doc._id },
+      { $set: { name: novo, description: descricao, updatedAt: new Date() } }
+    );
+    console.log(`[schema] role renamed: ${antigo} → ${novo}`);
+  }
+
   const defaults = [
     {
       name: ADMIN_NAME,
@@ -141,8 +181,8 @@ Role_model.prototype.ensureSystemRoles = async function () {
       permissions: permissions.ALL,
     },
     {
-      name: "Profissional",
-      description: "Acompanha pessoas, monta treinos e mantém o próprio catálogo.",
+      name: DEFAULT_NAME,
+      description: "Atende, monta treinos e mantém o próprio catálogo de exercícios.",
       permissions: [
         "people.view",
         "people.create",
@@ -156,8 +196,8 @@ Role_model.prototype.ensureSystemRoles = async function () {
       ],
     },
     {
-      name: "Pessoa",
-      description: "Acompanhada por profissionais. Vê apenas os próprios dados.",
+      name: CLIENT_NAME,
+      description: "Vê apenas os próprios dados.",
       permissions: [],
     },
   ];
@@ -192,3 +232,6 @@ Role_model.prototype.ensureSystemRoles = async function () {
 };
 
 module.exports = Role_model;
+module.exports.ADMIN_NAME = ADMIN_NAME;
+module.exports.DEFAULT_NAME = DEFAULT_NAME;
+module.exports.CLIENT_NAME = CLIENT_NAME;

@@ -26,7 +26,7 @@ module.exports = function (app) {
       return;
     }
 
-    const role = await app.api.role.dataByName("Profissional");
+    const role = await app.api.role.dataByName(app.api.role.defaultName);
 
     const id = await app.api.user.insertTrainer({
       name,

@@ -82,7 +82,7 @@ module.exports = function (app) {
       res.status(400).send({ msg: req.t("errors.invalidRole") });
       return;
     }
-    if (!role) role = await app.api.role.dataByName("Profissional");
+    if (!role) role = await app.api.role.dataByName(app.api.role.defaultName);
 
     const id = await app.api.user.insertTrainer({
       name,
