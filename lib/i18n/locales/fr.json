@@ -77,7 +77,16 @@
     "invalidBrandImage": "Envoyez une image JPEG, PNG ou WebP de 4 Mo maximum.",
     "tooManyBrandImages": "Vous avez déjà {{max}} images enregistrées. Enregistrez l’apparence pour libérer celles qui ne servent plus.",
     "noInstance": "Instance non fournie. Envoyez l’en-tête X-Instance, ou passez par l’adresse de l’instance.",
-    "unknownInstance": "Adresse non reconnue. Cette adresse n’est liée à aucun client enregistré."
+    "unknownInstance": "Adresse non reconnue. Cette adresse n’est liée à aucun client enregistré.",
+    "usernameInUse": "Ce nom d’utilisateur est déjà pris.",
+    "username": {
+      "at": "Un nom d’utilisateur ne contient pas d’arobase — c’est un e-mail.",
+      "dot": "Un nom d’utilisateur ne contient pas de point.",
+      "short": "Un nom d’utilisateur demande au moins 3 caractères.",
+      "long": "Un nom d’utilisateur dépasse 32 caractères.",
+      "chars": "Utilisez seulement lettres, chiffres, tiret et tiret bas, en commençant et finissant par une lettre ou un chiffre.",
+      "reserved": "Ce nom est réservé."
+    }
   },
   "ok": {
     "passwordChanged": "Mot de passe modifié.",

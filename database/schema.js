@@ -104,6 +104,22 @@ async function ensureInstance(app, instance) {
     { unique: true, partialFilterExpression: { email: { $type: "string" } }, name: "email_unique" }
   );
 
+  // username — a outra chave de login. Mesmo desenho do e-mail, pelo mesmo
+  // motivo: a checagem no controller perde a corrida entre duas requisições
+  // simultâneas, e quem garante é o índice.
+  //
+  // PARCIAL de novo, e aqui é ainda mais necessário: quase ninguém tem nome de
+  // usuário. Sem o filtro, a segunda conta sem o campo colidiria com a primeira —
+  // `null` é um valor como qualquer outro para um índice único.
+  await db.collection("users").createIndex(
+    { username: 1 },
+    {
+      unique: true,
+      partialFilterExpression: { username: { $type: "string" } },
+      name: "username_unique",
+    }
+  );
+
   // A lista de admin e a tela de Usuários: tudo de um tipo, mais novo primeiro.
   await db.collection("users").createIndex({ type: 1, createdAt: -1 }, { name: "by_type_created" });
   await db.collection("users").createIndex({ type: 1, name: 1 }, { name: "by_type_name" });

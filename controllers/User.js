@@ -1,3 +1,5 @@
+const userModel = require("../model/User_model.js");
+
 module.exports = function (app) {
   // The signed-in user's own profile — works for both types. For a student it
   // also returns who their trainer is, which the screen shows.
@@ -25,7 +27,7 @@ module.exports = function (app) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;
 
-    const { name, email, peopleSingular, peoplePlural, lang } = req.body || {};
+    const { name, email, username, peopleSingular, peoplePlural, lang } = req.body || {};
 
     if (name !== undefined && String(name).trim().length < 2) {
       res.status(400).send({ msg: req.t("errors.requireOwnName") });
@@ -61,11 +63,42 @@ module.exports = function (app) {
       }
     }
 
+    // Nome de usuário: a outra forma de entrar.
+    //
+    // Validado ANTES de gravar para a mensagem dizer o motivo. O modelo recusa de
+    // novo — ele é a garantia — mas de lá só volta um código, e a pessoa que
+    // digitou "marlon@" merece ouvir que não pode ter arroba, não "inválido".
+    if (username !== undefined) {
+      const conferido = userModel.checkUsername(username);
+      if (!conferido.ok) {
+        res.status(400).send({
+          msg: req.t("errors.username." + conferido.reason),
+          code: "invalid_username",
+        });
+        return;
+      }
+
+      if (conferido.value) {
+        const livre = await app.api.user.usernameAvailable(conferido.value, user._id);
+        if (!livre) {
+          res.status(409).send({ msg: req.t("errors.usernameInUse"), code: "username_in_use" });
+          return;
+        }
+      }
+    }
+
     // Name, e-mail and the vocabulary. The password has its own route
     // (/auth/password); `type`, `role`, `admin` and `active` are not something
     // you change on yourself — that would make every permission optional.
     const before = await app.api.user.data(user._id);
-    await app.api.user.updateSelf(user._id, { name, email, peopleSingular, peoplePlural, lang });
+    await app.api.user.updateSelf(user._id, {
+      name,
+      email,
+      username,
+      peopleSingular,
+      peoplePlural,
+      lang,
+    });
 
     const updated = await app.api.user.data(user._id);
 

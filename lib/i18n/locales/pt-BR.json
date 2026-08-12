@@ -77,7 +77,16 @@
     "invalidBrandImage": "Envie uma imagem JPEG, PNG ou WebP de até 4 MB.",
     "tooManyBrandImages": "Você já tem {{max}} imagens guardadas. Salve a aparência para liberar as que não estão em uso.",
     "noInstance": "Instância não informada. Mande o cabeçalho X-Instance, ou acesse pelo endereço da instância.",
-    "unknownInstance": "Domínio não identificado. Este endereço não está ligado a nenhum cliente cadastrado."
+    "unknownInstance": "Domínio não identificado. Este endereço não está ligado a nenhum cliente cadastrado.",
+    "usernameInUse": "Este nome de usuário já está em uso.",
+    "username": {
+      "at": "Nome de usuário não leva arroba — isso é e-mail.",
+      "dot": "Nome de usuário não leva ponto.",
+      "short": "Nome de usuário precisa de ao menos 3 caracteres.",
+      "long": "Nome de usuário passa de 32 caracteres.",
+      "chars": "Use apenas letras, números, hífen e sublinhado, começando e terminando por letra ou número.",
+      "reserved": "Este nome é reservado."
+    }
   },
   "ok": {
     "passwordChanged": "Senha alterada.",

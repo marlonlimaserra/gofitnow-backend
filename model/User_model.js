@@ -105,6 +105,72 @@ function normalizeEmail(email) {
   return v === "" ? null : v;
 }
 
+// ── Nome de usuário ────────────────────────────────────────────────────────
+//
+// Alternativa ao e-mail para entrar: `marlon` em vez de marlon.20rj@gmail.com.
+//
+// A regra é apertada de propósito, e a razão é uma só: o campo de login aceita as
+// DUAS coisas, então nome de usuário e e-mail não podem se confundir. Sem `@` e
+// sem ponto, "marlon" nunca é lido como endereço e "a@b.com" nunca é lido como
+// nome — o servidor decide qual dos dois é sem precisar adivinhar.
+//
+// Mínimo de 3 para não colidir com o hábito de digitar uma letra e dar enter.
+// Começa por letra ou número para não existir `-marlon` e `marlon` como coisas
+// diferentes que ninguém distingue de relance.
+const USERNAME_PADRAO = /^[a-z0-9](?:[a-z0-9_-]{1,30}[a-z0-9])$/;
+
+// Nomes que não podem ser de ninguém. `admin` e `suporte` porque um nome desses
+// numa conversa faz a pessoa achar que está falando com a plataforma; o resto
+// porque são endereços nossos e viram confusão na hora de explicar onde entrar.
+const USERNAME_RESERVADOS = new Set([
+  "admin",
+  "administrador",
+  "root",
+  "suporte",
+  "support",
+  "gofitnow",
+  "sistema",
+  "system",
+  "app",
+  "api",
+  "www",
+  "backend",
+  "central",
+  "center",
+]);
+
+function normalizeUsername(username) {
+  const v = String(username == null ? "" : username)
+    .trim()
+    .toLowerCase();
+  return v === "" ? null : v;
+}
+
+// Devolve o nome pronto para gravar, ou o MOTIVO da recusa. Um booleano faria a
+// tela dizer "inválido" sem dizer o quê, e a pessoa tentaria de novo no escuro.
+function checkUsername(username) {
+  const v = normalizeUsername(username);
+  if (v === null) return { ok: true, value: null }; // não ter é permitido
+
+  if (v.includes("@")) return { ok: false, reason: "at" };
+  if (v.includes(".")) return { ok: false, reason: "dot" };
+  if (v.length < 3) return { ok: false, reason: "short" };
+  if (v.length > 32) return { ok: false, reason: "long" };
+  if (!USERNAME_PADRAO.test(v)) return { ok: false, reason: "chars" };
+  if (USERNAME_RESERVADOS.has(v)) return { ok: false, reason: "reserved" };
+
+  return { ok: true, value: v };
+}
+
+// O que a pessoa digitou no campo de login: e-mail ou nome de usuário?
+//
+// O `@` é o que separa, e não uma lista de domínios: qualquer coisa com arroba é
+// tentativa de e-mail, mesmo escrita errada — e tratá-la como nome de usuário
+// faria a busca falhar por um motivo que não é o verdadeiro.
+function looksLikeEmail(identificador) {
+  return String(identificador || "").includes("@");
+}
+
 User_model.prototype.data = async function (id) {
   if (!ObjectId.isValid(id)) return undefined;
   const col = await this.collection();
@@ -120,15 +186,52 @@ User_model.prototype.dataByEmail = async function (email) {
   return doc || undefined;
 };
 
+User_model.prototype.dataByUsername = async function (username) {
+  const u = normalizeUsername(username);
+  if (!u) return undefined;
+  const col = await this.collection();
+  // Busca pelo valor JÁ normalizado: é assim que ele é gravado, e comparar sem
+  // normalizar faria "Marlon" não achar "marlon".
+  const doc = await col.findOne({ username: u });
+  return doc || undefined;
+};
+
+// Um identificador, dois jeitos de ser de alguém. É o que a tela de login manda.
+User_model.prototype.dataByLogin = async function (identificador) {
+  return looksLikeEmail(identificador)
+    ? this.dataByEmail(identificador)
+    : this.dataByUsername(identificador);
+};
+
+// Está livre? Usado antes de gravar, para a tela poder dizer na hora.
+//
+// O índice único é quem de fato garante — esta checagem perde a corrida entre
+// duas requisições simultâneas. Ela existe para a MENSAGEM ser boa, não para a
+// garantia.
+User_model.prototype.usernameAvailable = async function (username, exceptId) {
+  const doc = await this.dataByUsername(username);
+  if (!doc) return true;
+  return Boolean(exceptId) && String(doc._id) === String(exceptId);
+};
+
 // ── Trainers (the "clients" from the admin's point of view) ──────────────
 
 User_model.prototype.insertTrainer = async function (obj) {
   const col = await this.collection();
   const salt = this.generateSalt();
 
+  // Nome de usuário inválido RECUSA o cadastro em vez de criar a conta sem ele:
+  // criar e ignorar o campo deixaria a pessoa achando que pode entrar por um nome
+  // que não existe.
+  const nomeUsuario = checkUsername(obj.username);
+  if (!nomeUsuario.ok) return { erro: "username", motivo: nomeUsuario.reason };
+
   const r = await col.insertOne({
     name: String(obj.name).trim(),
     email: normalizeEmail(obj.email),
+    // Só entra no documento quando existe. `null` gravado colidiria no índice
+    // único a partir da segunda conta sem nome de usuário.
+    ...(nomeUsuario.value ? { username: nomeUsuario.value } : {}),
     password: this.hashPassword(obj.password, salt),
     salt: salt,
     type: "trainer",
@@ -158,6 +261,7 @@ User_model.prototype.listTrainers = async function (filter) {
     query.$or = [
       { name: { $regex: term, $options: "i" } },
       { email: { $regex: term, $options: "i" } },
+      { username: { $regex: term, $options: "i" } },
       { phone: { $regex: term, $options: "i" } },
     ];
   }
@@ -214,6 +318,18 @@ User_model.prototype.updateTrainer = async function (id, obj) {
     else unset.email = "";
   }
 
+  // Nome de usuário: vazio APAGA o campo em vez de gravar string vazia.
+  //
+  // Gravar "" faria o índice único enxergar duas contas com o mesmo valor, e a
+  // segunda pessoa a limpar o campo levaria erro de duplicado sem entender por
+  // quê. Recusa inválido em vez de gravar torto — quem chama trata o motivo.
+  if (obj.username !== undefined) {
+    const conferido = checkUsername(obj.username);
+    if (!conferido.ok) return { erro: "username", motivo: conferido.reason };
+    if (conferido.value) set.username = conferido.value;
+    else unset.username = "";
+  }
+
   if (obj.password) {
     set.salt = this.generateSalt();
     set.password = this.hashPassword(obj.password, set.salt);
@@ -262,6 +378,7 @@ User_model.prototype.listStudents = async function (trainerId, filter) {
     query.$or = [
       { name: { $regex: term, $options: "i" } },
       { email: { $regex: term, $options: "i" } },
+      { username: { $regex: term, $options: "i" } },
       { phone: { $regex: term, $options: "i" } },
     ];
   }
@@ -453,6 +570,18 @@ User_model.prototype.updateSelf = async function (id, obj) {
     else unset.email = "";
   }
 
+  // Nome de usuário: vazio APAGA o campo em vez de gravar string vazia.
+  //
+  // Gravar "" faria o índice único enxergar duas contas com o mesmo valor, e a
+  // segunda pessoa a limpar o campo levaria erro de duplicado sem entender por
+  // quê. Recusa inválido em vez de gravar torto — quem chama trata o motivo.
+  if (obj.username !== undefined) {
+    const conferido = checkUsername(obj.username);
+    if (!conferido.ok) return { erro: "username", motivo: conferido.reason };
+    if (conferido.value) set.username = conferido.value;
+    else unset.username = "";
+  }
+
   if (obj.password) {
     set.salt = this.generateSalt();
     set.password = this.hashPassword(obj.password, set.salt);
@@ -467,8 +596,11 @@ User_model.prototype.updateSelf = async function (id, obj) {
 
 // Checks e-mail + password. Returns the raw document (with the hash) or
 // undefined.
-User_model.prototype.authenticate = async function (email, password) {
-  const user = await this.dataByEmail(email);
+// `identificador` é e-mail OU nome de usuário — o campo de login é um só, e
+// obrigar a escolher entre dois campos seria empurrar para a pessoa uma decisão
+// que o servidor toma sozinho.
+User_model.prototype.authenticate = async function (identificador, password) {
+  const user = await this.dataByLogin(identificador);
   if (!user) return undefined;
   if (user.active === 0) return undefined;
 
@@ -520,6 +652,7 @@ User_model.prototype.listAll = async function (filter) {
     query.$or = [
       { name: { $regex: term, $options: "i" } },
       { email: { $regex: term, $options: "i" } },
+      { username: { $regex: term, $options: "i" } },
       { phone: { $regex: term, $options: "i" } },
     ];
   }
@@ -564,6 +697,13 @@ User_model.prototype.updateAny = async function (id, obj) {
     else unset.email = "";
   }
 
+  if (obj.username !== undefined) {
+    const conferido = checkUsername(obj.username);
+    if (!conferido.ok) return { erro: "username", motivo: conferido.reason };
+    if (conferido.value) set.username = conferido.value;
+    else unset.username = "";
+  }
+
   if (obj.password) {
     set.salt = this.generateSalt();
     set.password = this.hashPassword(obj.password, set.salt);
@@ -606,4 +746,8 @@ User_model.prototype.platformSummary = async function () {
 };
 
 module.exports = User_model;
+module.exports.checkUsername = checkUsername;
+module.exports.normalizeUsername = normalizeUsername;
+module.exports.looksLikeEmail = looksLikeEmail;
+module.exports.USERNAME_RESERVADOS = USERNAME_RESERVADOS;
 module.exports.TYPES = TYPES;
