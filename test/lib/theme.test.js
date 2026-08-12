@@ -281,3 +281,19 @@ test("o painel do cartão tem cores próprias, e cor ruim vira vazio", () => {
     assert.equal(theme.sanitize({ cardFrom: ruim }).cardFrom, "", JSON.stringify(ruim));
   }
 });
+
+test("a escuridão do fundo aceita ZERO — é o que faz o branco ficar branco", () => {
+  // O piso é 0 de propósito, e não um mínimo de segurança: "sem escurecer
+  // nada" é uma escolha legítima.
+  assert.equal(theme.sanitize({ overlay: 0 }).overlay, 0);
+  assert.equal(theme.sanitize({ overlay: 80 }).overlay, 80);
+  assert.equal(theme.sanitize({ overlay: 500 }).overlay, theme.MAX_OVERLAY);
+  assert.equal(theme.sanitize({ overlay: -10 }).overlay, theme.MIN_OVERLAY);
+  assert.equal(theme.sanitize({ overlay: "muito" }).overlay, theme.defaults().overlay);
+});
+
+test("a velocidade do movimento tem faixa própria", () => {
+  assert.equal(theme.sanitize({ motionSpeed: 5 }).motionSpeed, 5);
+  assert.equal(theme.sanitize({ motionSpeed: 0 }).motionSpeed, theme.MIN_MOTION_SPEED);
+  assert.equal(theme.sanitize({ motionSpeed: 9999 }).motionSpeed, theme.MAX_MOTION_SPEED);
+});

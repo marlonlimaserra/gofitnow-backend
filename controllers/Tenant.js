@@ -62,6 +62,8 @@ module.exports = function (app) {
       logoRange: { min: themeLib.MIN_LOGO, max: themeLib.MAX_LOGO },
       menuLogoRange: { min: themeLib.MIN_MENU_LOGO, max: themeLib.MAX_MENU_LOGO },
       speedRange: { min: themeLib.MIN_SPEED, max: themeLib.MAX_SPEED },
+      motionSpeedRange: { min: themeLib.MIN_MOTION_SPEED, max: themeLib.MAX_MOTION_SPEED },
+      overlayRange: { min: themeLib.MIN_OVERLAY, max: themeLib.MAX_OVERLAY },
       presets: themeLib.PRESETS,
       maxPhotos: themeLib.MAX_PHOTOS,
       // A tela precisa saber se dá para registrar antes de oferecer o botão.
