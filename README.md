@@ -86,8 +86,7 @@ helper/                AuthSession, ReqProtected
 | ------------------ | ---------------------------------------------- |
 | `users`            | every person: trainer or student               |
 | `user_tokens`      | live sessions (30-day TTL on `expiresAt`)      |
-| `workouts`         | a student's workouts (period, goal, teacher)   |
-| `workout_sessions` | workout days, with exercises embedded          |
+| `workouts`         | a workout: period, goal, teacher and exercises |
 | `exercises`        | each trainer's exercise catalog                |
 
 ### The `users` document
@@ -187,12 +186,17 @@ DELETE /exercises/:id
 A student's `password` is optional: without it the profile exists but cannot
 log in. With it, the e-mail becomes required — that is how they sign in.
 
-### Workouts and sessions
+### Workouts
 
-`workouts` holds the workout; `workout_sessions` holds each day with the
-**exercises embedded** in the document. A session has ~10 exercises and they
-are never read without it — a separate collection would only add a join per
-screen.
+`workouts` holds a workout with the **exercises embedded** in the document. A
+workout has ~10 exercises and they are never read without it — a separate
+collection would only add a join per screen.
+
+There used to be a second level: `workouts` was the plan ("Hipertrofia", Aug 12
+to Sep 12) and `workout_sessions` was each day of it ("Monday"), holding the
+exercises. Building a workout took four steps and the middle level bought
+nothing — nobody opened a plan without entering a day. Now each DAY is a
+workout, with its own period.
 
 Each set carries `unit`, `quantity`, `load`, `intensity`, `speed` and `rest`.
 

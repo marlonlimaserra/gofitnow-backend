@@ -1,5 +1,5 @@
 module.exports = function (app) {
-  // Workouts and sessions — trainer only. Everything is scoped to the session:
+  // Treinos — só profissional. Tudo é escopado ao profissional:
   // the student is always confirmed as belonging to this trainer first.
 
   // Confirms the student belongs to the signed-in trainer. Replies 404 and
@@ -83,12 +83,12 @@ module.exports = function (app) {
     }
 
     const student = await app.api.user.data(workout.student);
-    const sessions = await app.api.workout.listSessions(workout._id);
 
+    // Os exercícios já vêm dentro de `workout` — a tela abre com tudo o que
+    // precisa numa requisição só.
     res.send({
       ...workout,
       student: student ? { _id: student._id, name: student.name } : null,
-      sessions,
     });
   });
 
@@ -148,7 +148,7 @@ module.exports = function (app) {
     res.send({ msg: req.t("ok.workoutRemoved") });
   });
 
-  // Copies the workout (with its sessions) to the same or another student.
+  // Copia o treino, com os exercícios, para a mesma pessoa ou outra.
   app.post("/workouts/:id/duplicate", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
     if (trainer === false) return;
@@ -188,145 +188,15 @@ module.exports = function (app) {
     res.status(201).send(copy);
   });
 
-  // ── Sessions ────────────────────────────────────────────────────────────
-
-  app.post("/workouts/:id/sessions", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
-    if (trainer === false) return;
-
-    const workout = await app.api.workout.data(trainer._id, req.params.id);
-    if (!workout) {
-      res.status(404).send({ msg: req.t("errors.workoutNotFound") });
-      return;
-    }
-
-    const body = req.body || {};
-    if (!body.name || String(body.name).trim().length < 2) {
-      res.status(400).send({ msg: req.t("errors.requireSessionName") });
-      return;
-    }
-
-    const id = await app.api.workout.insertSession(trainer._id, workout._id, body);
-    const created = await app.api.workout.dataSession(trainer._id, id);
-
-    app.insertUserActionHistory(req, trainer, "create_session", {
-      category: "workouts",
-      local: { target_type: "workout_sessions", target_id: id + "" },
-      extra: { name: created.name, workout: workout.name, workoutId: workout._id + "" },
-    });
-
-    res.status(201).send(created);
-  });
-
-  app.get("/sessions/:id", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.view");
-    if (trainer === false) return;
-
-    const session = await app.api.workout.dataSession(trainer._id, req.params.id);
-    if (!session) {
-      res.status(404).send({ msg: req.t("errors.sessionNotFound") });
-      return;
-    }
-
-    const workout = await app.api.workout.data(trainer._id, session.workout);
-    res.send({ ...session, workoutName: workout ? workout.name : "", workoutId: session.workout });
-  });
-
-  app.put("/sessions/:id", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
-    if (trainer === false) return;
-
-    const body = req.body || {};
-    if (body.name !== undefined && String(body.name).trim().length < 2) {
-      res.status(400).send({ msg: req.t("errors.requireSessionName") });
-      return;
-    }
-
-    const before = await app.api.workout.dataSession(trainer._id, req.params.id);
-
-    const ok = await app.api.workout.updateSession(trainer._id, req.params.id, body);
-    if (!ok) {
-      res.status(404).send({ msg: req.t("errors.sessionNotFound") });
-      return;
-    }
-
-    const updated = await app.api.workout.dataSession(trainer._id, req.params.id);
-
-    app.insertUserActionHistory(req, trainer, "update_session", {
-      category: "workouts",
-      local: { target_type: "workout_sessions", target_id: req.params.id + "" },
-      extra: { name: updated.name },
-      diff: app.api.actionHistory.diff(before, updated, ["exercises"]),
-    });
-
-    res.send(updated);
-  });
-
-  // Copiar uma sessão, com os exercícios e as séries.
+  // ── Exercícios ──────────────────────────────────────────────────────────
   //
-  // `workoutId` é opcional: sem ele a cópia fica no mesmo treino. Com ele, o
-  // treino de destino é conferido contra ESTE profissional — é o que permite
-  // copiar para o treino de outra pessoa sem abrir a porta para o treino de
-  // outro profissional.
-  app.post("/sessions/:id/duplicate", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
-    if (trainer === false) return;
+  // Havia aqui seis rotas de SESSÃO: criar, ler, editar, duplicar, apagar e
+  // salvar exercícios. Elas sumiram junto com o nível do meio — cada dia virou um
+  // treino, e o que era "os exercícios da sessão" é agora "os exercícios do
+  // treino". Uma rota no lugar de seis.
 
-    const { workoutId, name } = req.body || {};
-
-    if (name !== undefined && String(name).trim().length < 2) {
-      res.status(400).send({ msg: req.t("errors.requireCopyName") });
-      return;
-    }
-
-    if (workoutId) {
-      const destino = await app.api.workout.data(trainer._id, workoutId);
-      if (!destino) {
-        res.status(404).send({ msg: req.t("errors.workoutNotFound") });
-        return;
-      }
-    }
-
-    const newId = await app.api.workout.duplicateSession(trainer._id, req.params.id, workoutId, name);
-    if (!newId) {
-      res.status(404).send({ msg: req.t("errors.sessionNotFound") });
-      return;
-    }
-
-    const copy = await app.api.workout.dataSession(trainer._id, newId);
-
-    app.insertUserActionHistory(req, trainer, "duplicate_session", {
-      category: "workouts",
-      local: { target_type: "workout_sessions", target_id: newId + "" },
-      extra: { name: copy.name, copiedFrom: req.params.id + "", toWorkout: workoutId || null },
-    });
-
-    res.status(201).send(copy);
-  });
-
-  app.delete("/sessions/:id", async function (req, res) {
-    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
-    if (trainer === false) return;
-
-    const before = await app.api.workout.dataSession(trainer._id, req.params.id);
-
-    const ok = await app.api.workout.deleteSession(trainer._id, req.params.id);
-    if (!ok) {
-      res.status(404).send({ msg: req.t("errors.sessionNotFound") });
-      return;
-    }
-
-    app.insertUserActionHistory(req, trainer, "delete_session", {
-      category: "workouts",
-      local: { target_type: "workout_sessions", target_id: req.params.id + "" },
-      extra: { name: before ? before.name : null },
-    });
-
-    res.send({ msg: req.t("ok.sessionRemoved") });
-  });
-
-  // Saves the session's whole exercise list at once (order + sets).
-  app.put("/sessions/:id/exercises", async function (req, res) {
+  // Salva a lista INTEIRA de uma vez (ordem + séries).
+  app.put("/workouts/:id/exercises", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
     if (trainer === false) return;
 
@@ -336,23 +206,23 @@ module.exports = function (app) {
       return;
     }
 
-    const before = await app.api.workout.dataSession(trainer._id, req.params.id);
+    const before = await app.api.workout.data(trainer._id, req.params.id);
 
-    const ok = await app.api.workout.saveSessionExercises(trainer._id, req.params.id, exercises);
+    const ok = await app.api.workout.saveExercises(trainer._id, req.params.id, exercises);
     if (!ok) {
-      res.status(404).send({ msg: req.t("errors.sessionNotFound") });
+      res.status(404).send({ msg: req.t("errors.workoutNotFound") });
       return;
     }
 
-    const updated = await app.api.workout.dataSession(trainer._id, req.params.id);
+    const updated = await app.api.workout.data(trainer._id, req.params.id);
 
-    // A lista inteira e reescrita a cada save, entao um diff campo a campo nao
-    // diria nada. O que importa e quantos exercicios entraram e quais.
-    app.insertUserActionHistory(req, trainer, "update_session_exercises", {
+    // A lista inteira é reescrita a cada save, então um diff campo a campo não
+    // diria nada. O que importa é quantos exercícios entraram e quais.
+    app.insertUserActionHistory(req, trainer, "update_workout_exercises", {
       category: "workouts",
-      local: { target_type: "workout_sessions", target_id: req.params.id + "" },
+      local: { target_type: "workouts", target_id: req.params.id + "" },
       extra: {
-        session: updated.name,
+        workout: updated.name,
         countBefore: before && before.exercises ? before.exercises.length : 0,
         countAfter: exercises.length,
         exercises: exercises.map((e) => e.name).filter(Boolean),

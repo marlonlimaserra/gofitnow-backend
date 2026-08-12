@@ -22,7 +22,6 @@ const POR_INSTANCIA = [
   "users",
   "user_tokens",
   "workouts",
-  "workout_sessions",
   "password_resets",
   "professional_links",
   "roles",
@@ -139,9 +138,6 @@ async function ensureInstance(app, instance) {
     .collection("workouts")
     .createIndex({ trainer: 1, student: 1, startDate: -1 }, { name: "by_trainer_student" });
 
-  // workout_sessions — lidas por treino, na ordem que o profissional definiu.
-  await db.collection("workout_sessions").createIndex({ workout: 1, order: 1 }, { name: "by_workout" });
-  await db.collection("workout_sessions").createIndex({ trainer: 1 }, { name: "by_trainer" });
 
   // password_resets — consultado por hash do token; o TTL varre os expirados.
   await db
