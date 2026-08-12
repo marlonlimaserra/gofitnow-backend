@@ -37,7 +37,6 @@
     "emailInUse": "Esse e-mail já está em uso.",
     "userWithEmailExists": "Já existe um usuário com esse e-mail.",
     "accountWithEmailExists": "Já existe uma conta com esse e-mail.",
-    "accountExistsAskAccess": "Já existe uma conta com esse e-mail. Peça acesso a ela em vez de cadastrar de novo.",
     "noAccountWithEmail": "Não existe conta com esse e-mail.",
     "emailIsYours": "Esse e-mail é o seu.",
     "alreadyInYourList": "Essa pessoa já está na sua lista.",
@@ -76,7 +75,8 @@
     "domainTaken": "Esse domínio já está em outra conta.",
     "noCustomDomain": "Nenhum domínio próprio cadastrado.",
     "invalidBrandImage": "Envie uma imagem JPEG, PNG ou WebP de até 4 MB.",
-    "tooManyBrandImages": "Você já tem {{max}} imagens guardadas. Salve a aparência para liberar as que não estão em uso."
+    "tooManyBrandImages": "Você já tem {{max}} imagens guardadas. Salve a aparência para liberar as que não estão em uso.",
+    "noInstance": "Instância não informada. Mande o cabeçalho X-Instance, ou acesse pelo endereço da instância."
   },
   "ok": {
     "passwordChanged": "Senha alterada.",
@@ -195,16 +195,11 @@
     "update_avatar": "Trocou a foto de perfil",
     "delete_avatar": "Removeu a foto de perfil",
     "view_person": "Abriu uma ficha",
-    "lookup_person": "Consultou um e-mail",
     "create_person": "Cadastrou uma pessoa",
     "update_person": "Editou uma ficha",
     "delete_person": "Excluiu uma pessoa",
     "unlink_person": "Removeu da própria lista",
     "revoke_person_access": "Tirou o acesso de uma pessoa",
-    "request_access": "Pediu acesso a alguém",
-    "cancel_access_request": "Cancelou um pedido de acesso",
-    "approve_access": "Liberou acesso a um profissional",
-    "deny_access": "Recusou um profissional",
     "create_workout": "Criou um treino",
     "update_workout": "Editou um treino",
     "delete_workout": "Excluiu um treino",
@@ -251,7 +246,6 @@
     "workout_sessions": "Sessão",
     "workout_templates": "Opção de auto preencher",
     "exercises": "Exercício",
-    "access_requests": "Pedido de acesso",
     "api_keys": "Chave de API",
     "tenants": "Domínio"
   },

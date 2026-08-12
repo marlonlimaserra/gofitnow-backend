@@ -38,7 +38,6 @@
     "emailInUse": "Cet e-mail est déjà utilisé.",
     "userWithEmailExists": "Un utilisateur avec cet e-mail existe déjà.",
     "accountWithEmailExists": "Un compte avec cet e-mail existe déjà.",
-    "accountExistsAskAccess": "Un compte avec cet e-mail existe déjà. Demandez-lui l’accès au lieu de le créer à nouveau.",
     "noAccountWithEmail": "Il n’existe aucun compte avec cet e-mail.",
     "emailIsYours": "Cet e-mail est le vôtre.",
     "alreadyInYourList": "Cette personne est déjà dans votre liste.",
@@ -76,7 +75,8 @@
     "domainTaken": "Ce domaine est déjà sur un autre compte.",
     "noCustomDomain": "Aucun domaine personnel n’est configuré.",
     "invalidBrandImage": "Envoyez une image JPEG, PNG ou WebP de 4 Mo maximum.",
-    "tooManyBrandImages": "Vous avez déjà {{max}} images enregistrées. Enregistrez l’apparence pour libérer celles qui ne servent plus."
+    "tooManyBrandImages": "Vous avez déjà {{max}} images enregistrées. Enregistrez l’apparence pour libérer celles qui ne servent plus.",
+    "noInstance": "Instance non fournie. Envoyez l’en-tête X-Instance, ou passez par l’adresse de l’instance."
   },
   "ok": {
     "passwordChanged": "Mot de passe modifié.",
@@ -195,16 +195,11 @@
     "update_avatar": "A changé la photo de profil",
     "delete_avatar": "A retiré la photo de profil",
     "view_person": "A ouvert une fiche",
-    "lookup_person": "A vérifié un e-mail",
     "create_person": "A ajouté une personne",
     "update_person": "A modifié une fiche",
     "delete_person": "A supprimé une personne",
     "unlink_person": "A retiré de sa propre liste",
     "revoke_person_access": "A retiré l’accès d’une personne",
-    "request_access": "A demandé l’accès à quelqu’un",
-    "cancel_access_request": "A annulé une demande d’accès",
-    "approve_access": "A donné l’accès à un professionnel",
-    "deny_access": "A refusé un professionnel",
     "create_workout": "A créé un entraînement",
     "update_workout": "A modifié un entraînement",
     "delete_workout": "A supprimé un entraînement",
@@ -251,7 +246,6 @@
     "workout_sessions": "Séance",
     "workout_templates": "Option de remplissage auto",
     "exercises": "Exercice",
-    "access_requests": "Demande d’accès",
     "api_keys": "Clé d’API",
     "tenants": "Domaine"
   },

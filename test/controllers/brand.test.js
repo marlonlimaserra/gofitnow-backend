@@ -11,6 +11,8 @@ const USER = { _id: "u1", name: "Marlon" };
 const PNG =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
+const INSTANCIA = "marlon";
+
 function monta({ imagem, quantas = 0, viaApiKey = false } = {}) {
   const salvas = [];
 
@@ -19,6 +21,9 @@ function monta({ imagem, quantas = 0, viaApiKey = false } = {}) {
       ReqProtected: {
         async verify(req) {
           req._viaApiKey = viaApiKey;
+          // O middleware de instância põe isto na requisição de verdade; o
+          // arreio não passa por ele.
+          req.instance = INSTANCIA;
           return USER;
         },
       },
@@ -51,7 +56,7 @@ test("a imagem da marca sai SEM sessão — a tela de entrada é pública", asyn
     imagem: { mime: "image/png", data: Buffer.from("bytes"), updatedAt: new Date() },
   });
 
-  const r = await call(app, "get", "/public/brand/507f1f77bcf86cd799439011");
+  const r = await call(app, "get", "/public/brand/marlon/507f1f77bcf86cd799439011");
   assert.equal(r.status, 200);
   assert.equal(r.headers["content-type"], "image/png");
   // `public`, ao contrário do avatar: é a mesma imagem para todo mundo que
@@ -64,7 +69,7 @@ test("com o mesmo ETag responde 304, sem mandar os bytes de novo", async () => {
   const { app } = monta({ imagem: { mime: "image/png", data: Buffer.from("bytes"), updatedAt: quando } });
 
   const etag = '"' + quando.getTime() + '"';
-  const r = await call(app, "get", "/public/brand/507f1f77bcf86cd799439011", {
+  const r = await call(app, "get", "/public/brand/marlon/507f1f77bcf86cd799439011", {
     headers: { "if-none-match": etag },
   });
 
@@ -74,7 +79,7 @@ test("com o mesmo ETag responde 304, sem mandar os bytes de novo", async () => {
 
 test("imagem que não existe é 404 seco", async () => {
   const { app } = monta({ imagem: undefined });
-  const r = await call(app, "get", "/public/brand/507f1f77bcf86cd799439011");
+  const r = await call(app, "get", "/public/brand/marlon/507f1f77bcf86cd799439011");
   assert.equal(r.status, 404);
 });
 
@@ -85,7 +90,8 @@ test("enviar imagem devolve a URL pronta, não o id", async () => {
   const r = await call(app, "post", "/me/brand/image", { body: { image: PNG } });
 
   assert.equal(r.status, 200);
-  assert.match(r.body.url, /\/public\/brand\/507f1f77bcf86cd799439011$/);
+  assert.match(r.body.url, /\/public\/brand\/marlon\/507f1f77bcf86cd799439011$/);
+  assert.ok(r.body.url.includes("/marlon/"), "a instância entra no caminho — a rota é aberta");
   assert.match(r.body.url, /^https:\/\//, "o tema só aceita http(s)");
   assert.equal(salvas.length, 1);
   assert.equal(salvas[0].mime, "image/png");

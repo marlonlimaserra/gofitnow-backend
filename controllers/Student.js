@@ -61,10 +61,8 @@ module.exports = function (app) {
       res.status(400).send({ msg: req.t("errors.requirePersonName") });
       return;
     }
-    // The e-mail is REQUIRED, always. It is the identity of a person across
-    // professionals: a record without one cannot be found by anyone else, so
-    // the same human would end up registered twice — the exact duplication
-    // this app exists to remove.
+    // O e-mail é OBRIGATÓRIO. Ele é a identidade da pessoa dentro desta
+    // instância: é por ele que ela entra no app e é achada na busca.
     if (!body.email || !app.validator.isEmail(String(body.email).trim())) {
       res.status(400).send({ msg: req.t("errors.requirePersonEmail") });
       return;
@@ -74,12 +72,17 @@ module.exports = function (app) {
       return;
     }
     {
+      // Dentro da instância o e-mail é único, então já existir aqui significa
+      // uma coisa só: essa pessoa já está nesta conta.
+      //
+      // Antes existia um terceiro caso — "ela tem conta em OUTRO profissional"
+      // — que abria o pedido de acesso por e-mail. Com um banco por cliente
+      // esse caso deixou de existir: a conta de outra instância é outra conta,
+      // e não há nada para pedir a ninguém.
       const exists = await app.api.user.dataByEmail(body.email);
       if (exists) {
-        // Registering a second copy of someone who is already here is exactly
-        // what this app exists to stop. The way in is to ask them.
         res.status(409).send({
-          msg: req.t("errors.accountExistsAskAccess"),
+          msg: req.t("errors.alreadyInYourList"),
           code: "email_taken",
         });
         return;

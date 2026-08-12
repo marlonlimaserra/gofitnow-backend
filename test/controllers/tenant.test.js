@@ -59,6 +59,17 @@ function monta({
       },
     },
     api: {
+      // O registro central: é ele que diz de quem é um endereço antes de
+      // existir sessão.
+      center: {
+        async byHost(host) {
+          if (!tenant) return undefined;
+          const sub = tenant.subdomain ? `${tenant.subdomain}.gofitnow.fit` : null;
+          return host === sub || host === tenant.customDomain
+            ? { instance: "marlon" }
+            : undefined;
+        },
+      },
       brandImage: {
         async pruneUnused(userId, emUso) {
           faxina.push(emUso);

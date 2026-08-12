@@ -1,14 +1,19 @@
 module.exports = function (app) {
-  // The signed-in trainer's exercise catalog. Each trainer builds their own;
-  // everything is scoped to the session, so a trainer never reaches another
-  // trainer's catalog.
+  // O catálogo de exercícios — ÚNICO, no banco central, igual para todo mundo.
+  //
+  // A sessão continua sendo exigida (ninguém lê o catálogo sem entrar), mas ela
+  // já NÃO delimita o que se vê: não há catálogo de um profissional para
+  // alcançar o do outro.
+  //
+  // `exercises.manage` passou a valer muito mais do que valia: quem edita ou
+  // apaga mexe no catálogo de todas as instâncias. Vale revisar quem a tem.
 
   // Muscle groups in use, for the filter dropdown.
   app.get("/exercises/groups", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "exercises.view");
     if (trainer === false) return;
 
-    res.send(await app.api.exercise.groups(trainer._id));
+    res.send(await app.api.exercise.groups());
   });
 
   // ?search=&group=&page=&limit=
@@ -17,7 +22,7 @@ module.exports = function (app) {
     if (trainer === false) return;
 
     res.send(
-      await app.api.exercise.list(trainer._id, {
+      await app.api.exercise.list({
         search: req.query.search,
         muscleGroup: req.query.group,
         page: req.query.page,
@@ -36,8 +41,8 @@ module.exports = function (app) {
       return;
     }
 
-    const id = await app.api.exercise.insert(trainer._id, body);
-    const created = await app.api.exercise.data(trainer._id, id);
+    const id = await app.api.exercise.insert(body);
+    const created = await app.api.exercise.data(id);
 
     app.insertUserActionHistory(req, trainer, "create_exercise", {
       category: "exercises",
@@ -52,7 +57,7 @@ module.exports = function (app) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "exercises.view");
     if (trainer === false) return;
 
-    const exercise = await app.api.exercise.data(trainer._id, req.params.id);
+    const exercise = await app.api.exercise.data(req.params.id);
     if (!exercise) {
       res.status(404).send({ msg: req.t("errors.exerciseNotFound") });
       return;
@@ -71,13 +76,13 @@ module.exports = function (app) {
       return;
     }
 
-    const ok = await app.api.exercise.update(trainer._id, req.params.id, body);
+    const ok = await app.api.exercise.update(req.params.id, body);
     if (!ok) {
       res.status(404).send({ msg: req.t("errors.exerciseNotFound") });
       return;
     }
 
-    const updated = await app.api.exercise.data(trainer._id, req.params.id);
+    const updated = await app.api.exercise.data(req.params.id);
 
     app.insertUserActionHistory(req, trainer, "update_exercise", {
       category: "exercises",
@@ -95,7 +100,7 @@ module.exports = function (app) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "exercises.manage");
     if (trainer === false) return;
 
-    const ok = await app.api.exercise.delete(trainer._id, req.params.id);
+    const ok = await app.api.exercise.delete(req.params.id);
     if (!ok) {
       res.status(404).send({ msg: req.t("errors.exerciseNotFound") });
       return;

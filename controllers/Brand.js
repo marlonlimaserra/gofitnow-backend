@@ -1,20 +1,33 @@
 const BrandImage = require("../model/BrandImage_model.js");
+const instanceContext = require("../lib/instance.js");
 
 // As imagens da marca: a logo e as fotos da tela de entrada.
 //
 // A LEITURA é pública, e tem de ser: a tela de entrada aparece antes de
 // qualquer sessão. É a diferença que separa esta rota da foto de perfil.
 //
-// Sendo pública, o endereço é um id opaco e a resposta não diz de quem é a
-// imagem. Um id sequencial, ou o id do dono no caminho, deixaria alguém varrer
-// os endereços e descobrir quem existe.
+// Sendo pública, o id é OPACO: um id sequencial deixaria alguém varrer os
+// endereços e descobrir quantas imagens existem. O nome da instância está no
+// caminho por necessidade — sem ele não há como saber qual banco abrir — e não
+// revela nada que o host da tela de entrada já não diga.
 function baseUrl() {
   return process.env.PUBLIC_API_URL || "https://backend.gofitnow.fit";
 }
 
 module.exports = function (app) {
-  app.get("/public/brand/:id", async function (req, res) {
-    const img = await app.api.brandImage.data(req.params.id);
+  // A INSTÂNCIA está no caminho porque esta rota é aberta: ela chega sem
+  // sessão e sem cabeçalho, e as imagens moram no banco de um cliente. Sem o
+  // nome ali, não haveria como saber qual banco abrir.
+  //
+  // Não é vazamento: este endereço só aparece embutido na tela de entrada
+  // daquele cliente, e o host dela já diz de quem é.
+  app.get("/public/brand/:instance/:id", async function (req, res) {
+    const instance = instanceContext.normalize(req.params.instance);
+    if (!instance) return res.status(404).end();
+
+    const img = await instanceContext.run(instance, () =>
+      app.api.brandImage.data(req.params.id)
+    );
     // 404 seco: nem mensagem traduzida, que aqui não há quem leia.
     if (!img) return res.status(404).end();
 
@@ -63,6 +76,6 @@ module.exports = function (app) {
 
     // Devolve a URL pronta, e não o id: quem chamou vai gravá-la no tema, e o
     // tema guarda URL — inclusive de imagem hospedada fora daqui.
-    res.send({ url: `${baseUrl()}/public/brand/${salvo.id}` });
+    res.send({ url: `${baseUrl()}/public/brand/${req.instance}/${salvo.id}` });
   });
 };

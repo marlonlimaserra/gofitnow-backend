@@ -8,7 +8,6 @@ routes.AdminUser = require("./controllers/AdminUser.js");
 routes.Role = require("./controllers/Role.js");
 routes.ActionHistory = require("./controllers/ActionHistory.js");
 routes.Student = require("./controllers/Student.js");
-routes.AccessRequest = require("./controllers/AccessRequest.js");
 routes.Workout = require("./controllers/Workout.js");
 routes.Exercise = require("./controllers/Exercise.js");
 routes.WorkoutTemplate = require("./controllers/WorkoutTemplate.js");

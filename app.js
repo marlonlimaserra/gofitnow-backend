@@ -5,6 +5,7 @@ const bodyParser = require("body-parser");
 const cookieParser = require("cookie-parser");
 
 const { fromAcceptLanguage, translator } = require("./lib/i18n");
+const instanceContext = require("./lib/instance.js");
 const clientIp = require("./lib/clientIp.js");
 const appRoutes = require("./appRoutes.js");
 const appModels = require("./appModels.js");
@@ -85,6 +86,36 @@ app.use((req, res, next) => {
   next();
 });
 
+// De qual INSTÂNCIA é esta requisição.
+//
+// Tem de vir ANTES de qualquer coisa que toque o banco: os modelos leem a
+// instância do contexto assíncrono, e fora dele eles estouram de propósito.
+//
+// As rotas abertas são a exceção que prova a regra — elas não têm instância e
+// nem precisam: `/public/theme` é resolvido por host e `/` é só um ping. Sem
+// esta lista, elas responderiam 400 pedindo um cabeçalho que ninguém tem como
+// mandar de uma tela de login.
+const SEM_INSTANCIA = [/^\/$/, /^\/public\//];
+
+app.use((req, res, next) => {
+  const caminho = req.path || "";
+  if (SEM_INSTANCIA.some((r) => r.test(caminho))) return next();
+
+  const instance = instanceContext.fromRequest(req);
+  if (!instance) {
+    // 400 e não 401: não é falta de credencial, é falta de endereço. A mensagem
+    // diz COMO mandar, senão quem integra fica adivinhando.
+    return res.status(400).send({
+      msg: req.t("errors.noInstance"),
+      code: "no_instance",
+    });
+  }
+
+  req.instance = instance;
+  // Daqui para dentro, tudo o que rodar nesta requisição vê a instância.
+  instanceContext.run(instance, next);
+});
+
 // De onde a requisição veio de verdade. Resolvido uma vez por requisição
 // porque o histórico e o log de chamadas por chave precisam do MESMO valor.
 app.use((req, res, next) => {
@@ -161,7 +192,7 @@ app.use((err, req, res, next) => {
 // first request.
 (async () => {
   try {
-    await app.mongodb.connectToServer();
+    await app.mongodb.centralDb();
     await ensureSchema(app);
   } catch (error) {
     console.error("[boot] could not prepare MongoDB:", error.message);

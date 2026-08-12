@@ -2,6 +2,7 @@ const domainLib = require("../lib/domain.js");
 const themeLib = require("../lib/theme.js");
 const cloudflare = require("../lib/cloudflare.js");
 const dnscheck = require("../lib/dnscheck.js");
+const instanceContext = require("../lib/instance.js");
 
 // O domínio e a aparência do profissional.
 //
@@ -25,8 +26,17 @@ module.exports = function (app) {
 
     const padrao = { theme: themeLib.defaults(), scale: themeLib.scale(themeLib.defaults().brand) };
 
+    // Esta rota é aberta e chega SEM instância — é o caso que existe antes de
+    // qualquer sessão. Então o host é resolvido no CENTRAL, que é a única coisa
+    // que sabe de quem é cada endereço, e só depois se abre o banco daquele
+    // cliente para ler o tema.
+    const registro = await app.api.center.byHost(host);
+    if (!registro) return res.send({ ...padrao, custom: false });
+
     // Um host, dois jeitos de ser de alguém: subdomínio nosso ou domínio dele.
-    const tenant = await app.api.tenant.dataByHost(host);
+    const tenant = await instanceContext.run(registro.instance, () =>
+      app.api.tenant.dataByHost(host)
+    );
     if (!tenant) return res.send({ ...padrao, custom: false });
 
     res.send({ ...app.api.tenant.publicTheme(tenant), custom: true });

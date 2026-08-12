@@ -1,13 +1,21 @@
 const { ObjectId } = require("mongodb");
 
-// The trainer's exercise catalog. Each trainer builds their own — there is no
-// third-party library.
+// O catálogo de exercícios — ÚNICO, no banco central, igual para todo mundo.
 //
-//   { trainer, name, nameSort, muscleGroup, videoUrl, thumbUrl, defaultTip }
+//   { name, nameSort, muscleGroup, videoUrl, thumbUrl, defaultTip }
 //
-// `muscleGroup` is free text ("Chest", "Back", "Stretching"…): the screen's
-// filter lists the distinct values the trainer has actually used, so the
-// taxonomy grows from usage instead of being fixed up front.
+// Era por profissional (campo `trainer`), e deixou de ser: um agachamento é o
+// mesmo agachamento em qualquer instância, e manter mil e quatrocentos
+// exercícios copiados por cliente era guardar a mesma informação N vezes para
+// depois ter de corrigir N vezes.
+//
+// CONSEQUÊNCIA que precisa ficar dita: quem edita ou apaga mexe no catálogo de
+// TODOS. A permissão `exercises.manage` continua sendo o portão, mas ela agora
+// concede muito mais do que concedia — vale revisar quem a tem.
+//
+// `muscleGroup` é texto livre ("Peito", "Costas", "Alongamento"…): o filtro da
+// tela lista os valores realmente em uso, então a taxonomia cresce do uso em vez
+// de ser fixada de antemão.
 function Exercise_model(app) {
   this.app = app;
 }
@@ -24,17 +32,18 @@ function normalize(text) {
 }
 
 Exercise_model.prototype.collection = async function () {
-  const db = await this.app.mongodb.connectToServer();
+  // centralDb, e não connectToServer: este catálogo é de fora das instâncias.
+  const db = await this.app.mongodb.centralDb();
   return db.collection("exercises");
 };
 
 // Muscle groups in use, for the filter dropdown.
-Exercise_model.prototype.groups = async function (trainerId) {
+Exercise_model.prototype.groups = async function () {
   const col = await this.collection();
 
   const docs = await col
     .aggregate([
-      { $match: { trainer: new ObjectId(trainerId), muscleGroup: { $nin: [null, ""] } } },
+      { $match: { muscleGroup: { $nin: [null, ""] } } },
       { $group: { _id: "$muscleGroup", total: { $sum: 1 } } },
       { $sort: { _id: 1 } },
     ])
@@ -43,10 +52,10 @@ Exercise_model.prototype.groups = async function (trainerId) {
   return docs.map((d) => ({ name: d._id, total: d.total }));
 };
 
-Exercise_model.prototype.list = async function (trainerId, filter = {}) {
+Exercise_model.prototype.list = async function (filter = {}) {
   const col = await this.collection();
 
-  const query = { trainer: new ObjectId(trainerId) };
+  const query = {};
 
   if (filter.search) {
     // Search the normalized field: "gluteo" finds "glúteo". The term is escaped
@@ -71,11 +80,10 @@ Exercise_model.prototype.list = async function (trainerId, filter = {}) {
   return { rows, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
 };
 
-Exercise_model.prototype.data = async function (trainerId, id) {
+Exercise_model.prototype.data = async function (id) {
   if (!ObjectId.isValid(id)) return undefined;
   const col = await this.collection();
-  const doc = await col.findOne({ _id: new ObjectId(id), trainer: new ObjectId(trainerId) });
-  return doc || undefined;
+  return (await col.findOne({ _id: new ObjectId(id) })) || undefined;
 };
 
 // Thumbnail derived from the video URL when possible. YouTube covers most
@@ -88,11 +96,10 @@ function thumbnailFromVideo(videoUrl) {
   return yt ? `https://img.youtube.com/vi/${yt[1]}/mqdefault.jpg` : null;
 }
 
-Exercise_model.prototype.insert = async function (trainerId, obj) {
+Exercise_model.prototype.insert = async function (obj) {
   const col = await this.collection();
 
   const r = await col.insertOne({
-    trainer: new ObjectId(trainerId),
     name: String(obj.name).trim(),
     nameSort: normalize(obj.name),
     muscleGroup: obj.muscleGroup ? String(obj.muscleGroup).trim() : "",
@@ -106,7 +113,7 @@ Exercise_model.prototype.insert = async function (trainerId, obj) {
   return r.insertedId;
 };
 
-Exercise_model.prototype.update = async function (trainerId, id, obj) {
+Exercise_model.prototype.update = async function (id, obj) {
   if (!ObjectId.isValid(id)) return false;
   const col = await this.collection();
 
@@ -122,17 +129,14 @@ Exercise_model.prototype.update = async function (trainerId, id, obj) {
     set.thumbUrl = thumbnailFromVideo(obj.videoUrl);
   }
 
-  const r = await col.updateOne(
-    { _id: new ObjectId(id), trainer: new ObjectId(trainerId) },
-    { $set: set }
-  );
+  const r = await col.updateOne({ _id: new ObjectId(id) }, { $set: set });
   return r.matchedCount > 0;
 };
 
-Exercise_model.prototype.delete = async function (trainerId, id) {
+Exercise_model.prototype.delete = async function (id) {
   if (!ObjectId.isValid(id)) return false;
   const col = await this.collection();
-  const r = await col.deleteOne({ _id: new ObjectId(id), trainer: new ObjectId(trainerId) });
+  const r = await col.deleteOne({ _id: new ObjectId(id) });
   return r.deletedCount > 0;
 };
 

@@ -1,86 +1,146 @@
-// Creates the GoFitNow collections and indexes. Runs at boot (app.js) and also
-// standalone via `npm run db:init`. Idempotent: running it again duplicates
-// nothing.
-const COLLECTIONS = [
+// Cria as collections e os índices. Roda no boot (app.js) e também sozinho via
+// `npm run db:init`. Idempotente: rodar de novo não duplica nada.
+//
+// São DOIS conjuntos, e a divisão é o desenho:
+//
+//   CENTRAL (`gofitnow`)          o que é compartilhado entre clientes.
+//   POR INSTÂNCIA (`gofitnow_x`)  o que é de um cliente só.
+//
+// O catálogo de exercícios está no central porque é igual para todo mundo. Tudo
+// que é conta, treino, vínculo e histórico está na instância — e ali o
+// isolamento é do BANCO, não de um filtro que alguém pode esquecer.
+const instanceContext = require("../lib/instance.js");
+
+const CENTRAL = ["center", "exercises"];
+
+const POR_INSTANCIA = [
   "users",
   "user_tokens",
   "workouts",
   "workout_sessions",
-  "exercises",
   "password_resets",
   "professional_links",
-  "access_requests",
   "roles",
   "user_action_history",
   "workout_templates",
   "auto_fill_values",
   "avatars",
+  "brand_images",
   "api_keys",
   "api_calls",
   "tenants",
 ];
 
-module.exports = async function ensureSchema(app) {
-  const db = await app.mongodb.connectToServer();
+// A instância que nasce com o sistema. Sem ela o primeiro boot sobe um servidor
+// que não atende ninguém.
+const SEED_INSTANCE = process.env.SEED_INSTANCE || "marlon";
+const SEED_EMAIL = process.env.SEED_EMAIL || "marlon@sprinthub.com";
 
-  // Renomes de collection acontecem ANTES da criação, senão a versão nova
-  // seria criada vazia ao lado da antiga e os dados ficariam órfãos.
-  await renameCollection(db, "workout_presets", "workout_templates");
+async function criarFaltantes(db, nomes, rotulo) {
+  const existentes = (await db.listCollections({}, { nameOnly: true }).toArray()).map((c) => c.name);
 
-  const existing = (await db.listCollections({}, { nameOnly: true }).toArray()).map((c) => c.name);
-
-  for (const name of COLLECTIONS) {
-    if (!existing.includes(name)) {
-      await db.createCollection(name);
-      console.log("[schema] collection created: " + name);
+  for (const nome of nomes) {
+    if (!existentes.includes(nome)) {
+      await db.createCollection(nome);
+      console.log(`[schema] ${rotulo}: collection criada — ${nome}`);
     }
   }
+}
 
-  // users — the e-mail is the login key, so the unique index in the database
-  // is what really prevents two identical signups (the controller check alone
-  // loses a race between two simultaneous requests).
+// ── Central ────────────────────────────────────────────────────────────────
+
+async function ensureCentral(app) {
+  const db = await app.mongodb.centralDb();
+  await criarFaltantes(db, CENTRAL, "central");
+
+  // center — o registro das instâncias.
   //
-  // The index is PARTIAL because a student without access may have no e-mail
-  // at all: without the filter, the second one would collide with the first.
+  // `instance` é único porque é o nome do banco: dois documentos com o mesmo
+  // nome significariam dois donos para os mesmos dados.
+  await db.collection("center").createIndex({ instance: 1 }, { unique: true, name: "instance_unique" });
+
+  // O e-mail do dono é único entre instâncias — é por ele que se descobre para
+  // onde mandar quem chegou sem dizer a instância.
+  await db.collection("center").createIndex(
+    { email: 1 },
+    { unique: true, partialFilterExpression: { email: { $type: "string" } }, name: "email_unique" }
+  );
+
+  // Os ENDEREÇOS são únicos globalmente, e o índice só pode viver aqui: um
+  // índice dentro de cada instância não veria o endereço registrado na outra, e
+  // dois clientes disputariam o mesmo host sem ninguém notar.
+  await db.collection("center").createIndex(
+    { hosts: 1 },
+    { unique: true, partialFilterExpression: { hosts: { $type: "string" } }, name: "hosts_unique" }
+  );
+
+  // exercises — catálogo ÚNICO, igual para todo mundo. Sem `trainer`: o escopo
+  // por profissional saiu quando o catálogo virou central.
+  //
+  // A ordenação e a busca usam `nameSort` (nome sem acento, minúsculo) — ver
+  // Exercise_model.
+  await db.collection("exercises").createIndex({ nameSort: 1 }, { name: "by_name" });
+  await db.collection("exercises").createIndex({ muscleGroup: 1, nameSort: 1 }, { name: "by_group" });
+
+  // Os índices por `trainer` não têm mais campo para indexar. Um índice morto
+  // não é inofensivo: ele continua sendo atualizado em toda escrita.
+  for (const morto of ["by_trainer_name", "by_trainer_group"]) {
+    await dropIndexIfPresent(db, "exercises", morto);
+  }
+
+  return db;
+}
+
+// ── Por instância ──────────────────────────────────────────────────────────
+
+async function ensureInstance(app, instance) {
+  const nome = instanceContext.normalize(instance);
+  if (!nome) throw new Error("invalid_instance: " + instance);
+
+  const db = await app.mongodb.instanceDb(nome);
+  await criarFaltantes(db, POR_INSTANCIA, nome);
+
+  // users — o e-mail é a chave de login, então o índice único no banco é o que
+  // de fato impede dois cadastros iguais (a checagem no controller sozinha
+  // perde a corrida entre duas requisições simultâneas).
+  //
+  // PARCIAL porque uma pessoa sem acesso pode não ter e-mail nenhum: sem o
+  // filtro, a segunda colidiria com a primeira.
+  //
+  // Ele é único DENTRO da instância. É a consequência mais importante de um
+  // banco por cliente: o mesmo e-mail pode ter conta em duas instâncias, e as
+  // duas são contas diferentes. Foi o que tornou o pedido de acesso
+  // desnecessário — "essa pessoa já tem conta em outro lugar" deixou de ser um
+  // problema que a gente precise resolver.
   await db.collection("users").createIndex(
     { email: 1 },
     { unique: true, partialFilterExpression: { email: { $type: "string" } }, name: "email_unique" }
   );
 
-  // Who follows whom moved to `professional_links`, so the old index on
-  // (type, trainer) has nothing left to serve.
-  await dropIndexIfPresent(db, "users", "by_type_trainer");
-
-  // The admin list and the Users screen: everything of one type, newest first.
+  // A lista de admin e a tela de Usuários: tudo de um tipo, mais novo primeiro.
   await db.collection("users").createIndex({ type: 1, createdAt: -1 }, { name: "by_type_created" });
   await db.collection("users").createIndex({ type: 1, name: 1 }, { name: "by_type_name" });
   await db.collection("users").createIndex({ admin: 1 }, { name: "by_admin" });
+  await db.collection("users").createIndex({ role: 1 }, { name: "by_role" });
 
-  // user_tokens — looked up by token on every request; the TTL sweeps expired
-  // ones.
+  // user_tokens — consultado por token em toda requisição; o TTL varre os
+  // expirados.
   await db.collection("user_tokens").createIndex({ token: 1 }, { unique: true, name: "token_unique" });
   await db
     .collection("user_tokens")
     .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "token_ttl" });
   await db.collection("user_tokens").createIndex({ user: 1 }, { name: "by_user" });
 
-  // workouts — always listed by (trainer, student), ordered by period.
+  // workouts — sempre listados por (trainer, student), na ordem do período.
   await db
     .collection("workouts")
     .createIndex({ trainer: 1, student: 1, startDate: -1 }, { name: "by_trainer_student" });
 
-  // workout_sessions — read per workout, in the order the trainer defined.
+  // workout_sessions — lidas por treino, na ordem que o profissional definiu.
   await db.collection("workout_sessions").createIndex({ workout: 1, order: 1 }, { name: "by_workout" });
   await db.collection("workout_sessions").createIndex({ trainer: 1 }, { name: "by_trainer" });
 
-  // exercises — per-trainer catalog. Sorting and search use `nameSort` (name
-  // trimmed, lowercased and unaccented) — see Exercise_model.
-  await db.collection("exercises").createIndex({ trainer: 1, nameSort: 1 }, { name: "by_trainer_name" });
-  await db
-    .collection("exercises")
-    .createIndex({ trainer: 1, muscleGroup: 1, nameSort: 1 }, { name: "by_trainer_group" });
-
-  // password_resets — looked up by token hash; the TTL sweeps expired ones.
+  // password_resets — consultado por hash do token; o TTL varre os expirados.
   await db
     .collection("password_resets")
     .createIndex({ tokenHash: 1 }, { unique: true, name: "token_hash_unique" });
@@ -89,41 +149,24 @@ module.exports = async function ensureSchema(app) {
     .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "reset_ttl" });
   await db.collection("password_resets").createIndex({ user: 1 }, { name: "by_user" });
 
-  // professional_links — read constantly (every people list starts here) and
-  // in both directions. The unique pair is what makes linking idempotent.
+  // professional_links — lido constantemente (toda lista de pessoas começa
+  // aqui) e nos dois sentidos. O par único é o que faz vincular ser idempotente.
   await db
     .collection("professional_links")
     .createIndex({ professional: 1, person: 1 }, { unique: true, name: "link_unique" });
   await db.collection("professional_links").createIndex({ person: 1 }, { name: "by_person" });
 
-  // access_requests — looked up by token hash. The TTL only reaches documents
-  // that still have `expiresAt`, and answering a request removes the field, so
-  // approvals and refusals are kept while abandoned requests are swept.
-  await db
-    .collection("access_requests")
-    .createIndex({ tokenHash: 1 }, { unique: true, name: "request_token_unique" });
-  await db
-    .collection("access_requests")
-    .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "request_ttl" });
-  await db
-    .collection("access_requests")
-    .createIndex({ professional: 1, person: 1, status: 1 }, { name: "by_pair_status" });
-
-  // roles — the user types. Few rows, read on every authenticated request, so
-  // the name is unique to keep two "Administrador" from ever coexisting.
+  // roles — os tipos de usuário. Poucas linhas, lidas em toda requisição
+  // autenticada, então o nome é único para dois "Administrador" nunca
+  // coexistirem.
   await db.collection("roles").createIndex({ name: 1 }, { unique: true, name: "role_name_unique" });
   await db.collection("roles").createIndex({ permissions: 1 }, { name: "by_permission" });
 
-  // users — the role is read on every request that checks a permission.
-  await db.collection("users").createIndex({ role: 1 }, { name: "by_role" });
-
-  // user_action_history — write-heavy, read by "who did this" and "what
-  // happened to this record". No TTL: an audit trail that deletes itself is
-  // not one. If it ever needs pruning that is a deliberate decision, not a
-  // background sweep nobody remembers configuring.
-  await db
-    .collection("user_action_history")
-    .createIndex({ createdAt: -1 }, { name: "by_date" });
+  // user_action_history — muita escrita, lido por "quem fez isto" e "o que
+  // aconteceu com este registro". Sem TTL: uma trilha de auditoria que se apaga
+  // sozinha não é uma. Se um dia precisar de poda, que seja decisão explícita e
+  // não uma varredura que ninguém lembra de ter configurado.
+  await db.collection("user_action_history").createIndex({ createdAt: -1 }, { name: "by_date" });
   await db
     .collection("user_action_history")
     .createIndex({ user: 1, createdAt: -1 }, { name: "by_user_date" });
@@ -134,123 +177,41 @@ module.exports = async function ensureSchema(app) {
     .collection("user_action_history")
     .createIndex({ action: 1, createdAt: -1 }, { name: "by_action" });
 
-  // workout_templates — sempre lidos por profissional, em ordem alfabetica.
+  // workout_templates — sempre lidos por profissional, em ordem alfabética.
   await db
     .collection("workout_templates")
     .createIndex({ professional: 1, name: 1 }, { name: "by_professional_name" });
 
-  // auto_fill_values — sempre lidos por (profissional, campo). O trio unico
-  // impede a mesma frase virar duas opcoes iguais na lista.
+  // auto_fill_values — sempre lidos por (profissional, campo). O trio único
+  // impede a mesma frase virar duas opções iguais na lista.
   await db
     .collection("auto_fill_values")
-    .createIndex(
-      { professional: 1, field: 1, value: 1 },
-      { unique: true, name: "value_unique" }
-    );
+    .createIndex({ professional: 1, field: 1, value: 1 }, { unique: true, name: "value_unique" });
 
-  // avatars — uma por usuario, sempre lida por dono.
+  // avatars — uma por usuário, sempre lida por dono.
   await db.collection("avatars").createIndex({ user: 1 }, { unique: true, name: "avatar_user_unique" });
 
-  await backfillLinks(db);
+  // brand_images — a logo e as fotos da tela de entrada. O índice é por dono
+  // porque as duas operações que existem são "quantas esta conta tem" e "apaga
+  // as desta conta que o tema não usa mais".
+  await db.collection("brand_images").createIndex({ user: 1 }, { name: "user" });
 
-  await app.api.role.ensureSystemRoles();
-  await backfillRoles(db, app);
-  await dropRetiredPermissions(db);
-  await moveNotesToLinks(db);
-  await seedLinkActive(db);
-
-  console.log("[schema] collections and indexes ready");
-};
-
-// O status "ativo" também virou coisa do VÍNCULO. Na pessoa ele acumulava dois
-// significados: "esta conta pode entrar", que é decisão do admin, e "está ativo
-// na minha lista", que é de cada profissional.
-//
-// Cada vínculo herda o status que a pessoa tinha, para ninguém ver a lista
-// mudar sozinha. O campo na conta CONTINUA existindo e mandando no login — os
-// dois passam a viver lado a lado, cada um com um dono.
-async function seedLinkActive(db) {
-  const links = db.collection("professional_links");
-  const pending = await links.find({ active: { $exists: false } }).toArray();
-
-  if (pending.length === 0) return;
-
-  const users = db.collection("users");
-
-  for (const link of pending) {
-    const person = await users.findOne({ _id: link.person }, { projection: { active: 1 } });
-    await links.updateOne(
-      { _id: link._id },
-      { $set: { active: person && person.active === 0 ? 0 : 1 } }
-    );
-  }
-
-  console.log("[schema] " + pending.length + " vínculo(s) receberam o status atual da pessoa");
-}
-
-// A observação deixou de ser um campo da PESSOA e passou a ser do VÍNCULO: é a
-// anotação privada de um profissional sobre alguém. No documento da pessoa ela
-// era lida por todos os outros profissionais que a acompanham — e pela própria
-// pessoa, na área dela.
-//
-// A anotação existente vai para o vínculo de quem criou a ficha, que é quem a
-// escreveu. Idempotente: o campo é removido da pessoa depois de convertido, e
-// numa segunda execução não sobra nada para converter.
-async function moveNotesToLinks(db) {
-  const users = db.collection("users");
-  const pending = await users.find({ notes: { $nin: [null, ""] } }).toArray();
-
-  if (pending.length === 0) {
-    await users.updateMany({ notes: { $exists: true } }, { $unset: { notes: "" } });
-    return;
-  }
-
-  let moved = 0;
-
-  for (const person of pending) {
-    // Sem `createdBy` não há a quem atribuir a anotação. Apagá-la em silêncio
-    // seria pior do que deixá-la órfã, então ela fica onde está e o log avisa.
-    if (!person.createdBy) {
-      console.log("[schema] observação de " + person.name + " sem autor conhecido — mantida");
-      continue;
-    }
-
-    await db.collection("professional_links").updateOne(
-      { professional: person.createdBy, person: person._id },
-      { $set: { notes: person.notes, notesAt: person.updatedAt || new Date() } }
-    );
-
-    await users.updateOne({ _id: person._id }, { $unset: { notes: "" } });
-    moved++;
-  }
-
-  await users.updateMany({ notes: "" }, { $unset: { notes: "" } });
-
-  console.log("[schema] " + moved + " observação(ões) movida(s) para o vínculo do autor");
-}
-
-// Tira dos tipos já salvos as permissões que foram aposentadas. Uma chave
-// órfã não concede nada — nenhuma rota pergunta por ela — mas continua sendo
-// exibida e contada na tela, o que faz o admin achar que ainda significa algo.
-async function dropRetiredPermissions(db) {
   // api_keys — a busca de cada requisição é POR HASH, então o índice é nele.
   // Único: dois documentos com o mesmo hash significariam a mesma chave valendo
   // duas vezes, e revogar uma deixaria a outra viva.
   await db.collection("api_keys").createIndex({ hash: 1 }, { unique: true, name: "hash_unique" });
-  // A tela lista as chaves de uma conta, as ativas primeiro.
   await db
     .collection("api_keys")
     .createIndex({ user: 1, revokedAt: 1, createdAt: -1 }, { name: "by_user_state" });
 
   // api_calls — a tela lê sempre por conta e por data decrescente.
   await db.collection("api_calls").createIndex({ user: 1, createdAt: -1 }, { name: "by_user_date" });
-  // O filtro por chave dentro da conta.
   await db
     .collection("api_calls")
     .createIndex({ user: 1, prefix: 1, createdAt: -1 }, { name: "by_user_key_date" });
-  // TTL: o log de tráfego cresce rápido e não tem valor histórico depois de um
-  // tempo. O de auditoria (user_action_history) é outro e não expira.
   {
+    // TTL: o log de tráfego cresce rápido e não tem valor histórico depois de
+    // um tempo. O de auditoria é outro e não expira.
     const { DIAS_RETENCAO } = require("../model/ApiCall_model.js");
     await db
       .collection("api_calls")
@@ -260,10 +221,10 @@ async function dropRetiredPermissions(db) {
       );
   }
 
-  // tenants — um profissional, um domínio. Os dois índices são ÚNICOS e os dois
+  // tenants — um profissional, um domínio. Os índices são ÚNICOS e os dois
   // importam: o de `user` impede dois documentos para a mesma conta, e o de
-  // `subdomain` é o que decide quem levou o nome quando duas contas pedem o
-  // mesmo ao mesmo tempo. Checar antes e gravar depois perderia essa corrida.
+  // `subdomain` decide quem levou o nome quando duas contas pedem o mesmo ao
+  // mesmo tempo.
   await db.collection("tenants").createIndex({ user: 1 }, { unique: true, name: "user_unique" });
   await db
     .collection("tenants")
@@ -271,8 +232,6 @@ async function dropRetiredPermissions(db) {
       { subdomain: 1 },
       { unique: true, partialFilterExpression: { subdomain: { $type: "string" } }, name: "subdomain_unique" }
     );
-  // O domínio próprio segue a mesma regra, em campo próprio: os dois endereços
-  // podem coexistir na mesma conta, e cada um só pode ter um dono.
   await db
     .collection("tenants")
     .createIndex(
@@ -280,141 +239,53 @@ async function dropRetiredPermissions(db) {
       { unique: true, partialFilterExpression: { customDomain: { $type: "string" } }, name: "custom_domain_unique" }
     );
 
-  // brand_images — a logo e as fotos da tela de entrada. O índice é por dono
-  // porque as duas operações que existem são "quantas esta conta tem" e
-  // "apaga as desta conta que o tema não usa mais".
-  await db.collection("brand_images").createIndex({ user: 1 }, { name: "user" });
+  // Os tipos de usuário padrão. Rodam DENTRO do contexto da instância porque
+  // `roles` é dela — fora do contexto, o modelo estouraria de propósito.
+  await instanceContext.run(nome, () => app.api.role.ensureSystemRoles());
 
-  const { RETIRED } = require("../lib/permissions.js");
-  if (!RETIRED.length) return;
-
-  const r = await db
-    .collection("roles")
-    .updateMany(
-      { permissions: { $in: RETIRED } },
-      { $pull: { permissions: { $in: RETIRED } }, $set: { updatedAt: new Date() } }
-    );
-
-  if (r.modifiedCount > 0) {
-    console.log("[schema] " + r.modifiedCount + " tipo(s) limpos de permissões aposentadas");
-  }
+  console.log(`[schema] instância pronta — ${nome}`);
+  return db;
 }
 
-// Gives every account a role. Whoever has `admin: true` becomes an
-// Administrador, every other professional a Profissional, and everyone being
-// followed a Pessoa.
-//
-// The `admin` flag is KEPT, not converted away: it is the master switch that
-// grants whatever permissions exist at the time of the request, which is how
-// an owner stays covered when a new permission ships. The role only decides
-// what the account can do when that switch is off.
-//
-// Idempotent: only users WITHOUT a role are touched, so a second run finds
-// nothing to do.
-async function backfillRoles(db, app) {
-  const users = db.collection("users");
+// ── O boot ─────────────────────────────────────────────────────────────────
 
-  const pending = await users.find({ role: { $in: [null, undefined] } }).toArray();
-  if (pending.length === 0) return;
+module.exports = async function ensureSchema(app) {
+  await ensureCentral(app);
 
-  const roles = db.collection("roles");
-  const admin = await roles.findOne({ name: "Administrador" });
-  const professional = await roles.findOne({ name: "Profissional" });
-  const person = await roles.findOne({ name: "Pessoa" });
-
-  let counts = { admin: 0, professional: 0, person: 0 };
-
-  for (const user of pending) {
-    let role = person;
-    let bucket = "person";
-
-    if (user.admin === true) {
-      role = admin;
-      bucket = "admin";
-    } else if (user.type === "trainer") {
-      role = professional;
-      bucket = "professional";
-    }
-
-    if (!role) continue;
-
-    await users.updateOne(
-      { _id: user._id },
-      { $set: { role: role._id, admin: user.admin === true, updatedAt: new Date() } }
-    );
-    counts[bucket]++;
+  // A instância semente. `ensure` é idempotente: um segundo boot não
+  // sobrescreve o e-mail nem os endereços de quem já está lá.
+  const r = await app.api.center.ensure({ instance: SEED_INSTANCE, email: SEED_EMAIL });
+  if (!r.ok && r.erro !== "taken") {
+    throw new Error(`[schema] instância semente inválida: ${SEED_INSTANCE} (${r.erro})`);
   }
 
-  console.log(
-    "[schema] roles assigned — " +
-      counts.admin +
-      " Administrador, " +
-      counts.professional +
-      " Profissional, " +
-      counts.person +
-      " Pessoa"
-  );
-}
+  // Toda instância registrada ganha as collections e os índices. É o que faz um
+  // deploy alcançar clientes criados depois da última versão.
+  for (const doc of await app.api.center.list()) {
+    await ensureInstance(app, doc.instance);
+  }
 
-// Renomeia uma collection preservando o que já está dentro. Só age quando a
-// origem existe e o destino ainda não — assim uma segunda execução não faz
-// nada, e um banco novo nunca vê essa migração.
-async function renameCollection(db, from, to) {
-  const nomes = (await db.listCollections({}, { nameOnly: true }).toArray()).map((c) => c.name);
+  console.log("[schema] central e instâncias prontas");
+};
 
-  if (!nomes.includes(from)) return;
-  if (nomes.includes(to)) return;
+module.exports.ensureCentral = ensureCentral;
+module.exports.ensureInstance = ensureInstance;
+module.exports.CENTRAL = CENTRAL;
+module.exports.POR_INSTANCIA = POR_INSTANCIA;
 
-  await db.collection(from).rename(to);
-  console.log("[schema] collection renamed: " + from + " → " + to);
-}
-
-// Dropping an index that no longer matches how the data is read. Missing is
-// the expected case on a fresh database, so it is not an error.
+// Remove um índice que existe; ignora o que já não está lá.
+//
+// Existe para índice APOSENTADO: quando um campo sai do documento, o índice
+// dele continua sendo atualizado em toda escrita sem servir a consulta nenhuma.
 async function dropIndexIfPresent(db, collection, name) {
   try {
+    const indexes = await db.collection(collection).indexes();
+    if (!indexes.some((i) => i.name === name)) return;
+
     await db.collection(collection).dropIndex(name);
-    console.log("[schema] index dropped: " + collection + "." + name);
+    console.log(`[schema] índice aposentado removido: ${collection}.${name}`);
   } catch (error) {
-    if (error.codeName !== "IndexNotFound") throw error;
+    // Collection que não existe ainda, ou índice que outro processo já tirou.
+    // Nenhum dos dois é problema — o objetivo é o índice não estar lá.
   }
 }
-
-// One-time move from the old model, where a student carried a single `trainer`
-// field, to the links collection. Idempotent: the unique index turns a repeat
-// run into a no-op, and the `trainer` field is dropped once converted, so
-// there is nothing left to convert on the next boot.
-async function backfillLinks(db) {
-  const users = db.collection("users");
-
-  const legacy = await users.find({ trainer: { $exists: true } }).toArray();
-  if (legacy.length === 0) return;
-
-  for (const doc of legacy) {
-    if (doc.trainer) {
-      await db
-        .collection("professional_links")
-        .updateOne(
-          { professional: doc.trainer, person: doc._id },
-          {
-            $setOnInsert: {
-              professional: doc.trainer,
-              person: doc._id,
-              source: "created",
-              createdAt: doc.createdAt || new Date(),
-            },
-          },
-          { upsert: true }
-        );
-    }
-
-    await users.updateOne(
-      { _id: doc._id },
-      { $set: { createdBy: doc.createdBy || doc.trainer || null }, $unset: { trainer: "" } }
-    );
-  }
-
-  console.log("[schema] " + legacy.length + " link(s) migrated from the old `trainer` field");
-}
-
-module.exports.COLLECTIONS = COLLECTIONS;

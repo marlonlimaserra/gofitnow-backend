@@ -38,7 +38,6 @@
     "emailInUse": "Ese correo ya está en uso.",
     "userWithEmailExists": "Ya existe un usuario con ese correo.",
     "accountWithEmailExists": "Ya existe una cuenta con ese correo.",
-    "accountExistsAskAccess": "Ya existe una cuenta con ese correo. Pídele acceso en vez de registrarla de nuevo.",
     "noAccountWithEmail": "No existe una cuenta con ese correo.",
     "emailIsYours": "Ese correo es el tuyo.",
     "alreadyInYourList": "Esa persona ya está en tu lista.",
@@ -76,7 +75,8 @@
     "domainTaken": "Ese dominio ya está en otra cuenta.",
     "noCustomDomain": "No hay ningún dominio propio configurado.",
     "invalidBrandImage": "Envía una imagen JPEG, PNG o WebP de hasta 4 MB.",
-    "tooManyBrandImages": "Ya tienes {{max}} imágenes guardadas. Guarda la apariencia para liberar las que no están en uso."
+    "tooManyBrandImages": "Ya tienes {{max}} imágenes guardadas. Guarda la apariencia para liberar las que no están en uso.",
+    "noInstance": "Instancia no informada. Envía el encabezado X-Instance, o entra por la dirección de la instancia."
   },
   "ok": {
     "passwordChanged": "Contraseña cambiada.",
@@ -195,16 +195,11 @@
     "update_avatar": "Cambió la foto de perfil",
     "delete_avatar": "Quitó la foto de perfil",
     "view_person": "Abrió una ficha",
-    "lookup_person": "Consultó un correo",
     "create_person": "Registró una persona",
     "update_person": "Editó una ficha",
     "delete_person": "Eliminó una persona",
     "unlink_person": "Quitó de su propia lista",
     "revoke_person_access": "Quitó el acceso de una persona",
-    "request_access": "Pidió acceso a alguien",
-    "cancel_access_request": "Canceló una solicitud de acceso",
-    "approve_access": "Dio acceso a un profesional",
-    "deny_access": "Rechazó a un profesional",
     "create_workout": "Creó un entrenamiento",
     "update_workout": "Editó un entrenamiento",
     "delete_workout": "Eliminó un entrenamiento",
@@ -251,7 +246,6 @@
     "workout_sessions": "Sesión",
     "workout_templates": "Opción de autocompletar",
     "exercises": "Ejercicio",
-    "access_requests": "Solicitud de acceso",
     "api_keys": "Clave de API",
     "tenants": "Dominio"
   },
