@@ -16,5 +16,7 @@ routes.Avatar = require("./controllers/Avatar.js");
 routes.ApiKey = require("./controllers/ApiKey.js");
 routes.Tenant = require("./controllers/Tenant.js");
 routes.Brand = require("./controllers/Brand.js");
+// Chamadas por outro serviço nosso (o painel do center), não por navegador.
+routes.Internal = require("./controllers/Internal.js");
 
 module.exports = routes;

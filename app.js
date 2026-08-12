@@ -95,7 +95,7 @@ app.use((req, res, next) => {
 // nem precisam: `/public/theme` é resolvido por host e `/` é só um ping. Sem
 // esta lista, elas responderiam 400 pedindo um cabeçalho que ninguém tem como
 // mandar de uma tela de login.
-const SEM_INSTANCIA = [/^\/$/, /^\/public\//];
+const SEM_INSTANCIA = [/^\/$/, /^\/public\//, /^\/internal\//];
 
 app.use((req, res, next) => {
   const caminho = req.path || "";
