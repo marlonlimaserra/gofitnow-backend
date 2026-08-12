@@ -3,15 +3,20 @@
 //
 // São DOIS conjuntos, e a divisão é o desenho:
 //
-//   CENTRAL (`gofitnow`)          o que é compartilhado entre clientes.
-//   POR INSTÂNCIA (`gofitnow_x`)  o que é de um cliente só.
+//   CENTRAL (`gofitnow_center`)    o que é IGUAL PARA TODO MUNDO.
+//   POR INSTÂNCIA (`gofitnow_x`)   o que é de um cliente só.
 //
 // O catálogo de exercícios está no central porque é igual para todo mundo. Tudo
 // que é conta, treino, vínculo e histórico está na instância — e ali o
 // isolamento é do BANCO, não de um filtro que alguém pode esquecer.
+//
+// O banco central é COMPARTILHADO com o painel do center, e a divisão de dono é
+// por collection: o painel cria e indexa `instances`, `admins`, `sessions`,
+// `plans` e `groups`; este arquivo cria e indexa `exercises`. Nenhum dos dois
+// mexe no que é do outro.
 const instanceContext = require("../lib/instance.js");
 
-const CENTRAL = ["center", "exercises"];
+const CENTRAL = ["exercises"];
 
 const POR_INSTANCIA = [
   "users",
@@ -53,26 +58,8 @@ async function ensureCentral(app) {
   const db = await app.mongodb.centralDb();
   await criarFaltantes(db, CENTRAL, "central");
 
-  // center — o registro das instâncias.
-  //
-  // `instance` é único porque é o nome do banco: dois documentos com o mesmo
-  // nome significariam dois donos para os mesmos dados.
-  await db.collection("center").createIndex({ instance: 1 }, { unique: true, name: "instance_unique" });
-
-  // O e-mail do dono é único entre instâncias — é por ele que se descobre para
-  // onde mandar quem chegou sem dizer a instância.
-  await db.collection("center").createIndex(
-    { email: 1 },
-    { unique: true, partialFilterExpression: { email: { $type: "string" } }, name: "email_unique" }
-  );
-
-  // Os ENDEREÇOS são únicos globalmente, e o índice só pode viver aqui: um
-  // índice dentro de cada instância não veria o endereço registrado na outra, e
-  // dois clientes disputariam o mesmo host sem ninguém notar.
-  await db.collection("center").createIndex(
-    { hosts: 1 },
-    { unique: true, partialFilterExpression: { hosts: { $type: "string" } }, name: "hosts_unique" }
-  );
+  // A collection `instances` NÃO é criada aqui: ela mora no banco do painel, e
+  // o dono do schema dela é o painel. Este backend só a lê.
 
   // exercises — catálogo ÚNICO, igual para todo mundo. Sem `trainer`: o escopo
   // por profissional saiu quando o catálogo virou central.

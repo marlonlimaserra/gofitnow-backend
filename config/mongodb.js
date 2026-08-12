@@ -2,16 +2,19 @@ const { MongoClient } = require("mongodb");
 
 const instanceContext = require("../lib/instance.js");
 
-// A conexão do backend, agora com DOIS destinos.
+// A conexão do backend, com DOIS destinos.
 //
 // O .env carrega só MONGODB_URI, e o nome do banco vem da própria URI
-// (mongodb://host:port/<db>). Esse nome é o do banco CENTRAL.
+// (mongodb://host:port/<db>). Esse nome NÃO guarda nada: ele é a base dos nomes
+// dos outros dois.
 //
-//   central                → `gofitnow`. Guarda a collection `center` (o
-//                            registro das instâncias) e o catálogo de
-//                            exercícios, que é igual para todo mundo.
-//   por instância          → `gofitnow_marlon`, `gofitnow_outro`. Guarda tudo o
-//                            que é de um cliente só: contas, treinos, vínculos.
+//   central       → `gofitnow_center`. O que é IGUAL PARA TODO MUNDO: o registro
+//                   dos clientes (`instances`) e o catálogo de exercícios. É o
+//                   mesmo banco do painel — ele controla justamente as coisas
+//                   compartilhadas, e separar "compartilhado do app" de
+//                   "compartilhado do painel" seria uma fronteira sem dono.
+//   por instância → `gofitnow_marlon`, `gofitnow_outro`. Tudo o que é de um
+//                   cliente só: contas, treinos, vínculos.
 //
 // Um banco por cliente, e não um campo `instance` em cada documento, porque o
 // isolamento passa a ser do banco e não da disciplina de quem escreve a
@@ -46,20 +49,27 @@ function baseFromUri(uri) {
 
 const baseName = baseFromUri(connectionString);
 
-let central;
+// O banco CENTRAL — o do compartilhado, que é também o do painel.
+//
+// A divisão de DONO do schema continua clara, e é por collection: o painel cria e
+// indexa `instances`, `admins`, `sessions`, `plans` e `groups`; este backend cria
+// e indexa `exercises`. Duas fontes criando o mesmo índice daria dois lugares
+// para manter, um sempre atrasado.
+const centerName = `${baseName}_center`;
+
+let conectado;
 let connecting;
 
 async function connect() {
-  if (central) return central;
+  if (conectado) return conectado;
 
   if (!connecting) {
     connecting = client
       .connect()
       .then((c) => {
-        // db() with no argument uses the database from the URI.
-        central = c.db();
-        console.log("[mongo] connected, central db is " + central.databaseName);
-        return central;
+        conectado = c;
+        console.log(`[mongo] conectado — central em ${centerName}`);
+        return c;
       })
       .catch((err) => {
         connecting = undefined;
@@ -72,9 +82,11 @@ async function connect() {
 }
 
 module.exports = {
-  // O banco CENTRAL. Só quem é compartilhado entre clientes usa: `center` e o
-  // catálogo de exercícios.
-  centralDb: connect,
+  // O banco CENTRAL: o que é igual para todo mundo. Um só, e é o mesmo do painel.
+  centralDb: async function () {
+    const c = await connect();
+    return c.db(centerName);
+  },
 
   // O banco da instância da requisição atual.
   //
@@ -88,8 +100,8 @@ module.exports = {
     const nome = instance ? instanceContext.normalize(instance) : instanceContext.required();
     if (!nome) throw new Error("invalid_instance");
 
-    await connect();
-    return client.db(`${baseName}_${nome}`);
+    const c = await connect();
+    return c.db(`${baseName}_${nome}`);
   },
 
   // O que os modelos chamam. Aponta para o banco da INSTÂNCIA — que é o caso da
@@ -106,7 +118,7 @@ module.exports = {
   },
 
   centralName: function () {
-    return baseName;
+    return centerName;
   },
 
   client: function () {
@@ -115,7 +127,7 @@ module.exports = {
 
   close: async function () {
     await client.close();
-    central = undefined;
+    conectado = undefined;
     connecting = undefined;
   },
 };

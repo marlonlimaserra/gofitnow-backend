@@ -13,8 +13,9 @@ const mongodb = require("../../config/mongodb.js");
 
 const schema = require("../../database/schema.js");
 
-test("o banco central sai da URI", () => {
-  assert.equal(mongodb.centralName(), "gofitnow");
+test("o banco central é o `_center` — o do compartilhado", () => {
+  // A URI dá só a BASE dos nomes; ela mesma não guarda nada.
+  assert.equal(mongodb.centralName(), "gofitnow_center");
 });
 
 test("cada instância é um banco com prefixo do central", () => {
@@ -47,13 +48,26 @@ test("o catálogo de exercícios é CENTRAL — igual para todo mundo", () => {
   assert.ok(!schema.POR_INSTANCIA.includes("exercises"));
 });
 
-test("o registro das instâncias é central; contas e treinos são da instância", () => {
-  assert.ok(schema.CENTRAL.includes("center"));
+test("o registro das instâncias NÃO é criado por este backend", () => {
+  // Ele mora no banco do painel, e o dono do schema dele é o painel. Duas
+  // fontes criando o mesmo índice daria dois lugares para manter.
+  assert.ok(!schema.CENTRAL.includes("center"));
+  assert.ok(!schema.CENTRAL.includes("instances"));
+  assert.ok(!schema.POR_INSTANCIA.includes("instances"));
+});
 
+test("contas e treinos são da instância, nunca do central", () => {
   for (const c of ["users", "workouts", "professional_links", "roles", "tenants"]) {
     assert.ok(schema.POR_INSTANCIA.includes(c), c);
     assert.ok(!schema.CENTRAL.includes(c), c);
   }
+});
+
+test("são DOIS bancos por cliente-mais-um, e os nomes se leem em conjunto", () => {
+  // O nome da URI (`gofitnow`) é só a base: nenhuma collection mora nele.
+  assert.equal(mongodb.centralName(), "gofitnow_center");
+  assert.equal(mongodb.dbNameFor("marlon"), "gofitnow_marlon");
+  assert.equal(mongodb.dbNameFor("outro"), "gofitnow_outro");
 });
 
 test("`access_requests` não existe mais em lugar nenhum", () => {
@@ -86,7 +100,8 @@ test("o modelo de exercícios lê o banco CENTRAL, não o da instância", async 
   assert.deepEqual(chamadas, ["central"]);
 });
 
-test("o registro das instâncias também é central", async () => {
+test("o registro das instâncias é lido no banco CENTRAL", async () => {
+  // O mesmo banco do catálogo: os dois são "igual para todo mundo".
   const Center = require("../../model/Center_model.js");
   const chamadas = [];
 
@@ -94,7 +109,7 @@ test("o registro das instâncias também é central", async () => {
     mongodb: {
       async centralDb() {
         chamadas.push("central");
-        return { collection: () => ({}) };
+        return { collection: (n) => ({ nome: n }) };
       },
       async connectToServer() {
         chamadas.push("instancia");
@@ -103,8 +118,9 @@ test("o registro das instâncias também é central", async () => {
     },
   });
 
-  await model.collection();
+  const col = await model.collection();
   assert.deepEqual(chamadas, ["central"]);
+  assert.equal(col.nome, "instances", "sem prefixo — o banco já diz de quem é");
 });
 
 test("um modelo comum lê o banco da INSTÂNCIA", async () => {

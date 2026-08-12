@@ -1,10 +1,14 @@
 const instanceContext = require("../lib/instance.js");
 
-// A collection `center`, no banco CENTRAL — o registro das instâncias.
+// A collection `instances`, no banco do PAINEL (`gofitnow_center`) — o registro
+// dos clientes.
 //
 // É a única coisa que sabe que existe mais de um cliente. Cada documento é uma
 // instância: o nome (que vira o nome do banco), o e-mail de quem a tem, e os
 // endereços por onde ela é aberta.
+//
+// Daqui ela é só LIDA. Quem escreve e indexa é o painel do center; este backend
+// a consulta para descobrir de quem é um host antes de existir sessão.
 //
 // Os ENDEREÇOS moram aqui, e não no `tenants` de dentro da instância, por uma
 // razão de ordem: a tela de login é resolvida por host ANTES de existir sessão,
@@ -17,9 +21,10 @@ function Center_model(app) {
 }
 
 Center_model.prototype.collection = async function () {
-  // centralDb, não connectToServer: esta collection é de fora das instâncias.
+  // centralDb, não connectToServer: esta collection é do compartilhado, não de
+  // uma instância.
   const db = await this.app.mongodb.centralDb();
-  return db.collection("center");
+  return db.collection("instances");
 };
 
 Center_model.prototype.byInstance = async function (instance) {
