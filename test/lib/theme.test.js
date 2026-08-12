@@ -235,3 +235,38 @@ test("os temas prontos não repetem chave nem cor", () => {
   const chaves = theme.PRESETS.map((p) => p.key);
   assert.equal(new Set(chaves).size, chaves.length);
 });
+
+// ── O menu principal ────────────────────────────────────────────────────────
+
+test("as cores do menu são hex, e cor ruim vira vazio", () => {
+  // Vazio é "usa o padrão". Cair numa cor fixa deixaria o menu de uma cor que
+  // ninguém escolheu.
+  const t = theme.sanitize({ menuBg: "#fff", menuText: "0F172A" });
+  assert.equal(t.menuBg, "#ffffff");
+  assert.equal(t.menuText, "#0f172a");
+
+  for (const ruim of ["red; url(x)", "#12345", "", null]) {
+    assert.equal(theme.sanitize({ menuBg: ruim }).menuBg, "", JSON.stringify(ruim));
+    assert.equal(theme.sanitize({ menuText: ruim }).menuText, "");
+  }
+});
+
+test("a largura da logo do menu aceita 0, que é 'automática'", () => {
+  // Zero preserva a proporção do arquivo; é diferente de não ter escolhido.
+  assert.equal(theme.sanitize({ menuLogoWidth: 0 }).menuLogoWidth, 0);
+  assert.equal(theme.sanitize({ menuLogoWidth: 90 }).menuLogoWidth, 90);
+  // Entre 1 e o piso seria uma logo invisível: sobe para o piso.
+  assert.equal(theme.sanitize({ menuLogoWidth: 5 }).menuLogoWidth, theme.MIN_MENU_LOGO);
+  assert.equal(theme.sanitize({ menuLogoWidth: 9999 }).menuLogoWidth, theme.MAX_MENU_LOGO);
+});
+
+test("a altura da logo do menu tem piso — sem ele a logo some", () => {
+  assert.equal(theme.sanitize({ menuLogoHeight: 0 }).menuLogoHeight, theme.MIN_MENU_LOGO);
+  assert.equal(theme.sanitize({ menuLogoHeight: 64 }).menuLogoHeight, 64);
+  assert.equal(theme.sanitize({}).menuLogoHeight, theme.defaults().menuLogoHeight);
+});
+
+test("a logo do menu só aceita http(s)", () => {
+  assert.equal(theme.sanitize({ menuLogo: "https://x.com/a.png" }).menuLogo, "https://x.com/a.png");
+  assert.equal(theme.sanitize({ menuLogo: "javascript:alert(1)" }).menuLogo, "");
+});

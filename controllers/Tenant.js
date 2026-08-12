@@ -60,6 +60,7 @@ module.exports = function (app) {
       effects: themeLib.EFFECTS,
       motions: themeLib.MOTIONS,
       logoRange: { min: themeLib.MIN_LOGO, max: themeLib.MAX_LOGO },
+      menuLogoRange: { min: themeLib.MIN_MENU_LOGO, max: themeLib.MAX_MENU_LOGO },
       speedRange: { min: themeLib.MIN_SPEED, max: themeLib.MAX_SPEED },
       presets: themeLib.PRESETS,
       maxPhotos: themeLib.MAX_PHOTOS,
