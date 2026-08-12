@@ -70,7 +70,11 @@
     "apiKeyNotFound": "Clave no encontrada.",
     "invalidSubdomain": "Usa de 2 a 63 letras, números o guiones — sin acentos, espacios ni puntos.",
     "reservedSubdomain": "Ese nombre está reservado por el sistema. Elige otro.",
-    "subdomainTaken": "Esa dirección ya es de otra cuenta."
+    "subdomainTaken": "Esa dirección ya es de otra cuenta.",
+    "invalidDomain": "Escribe el dominio tal como es, sin http:// y sin barra — por ejemplo, entrenos.tusitio.com.",
+    "ourDomain": "Esa dirección es nuestra. Para una dirección en {{base}}, usa la opción de subdominio.",
+    "domainTaken": "Ese dominio ya está en otra cuenta.",
+    "noCustomDomain": "No hay ningún dominio propio configurado."
   },
   "ok": {
     "passwordChanged": "Contraseña cambiada.",
@@ -225,6 +229,8 @@
     "revoke_api_key": "Revocó una clave de API",
     "duplicate_session": "Duplicó una sesión",
     "claim_domain": "Eligió su propio dominio",
+    "claim_custom_domain": "Registró un dominio propio",
+    "remove_custom_domain": "Quitó el dominio propio",
     "update_theme": "Cambió la apariencia"
   },
   "categories": {

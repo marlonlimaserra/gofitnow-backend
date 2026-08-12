@@ -12,11 +12,14 @@ const { fromAcceptLanguage, translator } = require("../../lib/i18n");
 
 // Um express suficiente para os controllers: eles chamam app.get/post/put/delete
 // com (rota, handler) e nada mais.
-function fakeApp({ api = {}, helpers = {} } = {}) {
+// O resto do que vier (`cloudflare`, `dnscheck`) entra no app como está: são as
+// integrações de rede, e um teste que as deixasse passar bateria na internet.
+function fakeApp({ api = {}, helpers = {}, ...extras } = {}) {
   const rotas = [];
   const app = {
     api,
     helpers,
+    ...extras,
     validator: require("validator"),
     moment: require("moment"),
     crypto: require("crypto"),

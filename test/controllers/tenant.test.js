@@ -7,11 +7,48 @@ const themeLib = require("../../lib/theme.js");
 
 const USER = { _id: "u1", name: "Marlon" };
 
-function monta({ tenant, livre = true, viaApiKey = false } = {}) {
+function monta({
+  tenant,
+  livre = true,
+  viaApiKey = false,
+  pages = false,
+  aponta = { ok: false, erro: "not_found" },
+  certificado = { ok: true, status: "active" },
+} = {}) {
   const salvos = [];
   const reservas = [];
+  const dominios = [];
+  const estados = [];
+  const naCloudflare = [];
 
   const app = fakeApp({
+    // As integrações de rede entram como dublê: um teste que batesse na
+    // Cloudflare ou no DNS de verdade seria um teste que falha no avião.
+    cloudflare: {
+      isConfigured: () => false,
+      missingConfig: () => ["zoneId"],
+      isPagesConfigured: () => pages,
+      missingPagesConfig: () => ["token", "accountId"],
+      async createSubdomain() {
+        return { ok: true };
+      },
+      async addPagesDomain(host) {
+        naCloudflare.push({ acao: "add", host });
+        return { ok: true, host };
+      },
+      async removePagesDomain(host) {
+        naCloudflare.push({ acao: "remove", host });
+        return { ok: true };
+      },
+      async domainStatus() {
+        return certificado;
+      },
+    },
+    dnscheck: {
+      async pointsTo() {
+        return aponta;
+      },
+    },
     helpers: {
       ReqProtected: {
         async verify(req) {
@@ -28,7 +65,15 @@ function monta({ tenant, livre = true, viaApiKey = false } = {}) {
         async dataBySubdomain(s) {
           return tenant && tenant.subdomain === s ? tenant : undefined;
         },
+        async dataByHost(host) {
+          if (!tenant) return undefined;
+          const sub = tenant.subdomain ? `${tenant.subdomain}.gofitnow.fit` : null;
+          return host === sub || host === tenant.customDomain ? tenant : undefined;
+        },
         async isFree() {
+          return livre;
+        },
+        async isDomainFree() {
           return livre;
         },
         async claim(userId, nome) {
@@ -37,7 +82,17 @@ function monta({ tenant, livre = true, viaApiKey = false } = {}) {
             ? { ok: true, subdomain: nome, host: `${nome}.gofitnow.fit` }
             : { ok: false, erro: "taken" };
         },
+        async claimCustomDomain(userId, host) {
+          dominios.push(host);
+          return livre ? { ok: true, customDomain: host } : { ok: false, erro: "taken" };
+        },
         async setStatus() {},
+        async setCustomStatus(userId, status, erro) {
+          estados.push({ status, erro: erro || null });
+        },
+        async removeCustomDomain() {
+          estados.push({ status: "removido", erro: null });
+        },
         async saveTheme(userId, entrada) {
           const limpo = themeLib.sanitize(entrada);
           salvos.push(limpo);
@@ -52,7 +107,7 @@ function monta({ tenant, livre = true, viaApiKey = false } = {}) {
   });
 
   TenantController(app);
-  return { app, salvos, reservas };
+  return { app, salvos, reservas, dominios, estados, naCloudflare };
 }
 
 test("o tema público sai sem sessão nenhuma", async () => {
@@ -157,6 +212,169 @@ test("a checagem de disponibilidade explica o motivo", async () => {
   const ok = await call(app, "get", "/me/tenant/available", { query: { subdomain: "marlon" } });
   assert.equal(ok.body.free, true);
   assert.equal(ok.body.host, "marlon.gofitnow.fit");
+});
+
+// ── Domínio próprio ─────────────────────────────────────────────────────────
+
+test("o tema público também sai pelo domínio próprio do profissional", async () => {
+  // É o ponto do recurso: `treinos.marlon.com.br` tem de abrir com a marca dele.
+  const { app } = monta({
+    tenant: { customDomain: "treinos.marlon.com.br", theme: { brand: "#7c3aed" } },
+  });
+  const r = await call(app, "get", "/public/theme", { query: { host: "treinos.marlon.com.br" } });
+
+  assert.equal(r.body.custom, true);
+  assert.equal(r.body.theme.brand, "#7c3aed");
+});
+
+test("cadastrar domínio próprio guarda o host e diz para onde apontar", async () => {
+  const { app, dominios } = monta({ pages: true });
+  const r = await call(app, "post", "/me/tenant/custom-domain", {
+    body: { domain: "https://Treinos.Marlon.com.br/" },
+  });
+
+  assert.equal(r.status, 200);
+  assert.deepEqual(dominios, ["treinos.marlon.com.br"], "guardou o host limpo, não o que foi colado");
+  assert.equal(r.body.cnameTarget, "app.gofitnow.fit");
+});
+
+test("cadastrar domínio próprio NÃO precisa da credencial de DNS", async () => {
+  // O DNS é do profissional. Isto é o que destrava o recurso com o token de hoje.
+  const { app, naCloudflare } = monta({ pages: true });
+  const r = await call(app, "post", "/me/tenant/custom-domain", { body: { domain: "marlon.com.br" } });
+
+  assert.equal(r.status, 200);
+  assert.deepEqual(naCloudflare, [{ acao: "add", host: "marlon.com.br" }], "só o Pages, nada de DNS");
+});
+
+test("enquanto o CNAME não aponta, o domínio fica pendente", async () => {
+  const { app, estados } = monta({ pages: true, aponta: { ok: false, erro: "not_found" } });
+  const r = await call(app, "post", "/me/tenant/custom-domain", { body: { domain: "marlon.com.br" } });
+
+  assert.equal(r.body.customStatus, "pending");
+  assert.equal(r.body.customError, "not_found");
+  assert.deepEqual(estados.at(-1), { status: "pending", erro: "not_found" });
+});
+
+test("CNAME apontado e certificado pronto põe o domínio no ar", async () => {
+  const { app } = monta({
+    pages: true,
+    aponta: { ok: true, via: "cname", found: "app.gofitnow.fit" },
+    certificado: { ok: true, status: "active" },
+  });
+  const r = await call(app, "post", "/me/tenant/custom-domain", { body: { domain: "marlon.com.br" } });
+
+  assert.equal(r.body.customStatus, "active");
+  assert.equal(r.body.pointedAt, "app.gofitnow.fit");
+});
+
+test("CNAME certo mas certificado ainda saindo não é 'no ar'", async () => {
+  // Dizer "no ar" aqui mandaria a pessoa abrir um endereço com erro de SSL.
+  const { app } = monta({
+    pages: true,
+    aponta: { ok: true, found: "app.gofitnow.fit" },
+    certificado: { ok: true, status: "pending" },
+  });
+  const r = await call(app, "post", "/me/tenant/custom-domain", { body: { domain: "marlon.com.br" } });
+
+  assert.equal(r.body.customStatus, "pending");
+  assert.equal(r.body.customError, "certificate_pending");
+});
+
+test("domínio inválido é recusado antes de guardar", async () => {
+  const { app, dominios } = monta({ pages: true });
+  for (const ruim of ["", "marlon", "localhost", "com espaço.br", "192.168.0.1"]) {
+    const r = await call(app, "post", "/me/tenant/custom-domain", { body: { domain: ruim } });
+    assert.equal(r.status, 400, JSON.stringify(ruim));
+  }
+  assert.deepEqual(dominios, []);
+});
+
+test("endereço nosso não entra como domínio próprio", async () => {
+  // Senão o mesmo host teria dois donos possíveis.
+  const { app, dominios } = monta({ pages: true });
+  for (const nosso of ["marlon.gofitnow.fit", "gofitnow.fit"]) {
+    const r = await call(app, "post", "/me/tenant/custom-domain", { body: { domain: nosso } });
+    assert.equal(r.status, 400, nosso);
+    assert.equal(r.body.code, "ours", nosso);
+  }
+  assert.deepEqual(dominios, []);
+});
+
+test("domínio de outra conta responde 409", async () => {
+  const { app } = monta({ pages: true, livre: false });
+  const r = await call(app, "post", "/me/tenant/custom-domain", { body: { domain: "marlon.com.br" } });
+
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, "taken");
+});
+
+test("uma chave de API não cadastra nem remove domínio próprio", async () => {
+  const { app, dominios } = monta({ pages: true, viaApiKey: true, tenant: { customDomain: "m.com.br" } });
+
+  assert.equal((await call(app, "post", "/me/tenant/custom-domain", { body: { domain: "m.com.br" } })).status, 403);
+  assert.equal((await call(app, "delete", "/me/tenant/custom-domain")).status, 403);
+  assert.deepEqual(dominios, []);
+});
+
+test("verificar de novo tenta religar ao Pages antes de conferir", async () => {
+  // Quem ficou com o cadastro falhado tem de sair do buraco apertando o botão.
+  const { app, naCloudflare } = monta({
+    pages: true,
+    tenant: { customDomain: "marlon.com.br", customStatus: "failed" },
+    aponta: { ok: true, found: "app.gofitnow.fit" },
+  });
+  const r = await call(app, "post", "/me/tenant/custom-domain/verify");
+
+  assert.equal(r.status, 200);
+  assert.equal(r.body.customStatus, "active");
+  assert.deepEqual(naCloudflare, [{ acao: "add", host: "marlon.com.br" }]);
+});
+
+test("verificar sem domínio cadastrado é 404", async () => {
+  const { app } = monta({ pages: true, tenant: { subdomain: "marlon" } });
+  const r = await call(app, "post", "/me/tenant/custom-domain/verify");
+
+  assert.equal(r.status, 404);
+  assert.equal(r.body.code, "no_domain");
+});
+
+test("remover apaga do banco mesmo com a Cloudflare fora do ar", async () => {
+  // Senão o endereço fica preso a alguém que já não o quer, e ninguém mais usa.
+  const { app, estados, naCloudflare } = monta({
+    pages: false,
+    tenant: { customDomain: "marlon.com.br" },
+  });
+  const r = await call(app, "delete", "/me/tenant/custom-domain");
+
+  assert.equal(r.status, 200);
+  assert.equal(r.body.customDomain, "");
+  assert.deepEqual(estados.at(-1), { status: "removido", erro: null });
+  assert.deepEqual(naCloudflare, [], "sem credencial não tenta, e o banco já ficou limpo");
+});
+
+test("a checagem de disponibilidade responde para domínio inteiro também", async () => {
+  const { app } = monta({ livre: true });
+
+  const ok = await call(app, "get", "/me/tenant/available", { query: { domain: "marlon.com.br" } });
+  assert.equal(ok.body.free, true);
+  assert.equal(ok.body.host, "marlon.com.br");
+
+  const nosso = await call(app, "get", "/me/tenant/available", { query: { domain: "x.gofitnow.fit" } });
+  assert.equal(nosso.body.reason, "ours");
+
+  const ruim = await call(app, "get", "/me/tenant/available", { query: { domain: "localhost" } });
+  assert.equal(ruim.body.reason, "invalid");
+});
+
+test("a tela recebe o alvo do CNAME e o estado do domínio próprio", async () => {
+  const { app } = monta({ tenant: { customDomain: "marlon.com.br", customStatus: "pending" } });
+  const r = await call(app, "get", "/me/tenant");
+
+  assert.equal(r.body.customDomain, "marlon.com.br");
+  assert.equal(r.body.customStatus, "pending");
+  assert.equal(r.body.cnameTarget, "app.gofitnow.fit");
+  assert.equal(typeof r.body.pagesReady, "boolean");
 });
 
 test("salvar tema limpa o que veio de fora", async () => {

@@ -103,6 +103,58 @@ test("resposta ilegível não estoura, vira erro tratado", async () => {
   assert.match(r.erro, /ileg[íi]vel/);
 });
 
+// ── Domínio próprio do profissional ─────────────────────────────────────────
+
+test("o domínio próprio não precisa da zona — é o que destrava com o token de hoje", () => {
+  const semZona = { ...ENV, CLOUDFLARE_ZONE_ID: "" };
+  assert.equal(cf.isConfigured(semZona), false, "o subdomínio ainda espera o DNS");
+  assert.equal(cf.isPagesConfigured(semZona), true, "o domínio próprio já dá para ligar");
+  assert.deepEqual(cf.missingPagesConfig({}), ["token", "accountId"]);
+});
+
+test("ligar domínio próprio NÃO toca no DNS", async () => {
+  // O DNS é do profissional. Uma chamada a mais aqui seria mexer em zona alheia.
+  const f = fakeFetch([{ success: true, result: {} }]);
+  const r = await cf.addPagesDomain("treinos.marlon.com.br", { env: ENV, fetchImpl: f });
+
+  assert.equal(r.ok, true);
+  assert.equal(f.chamadas.length, 1);
+  assert.match(f.chamadas[0].url, /pages\/projects\/gofitnow\/domains$/);
+  assert.equal(f.chamadas[0].body.name, "treinos.marlon.com.br");
+});
+
+test("domínio próprio já ligado não é falha", async () => {
+  const f = fakeFetch([{ success: false, errors: [{ code: 8000009, message: "already exists" }] }]);
+  assert.equal((await cf.addPagesDomain("m.com.br", { env: ENV, fetchImpl: f })).ok, true);
+});
+
+test("erro de verdade ao ligar o domínio próprio é reportado", async () => {
+  const f = fakeFetch([{ success: false, errors: [{ code: 8000, message: "ruim" }] }]);
+  const r = await cf.addPagesDomain("m.com.br", { env: ENV, fetchImpl: f });
+  assert.equal(r.ok, false);
+  assert.equal(r.passo, "pages");
+});
+
+test("sem token nem tenta ligar o domínio próprio", async () => {
+  const r = await cf.addPagesDomain("m.com.br", { env: {}, fetchImpl: fakeFetch([]) });
+  assert.equal(r.ok, false);
+  assert.deepEqual(r.faltando, ["token", "accountId"]);
+});
+
+test("remover o domínio desliga só do projeto", async () => {
+  const f = fakeFetch([{ success: true }]);
+  const r = await cf.removePagesDomain("m.com.br", { env: ENV, fetchImpl: f });
+
+  assert.equal(r.ok, true);
+  assert.equal(f.chamadas[0].method, "DELETE");
+  assert.match(f.chamadas[0].url, /domains\/m\.com\.br$/);
+});
+
+test("remover o que já não está lá dá o mesmo resultado que remover", async () => {
+  const f = fakeFetch([{ success: false, errors: [{ code: 8000007, message: "Domain not found" }] }]);
+  assert.equal((await cf.removePagesDomain("m.com.br", { env: ENV, fetchImpl: f })).ok, true);
+});
+
 test("domainStatus consulta e devolve o estado", async () => {
   const f = fakeFetch([{ success: true, result: { status: "active" } }]);
   const r = await cf.domainStatus("marlon.gofitnow.fit", { env: ENV, fetchImpl: f });

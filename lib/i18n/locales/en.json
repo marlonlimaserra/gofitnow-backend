@@ -70,7 +70,11 @@
     "apiKeyNotFound": "Key not found.",
     "invalidSubdomain": "Use 2 to 63 letters, numbers or hyphens — no accents, spaces or dots.",
     "reservedSubdomain": "That name is reserved by the system. Pick another one.",
-    "subdomainTaken": "That address already belongs to another account."
+    "subdomainTaken": "That address already belongs to another account.",
+    "invalidDomain": "Write the domain as it is, with no http:// and no slash — for example, training.yoursite.com.",
+    "ourDomain": "That address is ours. For an address on {{base}}, use the subdomain option.",
+    "domainTaken": "That domain is already on another account.",
+    "noCustomDomain": "No domain of your own is set up."
   },
   "ok": {
     "passwordChanged": "Password changed.",
@@ -225,6 +229,8 @@
     "revoke_api_key": "Revoked an API key",
     "duplicate_session": "Duplicated a session",
     "claim_domain": "Claimed their own domain",
+    "claim_custom_domain": "Added a domain of their own",
+    "remove_custom_domain": "Removed their own domain",
     "update_theme": "Changed the appearance"
   },
   "categories": {

@@ -271,6 +271,14 @@ async function dropRetiredPermissions(db) {
       { subdomain: 1 },
       { unique: true, partialFilterExpression: { subdomain: { $type: "string" } }, name: "subdomain_unique" }
     );
+  // O domínio próprio segue a mesma regra, em campo próprio: os dois endereços
+  // podem coexistir na mesma conta, e cada um só pode ter um dono.
+  await db
+    .collection("tenants")
+    .createIndex(
+      { customDomain: 1 },
+      { unique: true, partialFilterExpression: { customDomain: { $type: "string" } }, name: "custom_domain_unique" }
+    );
 
   const { RETIRED } = require("../lib/permissions.js");
   if (!RETIRED.length) return;

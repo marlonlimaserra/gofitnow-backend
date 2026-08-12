@@ -70,7 +70,11 @@
     "apiKeyNotFound": "Clé introuvable.",
     "invalidSubdomain": "Utilisez de 2 à 63 lettres, chiffres ou tirets — sans accent, espace ni point.",
     "reservedSubdomain": "Ce nom est réservé par le système. Choisissez-en un autre.",
-    "subdomainTaken": "Cette adresse appartient déjà à un autre compte."
+    "subdomainTaken": "Cette adresse appartient déjà à un autre compte.",
+    "invalidDomain": "Écrivez le domaine tel quel, sans http:// ni barre oblique — par exemple, entrainements.votresite.com.",
+    "ourDomain": "Cette adresse est la nôtre. Pour une adresse en {{base}}, utilisez l’option de sous-domaine.",
+    "domainTaken": "Ce domaine est déjà sur un autre compte.",
+    "noCustomDomain": "Aucun domaine personnel n’est configuré."
   },
   "ok": {
     "passwordChanged": "Mot de passe modifié.",
@@ -225,6 +229,8 @@
     "revoke_api_key": "A révoqué une clé d’API",
     "duplicate_session": "A dupliqué une séance",
     "claim_domain": "A choisi son propre domaine",
+    "claim_custom_domain": "A enregistré un domaine personnel",
+    "remove_custom_domain": "A supprimé son domaine personnel",
     "update_theme": "A changé l’apparence"
   },
   "categories": {

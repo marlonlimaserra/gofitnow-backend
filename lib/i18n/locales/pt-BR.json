@@ -70,7 +70,11 @@
     "apiKeyNotFound": "Chave não encontrada.",
     "invalidSubdomain": "Use de 2 a 63 letras, números ou hífen — sem acento, espaço ou ponto.",
     "reservedSubdomain": "Esse nome é reservado pelo sistema. Escolha outro.",
-    "subdomainTaken": "Esse endereço já é de outra conta."
+    "subdomainTaken": "Esse endereço já é de outra conta.",
+    "invalidDomain": "Escreva o domínio como ele é, sem http:// e sem barra — por exemplo, treinos.seusite.com.br.",
+    "ourDomain": "Esse endereço é nosso. Para um endereço em {{base}}, use a opção de subdomínio.",
+    "domainTaken": "Esse domínio já está em outra conta.",
+    "noCustomDomain": "Nenhum domínio próprio cadastrado."
   },
   "ok": {
     "passwordChanged": "Senha alterada.",
@@ -225,6 +229,8 @@
     "revoke_api_key": "Revogou uma chave de API",
     "duplicate_session": "Duplicou uma sessão",
     "claim_domain": "Escolheu o próprio domínio",
+    "claim_custom_domain": "Cadastrou um domínio próprio",
+    "remove_custom_domain": "Removeu o domínio próprio",
     "update_theme": "Mudou a aparência"
   },
   "categories": {
