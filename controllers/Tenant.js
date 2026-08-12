@@ -56,6 +56,10 @@ module.exports = function (app) {
       scale: themeLib.scale(tema.brand),
       baseDomain: domainLib.BASE_DOMAIN,
       layouts: themeLib.LAYOUTS,
+      backgrounds: themeLib.BACKGROUNDS,
+      effects: themeLib.EFFECTS,
+      logoSizes: themeLib.LOGO_SIZES,
+      speedRange: { min: themeLib.MIN_SPEED, max: themeLib.MAX_SPEED },
       presets: themeLib.PRESETS,
       maxPhotos: themeLib.MAX_PHOTOS,
       // A tela precisa saber se dá para registrar antes de oferecer o botão.

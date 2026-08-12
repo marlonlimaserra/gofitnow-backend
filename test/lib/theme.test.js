@@ -42,6 +42,85 @@ test("layout desconhecido cai no padrão", () => {
   for (const l of theme.LAYOUTS) assert.equal(theme.sanitize({ layout: l }).layout, l);
 });
 
+// ── Composição e fundo, que antes eram um campo só ──────────────────────────
+
+test("fundo desconhecido cai no padrão", () => {
+  assert.equal(theme.sanitize({ background: "inventado" }).background, theme.defaults().background);
+  for (const b of theme.BACKGROUNDS) {
+    assert.equal(theme.sanitize({ background: b }).background, b);
+  }
+});
+
+test("qualquer composição aceita qualquer fundo", () => {
+  // É o ponto da separação: antes "dividido com foto" não existia, porque o
+  // mesmo campo dizia as duas coisas.
+  for (const l of theme.LAYOUTS) {
+    for (const b of theme.BACKGROUNDS) {
+      const t = theme.sanitize({ layout: l, background: b });
+      assert.equal(t.layout, l, `${l}/${b}`);
+      assert.equal(t.background, b, `${l}/${b}`);
+    }
+  }
+});
+
+test("tema antigo continua abrindo, com o layout traduzido em par", () => {
+  // Os temas guardados antes da separação têm `layout` valendo pelos dois. Um
+  // deles caindo no padrão apagaria a escolha de quem já tinha configurado.
+  const esperado = {
+    gradient: ["centered", "gradient"],
+    solid: ["centered", "solid"],
+    photo: ["side", "image"],
+    slider: ["centered", "slider"],
+  };
+
+  for (const [antigo, [layout, background]] of Object.entries(esperado)) {
+    const t = theme.sanitize({ layout: antigo });
+    assert.equal(t.layout, layout, antigo);
+    assert.equal(t.background, background, antigo);
+  }
+});
+
+test("o valor antigo manda mesmo que venha um fundo junto", () => {
+  // Um tema antigo não tem `background`; se tiver, veio de fora e o par antigo
+  // é a leitura fiel do que estava gravado.
+  const t = theme.sanitize({ layout: "photo", background: "gradient" });
+  assert.equal(t.layout, "side");
+  assert.equal(t.background, "image");
+});
+
+test("a velocidade do slider encosta na borda em vez de virar o padrão", () => {
+  // Quem mandou 100 quis "o mais devagar que der", não "o de fábrica".
+  assert.equal(theme.sanitize({ sliderSpeed: 1000 }).sliderSpeed, theme.MAX_SPEED);
+  assert.equal(theme.sanitize({ sliderSpeed: 0 }).sliderSpeed, theme.MIN_SPEED);
+  assert.equal(theme.sanitize({ sliderSpeed: -5 }).sliderSpeed, theme.MIN_SPEED);
+  assert.equal(theme.sanitize({ sliderSpeed: 12 }).sliderSpeed, 12);
+});
+
+test("velocidade que não é número cai no padrão", () => {
+  for (const ruim of ["depressa", null, undefined, {}, NaN]) {
+    assert.equal(
+      theme.sanitize({ sliderSpeed: ruim }).sliderSpeed,
+      theme.defaults().sliderSpeed,
+      JSON.stringify(ruim)
+    );
+  }
+});
+
+test("efeito e tamanho da logo só aceitam o que existe", () => {
+  for (const e of theme.EFFECTS) assert.equal(theme.sanitize({ sliderEffect: e }).sliderEffect, e);
+  for (const s of theme.LOGO_SIZES) assert.equal(theme.sanitize({ logoSize: s }).logoSize, s);
+
+  assert.equal(theme.sanitize({ sliderEffect: "explodir" }).sliderEffect, theme.defaults().sliderEffect);
+  assert.equal(theme.sanitize({ logoSize: "gigante" }).logoSize, theme.defaults().logoSize);
+});
+
+test("os pontos do degradê nascem ligados, e um false explícito sobrevive", () => {
+  // Desligar para todo mundo mudaria a tela de quem nunca pediu nada.
+  assert.equal(theme.sanitize({}).dots, true);
+  assert.equal(theme.sanitize({ dots: false }).dots, false);
+  assert.equal(theme.sanitize({ dots: true }).dots, true);
+});
+
 test("sanitize devolve só os campos conhecidos", () => {
   const t = theme.sanitize({ brand: "#16a34a", inventado: "x", __proto__: { mau: 1 } });
   assert.equal(t.inventado, undefined);
