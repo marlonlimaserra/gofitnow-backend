@@ -23,6 +23,26 @@ module.exports = function (app) {
     res.send(payload);
   });
 
+  // As preferências de tela, gravadas à parte do PUT /me de propósito.
+  //
+  // Elas mudam a cada clique num cabeçalho de coluna. Passar por lá arrastaria
+  // junto a validação de nome, e-mail e nome de usuário, devolveria a conta
+  // inteira a cada clique e encheria a auditoria de "usuário alterado" — para
+  // registrar que alguém preferiu ver a lista por ordem de nome.
+  app.put("/me/preferences", async function (req, res) {
+    const user = await app.helpers.ReqProtected.verify(req, res);
+    if (user === false) return;
+
+    const ok = await app.api.user.savePreferences(user._id, req.body || {});
+    if (!ok) {
+      res.status(400).send({ msg: req.t("errors.invalidPreferences") });
+      return;
+    }
+
+    const atual = await app.api.user.data(user._id);
+    res.send({ preferences: atual.preferences || {} });
+  });
+
   app.put("/me", async function (req, res) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;

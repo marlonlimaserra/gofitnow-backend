@@ -8,6 +8,7 @@
     "requirePersonName": "Informe o nome da pessoa.",
     "requirePersonEmail": "Informe o e-mail da pessoa.",
     "requireWorkoutName": "Informe o nome do treino.",
+    "requireWorkoutOrder": "Mande os ids dos treinos na ordem nova.",
     "requireExerciseName": "Informe o nome do exercício.",
     "requireRoleName": "Informe o nome do tipo.",
     "requireCopyName": "Informe o nome da cópia.",
@@ -83,7 +84,15 @@
       "long": "Nome de usuário passa de 32 caracteres.",
       "chars": "Use apenas letras, números, hífen e sublinhado, começando e terminando por letra ou número.",
       "reserved": "Este nome é reservado."
-    }
+    },
+    "invalidPreferences": "Preferências inválidas ou grandes demais.",
+    "inviteNotFound": "Este link de cadastro não vale mais. Peça um novo a quem te enviou.",
+    "inviteEmailTaken": "Não foi possível concluir o cadastro com esse e-mail. Tente entrar ou use outro.",
+    "requireDietName": "Informe o nome do plano.",
+    "dietNotFound": "Plano não encontrado.",
+    "requireMeals": "Mande a lista de refeições.",
+    "requireFoodName": "Informe o nome do alimento.",
+    "foodNotFound": "Alimento não encontrado."
   },
   "ok": {
     "passwordChanged": "Senha alterada.",
@@ -101,7 +110,10 @@
     "requestCancelled": "Pedido cancelado.",
     "requestSent": "Pedido enviado. A pessoa precisa confirmar pelo e-mail.",
     "resetLinkSent": "Se existir uma conta com esse e-mail, o link de redefinição foi enviado.",
-    "apiKeyRevoked": "Chave revogada."
+    "apiKeyRevoked": "Chave revogada.",
+    "inviteDone": "Cadastro concluído! Agora é só entrar no app.",
+    "dietRemoved": "Plano apagado.",
+    "foodRemoved": "Alimento apagado."
   },
   "permissions": {
     "groups": {
@@ -128,6 +140,14 @@
       "roles": {
         "title": "Tipos de usuário",
         "description": "Os próprios tipos e o que cada um pode"
+      },
+      "diets": {
+        "title": "Dietas",
+        "description": "Planos alimentares e refeições"
+      },
+      "foods": {
+        "title": "Alimentos",
+        "description": "O catálogo de alimentos"
       }
     },
     "items": {
@@ -186,6 +206,22 @@
       "roles.manage": {
         "label": "Gerenciar tipos",
         "hint": "Criar tipos e mudar as permissões de cada um. Quem tem isso pode dar qualquer poder a si mesmo."
+      },
+      "diets.view": {
+        "label": "Ver dietas",
+        "hint": "Abrir os planos alimentares das pessoas."
+      },
+      "diets.manage": {
+        "label": "Gerenciar dietas",
+        "hint": "Criar, editar e apagar planos e refeições."
+      },
+      "foods.view": {
+        "label": "Ver o catálogo",
+        "hint": "Consultar alimentos e categorias."
+      },
+      "foods.manage": {
+        "label": "Gerenciar alimentos",
+        "hint": "Criar, editar e apagar alimentos do catálogo — vale para todas as contas."
       }
     }
   },
@@ -206,6 +242,7 @@
     "delete_person": "Excluiu uma pessoa",
     "unlink_person": "Removeu da própria lista",
     "revoke_person_access": "Tirou o acesso de uma pessoa",
+    "reset_invite_link": "Gerou um link de cadastro novo",
     "create_workout": "Criou um treino",
     "update_workout": "Editou um treino",
     "delete_workout": "Excluiu um treino",
@@ -231,14 +268,23 @@
     "remove_custom_domain": "Removeu o domínio próprio",
     "update_theme": "Mudou a aparência",
     "upload_brand_image": "Enviou uma imagem da marca",
-    "update_workout_exercises": "Alterou exercícios do treino"
+    "update_workout_exercises": "Alterou exercícios do treino",
+    "create_diet": "Criou um plano alimentar",
+    "update_diet": "Alterou um plano alimentar",
+    "delete_diet": "Apagou um plano alimentar",
+    "update_diet_meals": "Alterou as refeições de um plano",
+    "create_food": "Criou um alimento",
+    "update_food": "Alterou um alimento",
+    "delete_food": "Apagou um alimento"
   },
   "categories": {
     "auth": "Acesso",
     "people": "Pessoas",
     "workouts": "Treinos",
     "exercises": "Exercícios",
-    "admin": "Administração"
+    "admin": "Administração",
+    "diets": "Dietas",
+    "foods": "Alimentos"
   },
   "targetTypes": {
     "users": "Usuário",
@@ -249,12 +295,15 @@
     "workout_templates": "Opção de auto preencher",
     "exercises": "Exercício",
     "api_keys": "Chave de API",
-    "tenants": "Domínio"
+    "tenants": "Domínio",
+    "diets": "Plano alimentar",
+    "foods": "Alimento"
   },
   "autoFill": {
     "groups": {
       "workout": "Treino",
-      "people": "Pessoas"
+      "people": "Pessoas",
+      "diet": "Dieta"
     },
     "fields": {
       "workout.name": {
@@ -283,6 +332,14 @@
       },
       "person.goal": {
         "label": "Objetivo da ficha",
+        "hint": "Ex.: Emagrecimento"
+      },
+      "diet.name": {
+        "label": "Nome do plano",
+        "hint": "Ex.: Plano de agosto"
+      },
+      "diet.goal": {
+        "label": "Objetivo do plano",
         "hint": "Ex.: Emagrecimento"
       }
     }
@@ -331,11 +388,13 @@
       "updatePerson": "Altera a ficha. O e-mail não entra: só a própria pessoa troca o dela.",
       "unlinkPerson": "Tira a pessoa da sua lista. A conta dela continua existindo.",
       "listWorkouts": "Os treinos de uma pessoa, com a contagem por situação.",
+      "listAllWorkouts": "Lista todos os treinos do profissional, de todas as pessoas, do mais novo para o mais antigo.",
       "getWorkout": "Um treino com as sessões dele.",
       "createWorkout": "Cria um treino para uma pessoa.",
       "updateWorkout": "Altera um treino.",
       "deleteWorkout": "Apaga o treino com todas as sessões dele.",
       "duplicateWorkout": "Copia o treino inteiro, com sessões e exercícios.",
+      "reorderWorkouts": "Grava a ordem da lista de treinos da pessoa. Mande os ids na sequência nova.",
       "getSession": "Uma sessão com os exercícios montados nela.",
       "createSession": "Cria uma sessão dentro de um treino.",
       "updateSession": "Altera o nome ou a posição da sessão.",

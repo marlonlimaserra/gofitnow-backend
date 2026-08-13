@@ -55,7 +55,17 @@ Role_model.prototype.list = async function () {
 
   const byRole = new Map(users.map((u) => [String(u._id), u.total]));
 
-  return docs.map((d) => ({ ...d, totalUsers: byRole.get(String(d._id)) || 0 }));
+  // `isClient` dito pelo servidor, e não deduzido do nome na tela.
+  //
+  // É ESTE tipo que todo cadastro de pessoa recebe — o feito pelo profissional
+  // e o feito pela própria pessoa no link público. A tela precisa avisar isso, e
+  // comparar `name === "Cliente"` no frontend quebraria no dia em que o nome
+  // fosse traduzido ou o admin o renomeasse.
+  return docs.map((d) => ({
+    ...d,
+    totalUsers: byRole.get(String(d._id)) || 0,
+    isClient: d.system === true && d.name === CLIENT_NAME,
+  }));
 };
 
 Role_model.prototype.data = async function (id) {

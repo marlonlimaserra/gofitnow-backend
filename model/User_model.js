@@ -178,6 +178,24 @@ User_model.prototype.data = async function (id) {
   return doc || undefined;
 };
 
+// Só os nomes, de vários ids de uma vez.
+//
+// Existe para a lista geral de treinos: cada treino guarda o id da pessoa, e a
+// tela precisa do nome. Buscar um por um seriam dezenas de idas ao banco numa
+// única abertura de tela; aqui é uma só, e volta um Map pronto para consulta.
+User_model.prototype.namesByIds = async function (ids) {
+  const validos = [...new Set((ids || []).map(String))]
+    .filter((id) => ObjectId.isValid(id))
+    .map((id) => new ObjectId(id));
+
+  if (!validos.length) return new Map();
+
+  const col = await this.collection();
+  const docs = await col.find({ _id: { $in: validos } }, { projection: { name: 1 } }).toArray();
+
+  return new Map(docs.map((d) => [String(d._id), d.name]));
+};
+
 User_model.prototype.dataByEmail = async function (email) {
   const e = normalizeEmail(email);
   if (!e) return undefined;
@@ -364,6 +382,165 @@ User_model.prototype.countAdmins = async function (ignoreUserId) {
 
 // The professional never sees a person they are not linked to, and the id list
 // comes from the links — never from the request.
+// ── Link de cadastro ───────────────────────────────────────────────────────
+//
+// Um endereço público que o profissional manda por WhatsApp e a própria pessoa
+// preenche. Quem chega por ele nasce já vinculado a quem mandou.
+//
+// É um TOKEN aleatório, e não o id do profissional na URL:
+//   - id é adivinhável e permanente. Vazou uma vez, vazou para sempre, e não há
+//     como cortar sem trocar o id — que outras coisas referenciam.
+//   - token é trocável: um "gerar novo link" invalida o anterior na hora, o que
+//     é a única defesa real contra um link que foi parar num grupo errado.
+//
+// Mora no documento do profissional em vez de numa collection própria: é UM por
+// conta, sem histórico e sem validade — a revogação é a troca.
+User_model.prototype.inviteToken = async function (trainerId, { renovar = false } = {}) {
+  if (!ObjectId.isValid(trainerId)) return null;
+
+  const col = await this.collection();
+  const dono = await col.findOne({ _id: new ObjectId(trainerId) }, { projection: { inviteToken: 1 } });
+  if (!dono) return null;
+
+  if (dono.inviteToken && !renovar) return dono.inviteToken;
+
+  // 24 bytes em base64url: curto o bastante para caber num WhatsApp sem quebrar
+  // a linha, e longo o bastante para não ser tentado na força bruta.
+  const token = this.app.crypto.randomBytes(24).toString("base64url");
+  await col.updateOne(
+    { _id: new ObjectId(trainerId) },
+    { $set: { inviteToken: token, updatedAt: new Date() } }
+  );
+
+  return token;
+};
+
+User_model.prototype.trainerByInviteToken = async function (token) {
+  const limpo = String(token || "").trim();
+  // O comprimento mínimo evita que um token vazio ou "1" chegue a consultar o
+  // banco — e, com ele, que alguém descubra por tempo de resposta o que existe.
+  if (limpo.length < 20) return undefined;
+
+  const col = await this.collection();
+  const doc = await col.findOne({ inviteToken: limpo, type: { $ne: "student" } });
+  return doc || undefined;
+};
+
+// A página da lista de pessoas, montada no BANCO.
+//
+// Antes esta rota devolvia a lista inteira e o navegador cortava, ordenava e
+// contava. Funciona com duzentas pessoas e cai com vinte mil: a resposta cresce
+// sem teto, o celular ordena tudo a cada clique, e a rede paga por 199 linhas
+// que ninguém vai ver.
+//
+// O que obriga a ser agregação, e não um `find().sort().skip().limit()`:
+// `active` e `notes` moram no VÍNCULO (professional_links), não na pessoa, e
+// `hasAccess` é derivado da existência de senha. Ordenar ou filtrar por eles
+// exige que existam antes do `$sort` — daí o `$lookup` e o `$addFields`.
+const ORDEM_PESSOAS = {
+  name: "name",
+  contact: "email",
+  goal: "goal",
+  access: "hasAccess",
+  status: "active",
+  createdAt: "createdAt",
+};
+
+User_model.prototype.pageStudents = async function (trainerId, filtros = {}) {
+  const col = await this.collection();
+
+  const ids = await this.app.api.link.personIdsOf(trainerId);
+  if (!ids.length) return { rows: [], total: 0 };
+
+  const etapas = [{ $match: { _id: { $in: ids } } }];
+
+  const termo = String(filtros.search || "").trim();
+  if (termo) {
+    const escapado = termo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    etapas.push({
+      $match: {
+        $or: ["name", "email", "username", "phone"].map((campo) => ({
+          [campo]: { $regex: escapado, $options: "i" },
+        })),
+      },
+    });
+  }
+
+  etapas.push(
+    {
+      $lookup: {
+        from: "professional_links",
+        let: { pessoa: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ["$person", "$$pessoa"] },
+                  { $eq: ["$professional", new ObjectId(trainerId)] },
+                ],
+              },
+            },
+          },
+          { $project: { active: 1, notes: 1 } },
+        ],
+        as: "vinculo",
+      },
+    },
+    {
+      $addFields: {
+        active: { $ifNull: [{ $arrayElemAt: ["$vinculo.active", 0] }, 1] },
+        notes: { $ifNull: [{ $arrayElemAt: ["$vinculo.notes", 0] }, ""] },
+        hasAccess: { $cond: [{ $ifNull: ["$password", false] }, true, false] },
+      },
+    }
+  );
+
+  if (filtros.active !== undefined && filtros.active !== "") {
+    etapas.push({ $match: { active: Number(filtros.active) ? 1 : 0 } });
+  }
+
+  const campo = ORDEM_PESSOAS[filtros.sort] || "createdAt";
+  const direcao = filtros.dir === "asc" ? 1 : -1;
+
+  // Vazio sempre no fim, nas duas direções — a mesma regra que a tela seguia
+  // quando ordenava sozinha. Ordenar por Objetivo para encontrar uma fileira de
+  // "—" no topo não ajuda ninguém.
+  etapas.push({
+    $addFields: { __vazio: { $cond: [{ $in: [`$${campo}`, [null, ""]] }, 1, 0] } },
+  });
+
+  // `_id` no fim desempata: sem um critério estável, duas pessoas com o mesmo
+  // nome podem trocar de lugar entre uma página e outra e uma delas some.
+  const ordem = { __vazio: 1, [campo]: direcao, _id: 1 };
+
+  const limite = Math.min(Math.max(Number(filtros.limit) || 15, 1), 200);
+  const pagina = Math.max(Number(filtros.page) || 1, 1);
+
+  etapas.push({
+    $facet: {
+      rows: [
+        { $sort: ordem },
+        { $skip: (pagina - 1) * limite },
+        { $limit: limite },
+        { $project: { password: 0, salt: 0, vinculo: 0, __vazio: 0 } },
+      ],
+      total: [{ $count: "n" }],
+    },
+  });
+
+  // Collation do banco em vez de localeCompare no navegador: é ela que faz
+  // "Ávila" cair perto de "Avila", e não depois de "Zanetti".
+  //
+  // Vai nas OPÇÕES do aggregate, não encadeada no cursor: `.collation()` como
+  // método só existe no cursor de `find`.
+  const [saida] = await col
+    .aggregate(etapas, { collation: { locale: "pt", strength: 1 } })
+    .toArray();
+
+  return { rows: saida?.rows || [], total: saida?.total?.[0]?.n || 0 };
+};
+
 User_model.prototype.listStudents = async function (trainerId, filter) {
   const col = await this.collection();
 
@@ -496,14 +673,12 @@ User_model.prototype.updateStudent = async function (trainerId, id, obj) {
   return r.matchedCount > 0;
 };
 
-// Takes the person off this professional's list. The person keeps existing,
-// along with every other professional who follows them.
-User_model.prototype.unlinkStudent = async function (trainerId, id) {
-  return await this.app.api.link.unlink(trainerId, id);
-};
-
-// Erases the person for good. Only ever called for a profile nobody else
-// follows and that never became a real account — see controllers/Student.js.
+// Apaga a pessoa de vez: o cadastro, os vínculos e os TREINOS.
+//
+// Os treinos vão junto desde 13/08/2026. Antes ficavam no banco apontando para
+// um `student` apagado: nenhuma tela os alcançava e nada os apagava depois —
+// lixo permanente. Quem quer só cortar o login da pessoa e manter a ficha usa
+// `revokeStudentAccess`, que é outro botão na tela.
 User_model.prototype.deleteStudent = async function (trainerId, id) {
   if (!ObjectId.isValid(id)) return false;
   if (!(await this.app.api.link.exists(trainerId, id))) return false;
@@ -512,6 +687,8 @@ User_model.prototype.deleteStudent = async function (trainerId, id) {
   const r = await col.deleteOne({ _id: new ObjectId(id) });
 
   await this.app.api.link.deleteAllOf(id);
+  await this.app.api.workout.deleteAllOfStudent(id);
+  await this.app.api.diet.deleteAllOfStudent(id);
 
   return r.deletedCount > 0;
 };
@@ -532,6 +709,34 @@ User_model.prototype.revokeStudentAccess = async function (trainerId, id) {
 };
 
 // ── Common to both types ─────────────────────────────────────────────────
+
+// As preferências de TELA: quais colunas a pessoa quer ver, por qual ordenou,
+// quantas linhas por página.
+//
+// Guardadas como um saco de chaves, sem esquema: é gosto de quem olha, não
+// regra de negócio, e cada tela nova traria uma migração se isso fosse tipado.
+// O que existe é um TETO de tamanho — sem ele, um cliente com defeito encheria
+// o documento do usuário até o limite de 16 MB do Mongo.
+const PREFERENCIAS_MAX = 4000;
+
+User_model.prototype.savePreferences = async function (id, prefs) {
+  if (!ObjectId.isValid(id)) return false;
+  if (!prefs || typeof prefs !== "object" || Array.isArray(prefs)) return false;
+
+  const chaves = Object.entries(prefs);
+  if (!chaves.length) return false;
+  if (JSON.stringify(prefs).length > PREFERENCIAS_MAX) return false;
+
+  // Gravadas chave a chave, e não como um objeto inteiro: cada tela salva a
+  // sua sem apagar as das outras. Mandar `preferences` de uma vez faria a lista
+  // de pessoas derrubar o que a tela de treinos tivesse guardado.
+  const set = { updatedAt: new Date() };
+  for (const [k, v] of chaves) set[`preferences.${String(k)}`] = v;
+
+  const col = await this.collection();
+  const r = await col.updateOne({ _id: new ObjectId(id) }, { $set: set });
+  return r.matchedCount > 0;
+};
 
 // Updates the user's own account data (name/email) or password.
 User_model.prototype.updateSelf = async function (id, obj) {

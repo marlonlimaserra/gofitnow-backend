@@ -8,6 +8,7 @@
     "requirePersonName": "Indiquez le nom de la personne.",
     "requirePersonEmail": "Indiquez l’e-mail de la personne.",
     "requireWorkoutName": "Indiquez le nom de l’entraînement.",
+    "requireWorkoutOrder": "Envoyez les ids des entraînements dans le nouvel ordre.",
     "requireExerciseName": "Indiquez le nom de l’exercice.",
     "requireRoleName": "Indiquez le nom du type.",
     "requireCopyName": "Indiquez le nom de la copie.",
@@ -83,7 +84,15 @@
       "long": "Un nom d’utilisateur dépasse 32 caractères.",
       "chars": "Utilisez seulement lettres, chiffres, tiret et tiret bas, en commençant et finissant par une lettre ou un chiffre.",
       "reserved": "Ce nom est réservé."
-    }
+    },
+    "invalidPreferences": "Préférences invalides ou trop volumineuses.",
+    "inviteNotFound": "Ce lien d’inscription n’est plus valide. Demandez-en un nouveau à son expéditeur.",
+    "inviteEmailTaken": "Impossible de terminer l’inscription avec cet e-mail. Essayez de vous connecter ou utilisez-en un autre.",
+    "requireDietName": "Indiquez le nom du plan.",
+    "dietNotFound": "Plan introuvable.",
+    "requireMeals": "Envoyez la liste des repas.",
+    "requireFoodName": "Indiquez le nom de l’aliment.",
+    "foodNotFound": "Aliment introuvable."
   },
   "ok": {
     "passwordChanged": "Mot de passe modifié.",
@@ -101,7 +110,10 @@
     "requestCancelled": "Demande annulée.",
     "requestSent": "Demande envoyée. La personne doit confirmer par e-mail.",
     "resetLinkSent": "S’il existe un compte avec cet e-mail, le lien de réinitialisation a été envoyé.",
-    "apiKeyRevoked": "Clé révoquée."
+    "apiKeyRevoked": "Clé révoquée.",
+    "inviteDone": "Inscription terminée ! Il ne reste plus qu’à vous connecter.",
+    "dietRemoved": "Plan supprimé.",
+    "foodRemoved": "Aliment supprimé."
   },
   "permissions": {
     "groups": {
@@ -128,6 +140,14 @@
       "roles": {
         "title": "Types d’utilisateur",
         "description": "Les types eux-mêmes et ce que chacun peut faire"
+      },
+      "diets": {
+        "title": "Régimes",
+        "description": "Plans alimentaires et repas"
+      },
+      "foods": {
+        "title": "Aliments",
+        "description": "Le catalogue d’aliments"
       }
     },
     "items": {
@@ -186,6 +206,22 @@
       "roles.manage": {
         "label": "Gérer les types",
         "hint": "Créer des types et changer leurs permissions. Qui a ceci peut s’accorder n’importe quel pouvoir."
+      },
+      "diets.view": {
+        "label": "Voir les régimes",
+        "hint": "Ouvrir les plans alimentaires des personnes."
+      },
+      "diets.manage": {
+        "label": "Gérer les régimes",
+        "hint": "Créer, modifier et supprimer plans et repas."
+      },
+      "foods.view": {
+        "label": "Voir le catalogue",
+        "hint": "Consulter aliments et catégories."
+      },
+      "foods.manage": {
+        "label": "Gérer les aliments",
+        "hint": "Créer, modifier et supprimer des aliments du catalogue — vaut pour tous les comptes."
       }
     }
   },
@@ -206,6 +242,7 @@
     "delete_person": "A supprimé une personne",
     "unlink_person": "A retiré de sa propre liste",
     "revoke_person_access": "A retiré l’accès d’une personne",
+    "reset_invite_link": "A généré un nouveau lien d’inscription",
     "create_workout": "A créé un entraînement",
     "update_workout": "A modifié un entraînement",
     "delete_workout": "A supprimé un entraînement",
@@ -231,14 +268,23 @@
     "remove_custom_domain": "A supprimé son domaine personnel",
     "update_theme": "A changé l’apparence",
     "upload_brand_image": "A envoyé une image de la marque",
-    "update_workout_exercises": "A modifié les exercices de la séance"
+    "update_workout_exercises": "A modifié les exercices de la séance",
+    "create_diet": "A créé un plan alimentaire",
+    "update_diet": "A modifié un plan alimentaire",
+    "delete_diet": "A supprimé un plan alimentaire",
+    "update_diet_meals": "A modifié les repas d’un plan",
+    "create_food": "A créé un aliment",
+    "update_food": "A modifié un aliment",
+    "delete_food": "A supprimé un aliment"
   },
   "categories": {
     "auth": "Accès",
     "people": "Personnes",
     "workouts": "Entraînements",
     "exercises": "Exercices",
-    "admin": "Administration"
+    "admin": "Administration",
+    "diets": "Régimes",
+    "foods": "Aliments"
   },
   "targetTypes": {
     "users": "Utilisateur",
@@ -249,12 +295,15 @@
     "workout_templates": "Option de remplissage auto",
     "exercises": "Exercice",
     "api_keys": "Clé d’API",
-    "tenants": "Domaine"
+    "tenants": "Domaine",
+    "diets": "Plan alimentaire",
+    "foods": "Aliment"
   },
   "autoFill": {
     "groups": {
       "workout": "Entraînement",
-      "people": "Personnes"
+      "people": "Personnes",
+      "diet": "Régime"
     },
     "fields": {
       "workout.name": {
@@ -283,6 +332,14 @@
       },
       "person.goal": {
         "label": "Objectif de la fiche",
+        "hint": "Ex. : Perte de poids"
+      },
+      "diet.name": {
+        "label": "Nom du plan",
+        "hint": "Ex. : Plan d’août"
+      },
+      "diet.goal": {
+        "label": "Objectif du plan",
         "hint": "Ex. : Perte de poids"
       }
     }
@@ -331,11 +388,13 @@
       "updatePerson": "Modifie la fiche. L’e-mail n’y entre pas : seule la personne change le sien.",
       "unlinkPerson": "Retire la personne de votre liste. Son compte continue d’exister.",
       "listWorkouts": "Les entraînements d’une personne, avec le compte par situation.",
+      "listAllWorkouts": "Liste tous les entraînements du professionnel, toutes personnes confondues, du plus récent au plus ancien.",
       "getWorkout": "Un entraînement avec ses séances.",
       "createWorkout": "Crée un entraînement pour une personne.",
       "updateWorkout": "Modifie un entraînement.",
       "deleteWorkout": "Supprime l’entraînement avec toutes ses séances.",
       "duplicateWorkout": "Copie l’entraînement entier, séances et exercices compris.",
+      "reorderWorkouts": "Enregistre l’ordre de la liste d’entraînements de la personne. Envoyez les ids dans le nouvel ordre.",
       "getSession": "Une séance avec les exercices qui y sont montés.",
       "createSession": "Crée une séance dans un entraînement.",
       "updateSession": "Modifie le nom ou la position de la séance.",

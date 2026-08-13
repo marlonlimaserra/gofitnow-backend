@@ -8,6 +8,7 @@
     "requirePersonName": "Enter the person's name.",
     "requirePersonEmail": "Enter the person's e-mail.",
     "requireWorkoutName": "Enter the workout name.",
+    "requireWorkoutOrder": "Send the workout ids in their new order.",
     "requireExerciseName": "Enter the exercise name.",
     "requireRoleName": "Enter the type name.",
     "requireCopyName": "Enter a name for the copy.",
@@ -83,7 +84,15 @@
       "long": "A username is longer than 32 characters.",
       "chars": "Use only letters, numbers, hyphen and underscore, starting and ending with a letter or number.",
       "reserved": "This name is reserved."
-    }
+    },
+    "invalidPreferences": "Invalid or oversized preferences.",
+    "inviteNotFound": "This signup link is no longer valid. Ask whoever sent it for a new one.",
+    "inviteEmailTaken": "Could not finish signup with that e-mail. Try signing in or use another one.",
+    "requireDietName": "Enter the plan name.",
+    "dietNotFound": "Plan not found.",
+    "requireMeals": "Send the list of meals.",
+    "requireFoodName": "Enter the food name.",
+    "foodNotFound": "Food not found."
   },
   "ok": {
     "passwordChanged": "Password changed.",
@@ -101,7 +110,10 @@
     "requestCancelled": "Request cancelled.",
     "requestSent": "Request sent. The person has to confirm by e-mail.",
     "resetLinkSent": "If an account exists for that e-mail, the reset link has been sent.",
-    "apiKeyRevoked": "Key revoked."
+    "apiKeyRevoked": "Key revoked.",
+    "inviteDone": "You're signed up! Just log in to the app now.",
+    "dietRemoved": "Plan deleted.",
+    "foodRemoved": "Food deleted."
   },
   "permissions": {
     "groups": {
@@ -128,6 +140,14 @@
       "roles": {
         "title": "User types",
         "description": "The types themselves and what each one may do"
+      },
+      "diets": {
+        "title": "Diets",
+        "description": "Meal plans and meals"
+      },
+      "foods": {
+        "title": "Foods",
+        "description": "The food catalogue"
       }
     },
     "items": {
@@ -186,6 +206,22 @@
       "roles.manage": {
         "label": "Manage types",
         "hint": "Create types and change each one's permissions. Whoever has this can give themselves any power."
+      },
+      "diets.view": {
+        "label": "View diets",
+        "hint": "Open people's meal plans."
+      },
+      "diets.manage": {
+        "label": "Manage diets",
+        "hint": "Create, edit and delete plans and meals."
+      },
+      "foods.view": {
+        "label": "View the catalogue",
+        "hint": "Browse foods and categories."
+      },
+      "foods.manage": {
+        "label": "Manage foods",
+        "hint": "Create, edit and delete catalogue foods — applies to every account."
       }
     }
   },
@@ -206,6 +242,7 @@
     "delete_person": "Deleted a person",
     "unlink_person": "Removed from their own list",
     "revoke_person_access": "Revoked a person's access",
+    "reset_invite_link": "Generated a new signup link",
     "create_workout": "Created a workout",
     "update_workout": "Edited a workout",
     "delete_workout": "Deleted a workout",
@@ -231,14 +268,23 @@
     "remove_custom_domain": "Removed their own domain",
     "update_theme": "Changed the appearance",
     "upload_brand_image": "Uploaded a brand image",
-    "update_workout_exercises": "Changed the workout's exercises"
+    "update_workout_exercises": "Changed the workout's exercises",
+    "create_diet": "Created a meal plan",
+    "update_diet": "Changed a meal plan",
+    "delete_diet": "Deleted a meal plan",
+    "update_diet_meals": "Changed a plan's meals",
+    "create_food": "Created a food",
+    "update_food": "Changed a food",
+    "delete_food": "Deleted a food"
   },
   "categories": {
     "auth": "Access",
     "people": "People",
     "workouts": "Workouts",
     "exercises": "Exercises",
-    "admin": "Administration"
+    "admin": "Administration",
+    "diets": "Diets",
+    "foods": "Foods"
   },
   "targetTypes": {
     "users": "User",
@@ -249,12 +295,15 @@
     "workout_templates": "Autofill option",
     "exercises": "Exercise",
     "api_keys": "API key",
-    "tenants": "Domain"
+    "tenants": "Domain",
+    "diets": "Meal plan",
+    "foods": "Food"
   },
   "autoFill": {
     "groups": {
       "workout": "Workout",
-      "people": "People"
+      "people": "People",
+      "diet": "Diet"
     },
     "fields": {
       "workout.name": {
@@ -283,6 +332,14 @@
       },
       "person.goal": {
         "label": "Record goal",
+        "hint": "e.g. Weight loss"
+      },
+      "diet.name": {
+        "label": "Plan name",
+        "hint": "e.g. August plan"
+      },
+      "diet.goal": {
+        "label": "Plan goal",
         "hint": "e.g. Weight loss"
       }
     }
@@ -331,11 +388,13 @@
       "updatePerson": "Changes the record. The e-mail is not included: only the person changes their own.",
       "unlinkPerson": "Removes the person from your list. Their account still exists.",
       "listWorkouts": "A person's workouts, with the count per status.",
+      "listAllWorkouts": "Lists every workout of the professional, across all people, newest first.",
       "getWorkout": "A workout with its sessions.",
       "createWorkout": "Creates a workout for a person.",
       "updateWorkout": "Changes a workout.",
       "deleteWorkout": "Deletes the workout with all of its sessions.",
       "duplicateWorkout": "Copies the whole workout, sessions and exercises included.",
+      "reorderWorkouts": "Saves the order of the person's workout list. Send the ids in their new sequence.",
       "getSession": "A session with the exercises built into it.",
       "createSession": "Creates a session inside a workout.",
       "updateSession": "Changes the session's name or position.",

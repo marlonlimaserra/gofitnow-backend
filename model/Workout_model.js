@@ -1,4 +1,7 @@
 const { ObjectId } = require("mongodb");
+// A ordem da semana mora em lib/weekdays.js: é a MESMA para treino e para plano
+// alimentar, e duas cópias seriam duas verdades sobre qual dia vem primeiro.
+const { WEEKDAYS, weekdaysOf } = require("../lib/weekdays.js");
 
 // Os treinos, com os exercícios dentro.
 //
@@ -55,6 +58,28 @@ Workout_model.prototype.list = async function (trainerId, studentId) {
     .sort({ startDate: -1, createdAt: -1 })
     .toArray();
 
+  // A ordem da lista é escolhida à mão, arrastando os cards. Os treinos criados
+  // antes de `order` existir não têm o campo, e ordenar por ele os jogaria todos
+  // para a frente ou para trás de uma vez — a lista mudaria sozinha debaixo de
+  // quem estava olhando.
+  //
+  // Então a primeira listagem CONGELA a sequência que a tela já mostrava (data
+  // decrescente) e grava como ordem. Acontece uma vez por pessoa: da segunda em
+  // diante todo mundo tem posição explícita e o `sort` abaixo é quem manda.
+  const semOrdem = docs.some((d) => typeof d.order !== "number");
+  if (semOrdem && docs.length) {
+    docs.forEach((d, i) => {
+      d.order = i;
+    });
+    await col.bulkWrite(
+      docs.map((d) => ({
+        updateOne: { filter: { _id: d._id }, update: { $set: { order: d.order } } },
+      }))
+    );
+  } else {
+    docs.sort((a, b) => a.order - b.order);
+  }
+
   // Contado aqui, em memória, e não por agregação: os exercícios moram dentro do
   // documento que já foi lido. Antes eram duas agregações numa segunda collection
   // — o custo de ter dois níveis, que sumiu junto com eles.
@@ -93,6 +118,15 @@ Workout_model.prototype.data = async function (trainerId, id) {
 Workout_model.prototype.insert = async function (trainerId, studentId, obj) {
   const col = await this.workoutsCollection();
 
+  // O treino novo entra no FIM da lista da pessoa. A posição é contada aqui e
+  // não vem do corpo do pedido: quem cria não escolhe lugar na fila, e a cópia
+  // de um treino precisa nascer no fim em vez de dividir a casa com a original
+  // (ela é criada com `...source`, que traria o `order` de lá).
+  const quantos = await col.countDocuments({
+    trainer: new ObjectId(trainerId),
+    student: new ObjectId(studentId),
+  });
+
   const r = await col.insertOne({
     trainer: new ObjectId(trainerId),
     student: new ObjectId(studentId),
@@ -107,6 +141,8 @@ Workout_model.prototype.insert = async function (trainerId, studentId, obj) {
         ? Number(obj.totalSessions)
         : null,
     tip: obj.tip ? String(obj.tip).trim() : "",
+    weekdays: weekdaysOf(obj.weekdays),
+    order: quantos,
     // Nasce com a lista vazia em vez de sem o campo: a tela abre direto nos
     // exercícios, e `undefined` obrigaria toda leitura a se defender.
     exercises: [],
@@ -132,12 +168,241 @@ Workout_model.prototype.update = async function (trainerId, id, obj) {
   if (obj.calories !== undefined) set.calories = obj.calories === "" ? null : Number(obj.calories);
   if (obj.totalSessions !== undefined)
     set.totalSessions = obj.totalSessions === "" ? null : Number(obj.totalSessions);
+  if (obj.weekdays !== undefined) set.weekdays = weekdaysOf(obj.weekdays);
 
   const r = await col.updateOne(
     { _id: new ObjectId(id), trainer: new ObjectId(trainerId) },
     { $set: set }
   );
   return r.matchedCount > 0;
+};
+
+// A página da lista GERAL de treinos, montada no banco.
+//
+// Mesma razão de `pageStudents`: devolver tudo e cortar no navegador não passa
+// de alguns milhares de registros. Aqui pesa ainda mais, porque cada treino
+// carrega os exercícios dentro — a lista inteira seriam dezenas de milhares de
+// séries trafegando para mostrar uma contagem.
+//
+// É agregação porque duas coisas que a tela ordena não existem no documento: o
+// NOME da pessoa (mora em users) e a CONTAGEM de exercícios (é o tamanho de um
+// array).
+const ORDEM_TREINOS = {
+  name: "name",
+  person: "personName",
+  goal: "goal",
+  teacher: "teacherName",
+  period: "startDate",
+  weekdays: "primeiroDia",
+  exercises: "exerciseCount",
+  createdAt: "createdAt",
+};
+
+// "Passado" e "futuro" comparados por dia (YYYY-MM-DD), como `statusOf` faz em
+// memória. Data vazia nunca classifica: um treino sem fim não é passado.
+function filtroDeStatus(status, hoje) {
+  const passado = { endDate: { $ne: "", $lt: hoje } };
+  const futuro = { startDate: { $ne: "", $gt: hoje } };
+
+  if (status === "past") return passado;
+  if (status === "future") return futuro;
+  if (status === "current") return { $nor: [passado, futuro] };
+  return null;
+}
+
+Workout_model.prototype.pageAll = async function (trainerId, filtros = {}) {
+  const col = await this.workoutsCollection();
+  const hoje = today();
+
+  const etapas = [{ $match: { trainer: new ObjectId(trainerId) } }];
+
+  if (filtros.studentId && ObjectId.isValid(filtros.studentId)) {
+    etapas.push({ $match: { student: new ObjectId(filtros.studentId) } });
+  }
+
+  const termo = String(filtros.search || "").trim();
+  if (termo) {
+    const escapado = termo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    etapas.push({ $match: { name: { $regex: escapado, $options: "i" } } });
+  }
+
+  etapas.push(
+    {
+      $lookup: {
+        from: "users",
+        localField: "student",
+        foreignField: "_id",
+        pipeline: [{ $project: { name: 1 } }],
+        as: "pessoa",
+      },
+    },
+    {
+      $addFields: {
+        personName: { $ifNull: [{ $arrayElemAt: ["$pessoa.name", 0] }, ""] },
+        exerciseCount: { $size: { $ifNull: ["$exercises", []] } },
+        setCount: {
+          $sum: {
+            $map: {
+              input: { $ifNull: ["$exercises", []] },
+              as: "e",
+              in: { $size: { $ifNull: ["$$e.sets", []] } },
+            },
+          },
+        },
+        muscleGroups: {
+          $sortArray: {
+            input: {
+              $setUnion: [
+                {
+                  $filter: {
+                    input: { $ifNull: ["$exercises.muscleGroup", []] },
+                    as: "g",
+                    cond: { $ne: ["$$g", ""] },
+                  },
+                },
+                [],
+              ],
+            },
+            sortBy: 1,
+          },
+        },
+        // O status calculado no banco, com a mesma regra do statusOf: fim antes
+        // de hoje é passado, início depois de hoje é futuro, o resto é atual.
+        status: {
+          $switch: {
+            branches: [
+              {
+                case: {
+                  $and: [{ $ne: ["$endDate", ""] }, { $lt: ["$endDate", hoje] }],
+                },
+                then: "past",
+              },
+              {
+                case: {
+                  $and: [{ $ne: ["$startDate", ""] }, { $gt: ["$startDate", hoje] }],
+                },
+                then: "future",
+              },
+            ],
+            default: "current",
+          },
+        },
+        primeiroDia: { $ifNull: [{ $arrayElemAt: ["$weekdays", 0] }, ""] },
+      },
+    }
+  );
+
+  const campo = ORDEM_TREINOS[filtros.sort] || "createdAt";
+  const direcao = filtros.dir === "asc" ? 1 : -1;
+  const limite = Math.min(Math.max(Number(filtros.limit) || 15, 1), 200);
+  const pagina = Math.max(Number(filtros.page) || 1, 1);
+
+  const daAba = filtroDeStatus(filtros.status, hoje);
+
+  // As CONTAGENS das abas saem da mesma passagem, e antes do filtro de aba: a
+  // aba "Passados" precisa saber quantos atuais existem para escrever o número
+  // no botão ao lado.
+  etapas.push({
+    $facet: {
+      counts: [{ $group: { _id: "$status", n: { $sum: 1 } } }],
+      pagina: [
+        ...(daAba ? [{ $match: daAba }] : []),
+        { $addFields: { __vazio: { $cond: [{ $in: [`$${campo}`, [null, ""]] }, 1, 0] } } },
+        { $sort: { __vazio: 1, [campo]: direcao, _id: 1 } },
+        { $skip: (pagina - 1) * limite },
+        { $limit: limite },
+        // Os exercícios NÃO vão na resposta: são o corpo do treino, e a tela
+        // mostra só a contagem que já foi calculada acima.
+        { $project: { exercises: 0, pessoa: 0, __vazio: 0, primeiroDia: 0 } },
+      ],
+      total: [...(daAba ? [{ $match: daAba }] : []), { $count: "n" }],
+    },
+  });
+
+  const [saida] = await col
+    .aggregate(etapas, { collation: { locale: "pt", strength: 1 } })
+    .toArray();
+
+  const porStatus = Object.fromEntries((saida?.counts || []).map((c) => [c._id, c.n]));
+  const counts = {
+    current: porStatus.current || 0,
+    past: porStatus.past || 0,
+    future: porStatus.future || 0,
+  };
+  counts.all = counts.current + counts.past + counts.future;
+
+  return { rows: saida?.pagina || [], total: saida?.total?.[0]?.n || 0, counts };
+};
+
+// Todos os treinos do profissional, de todas as pessoas.
+//
+// Diferente do `list`, que é a lista DENTRO de uma pessoa: aqui a pergunta é
+// "o que eu montei ultimamente", e por isso a ordem é sempre por data de
+// criação, decrescente — não a ordem manual dos cards, que só faz sentido
+// dentro da ficha de alguém.
+//
+// O filtro por `student` é opcional; o escopo por `trainer` nunca é.
+Workout_model.prototype.listAll = async function (trainerId, filtros = {}) {
+  const col = await this.workoutsCollection();
+
+  const query = { trainer: new ObjectId(trainerId) };
+  if (filtros.studentId && ObjectId.isValid(filtros.studentId)) {
+    query.student = new ObjectId(filtros.studentId);
+  }
+
+  // A busca por nome vai no banco, com escape: um treino chamado "C+" viraria
+  // quantificador inválido numa expressão regular montada na mão.
+  const termo = String(filtros.search || "").trim();
+  if (termo) {
+    query.name = { $regex: termo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
+  }
+
+  const docs = await col.find(query).sort({ createdAt: -1 }).toArray();
+
+  return docs.map((d) => {
+    const exercises = d.exercises || [];
+
+    return {
+      ...d,
+      // Os exercícios NÃO vão na resposta: são o corpo do treino, e uma lista
+      // de duzentos treinos carregaria alguns milhares de séries que a tela não
+      // usa. O que ela mostra é a contagem.
+      exercises: undefined,
+      status: statusOf(d),
+      exerciseCount: exercises.length,
+      setCount: exercises.reduce((t, e) => t + (e.sets || []).length, 0),
+      muscleGroups: [...new Set(exercises.map((e) => e.muscleGroup).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, "pt-BR")
+      ),
+    };
+  });
+};
+
+// Grava a ordem escolhida na tela. Recebe os ids da pessoa na sequência nova,
+// inteira, e numera 0..n.
+//
+// É uma rota só, e não um PUT por treino: arrastar é UM gesto, e um PUT por
+// card encheria o histórico de auditoria com uma linha "treino alterado" para
+// cada vizinho que só andou uma casa.
+Workout_model.prototype.saveOrder = async function (trainerId, studentId, ids) {
+  if (!Array.isArray(ids) || !ids.length) return false;
+
+  const validos = ids.filter((id) => ObjectId.isValid(id)).map((id) => new ObjectId(id));
+  if (!validos.length) return false;
+
+  const col = await this.workoutsCollection();
+  await col.bulkWrite(
+    validos.map((_id, i) => ({
+      updateOne: {
+        // O filtro repete dono e pessoa: só o id deixaria um profissional
+        // reordenar treino alheio mandando ids que não são dele.
+        filter: { _id, trainer: new ObjectId(trainerId), student: new ObjectId(studentId) },
+        update: { $set: { order: i, updatedAt: new Date() } },
+      },
+    }))
+  );
+
+  return true;
 };
 
 Workout_model.prototype.delete = async function (trainerId, id) {
@@ -148,6 +413,20 @@ Workout_model.prototype.delete = async function (trainerId, id) {
   // segunda collection para deixar órfãos.
   const r = await col.deleteOne({ _id: new ObjectId(id), trainer: new ObjectId(trainerId) });
   return r.deletedCount > 0;
+};
+
+// Todos os treinos de uma pessoa, de uma vez. Chamado quando a pessoa é
+// excluída.
+//
+// Não filtra por profissional: quem chama já conferiu que pode apagar a pessoa,
+// e um treino que sobrasse aqui ficaria apontando para um `student` que não
+// existe mais — invisível em toda tela e impossível de alcançar de novo.
+Workout_model.prototype.deleteAllOfStudent = async function (studentId) {
+  if (!ObjectId.isValid(studentId)) return 0;
+  const col = await this.workoutsCollection();
+
+  const r = await col.deleteMany({ student: new ObjectId(studentId) });
+  return r.deletedCount || 0;
 };
 
 // Copia o treino inteiro — exercícios e séries — para a mesma pessoa ou outra.

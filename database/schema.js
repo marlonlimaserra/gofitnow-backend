@@ -1,3 +1,4 @@
+const { seedFoods } = require("./foods.js");
 // Cria as collections e os índices. Roda no boot (app.js) e também sozinho via
 // `npm run db:init`. Idempotente: rodar de novo não duplica nada.
 //
@@ -16,12 +17,13 @@
 // mexe no que é do outro.
 const instanceContext = require("../lib/instance.js");
 
-const CENTRAL = ["exercises"];
+const CENTRAL = ["exercises", "foods"];
 
 const POR_INSTANCIA = [
   "users",
   "user_tokens",
   "workouts",
+  "diets",
   "password_resets",
   "professional_links",
   "roles",
@@ -67,6 +69,14 @@ async function ensureCentral(app) {
   // Exercise_model.
   await db.collection("exercises").createIndex({ nameSort: 1 }, { name: "by_name" });
   await db.collection("exercises").createIndex({ muscleGroup: 1, nameSort: 1 }, { name: "by_group" });
+
+  // foods — o catálogo de alimentos, central como o de exercícios e com a mesma
+  // chave de busca sem acento.
+  await db.collection("foods").createIndex({ nameSort: 1 }, { name: "by_name" });
+  await db.collection("foods").createIndex({ category: 1, nameSort: 1 }, { name: "by_category" });
+
+  const semeados = await seedFoods(db);
+  if (semeados) console.log(`[schema] catálogo de alimentos semeado: ${semeados} itens`);
 
   // Os índices por `trainer` não têm mais campo para indexar. Um índice morto
   // não é inofensivo: ele continua sendo atualizado em toda escrita.
@@ -137,6 +147,22 @@ async function ensureInstance(app, instance) {
   await db
     .collection("workouts")
     .createIndex({ trainer: 1, student: 1, startDate: -1 }, { name: "by_trainer_student" });
+
+  // A tela geral de treinos: todos os do profissional, do mais novo para o mais
+  // antigo. É a ordem padrão da lista e a primeira etapa da agregação que a
+  // pagina — sem este índice, cada abertura varre a collection inteira.
+  await db
+    .collection("workouts")
+    .createIndex({ trainer: 1, createdAt: -1 }, { name: "by_trainer_created" });
+
+  // Ordenar por nome do treino, também dentro do escopo do profissional.
+  await db.collection("workouts").createIndex({ trainer: 1, name: 1 }, { name: "by_trainer_name" });
+
+  // diets — sempre listados por (trainer, student), do mais novo para o mais
+  // antigo, que é a ordem da aba Dieta dentro da pessoa.
+  await db
+    .collection("diets")
+    .createIndex({ trainer: 1, student: 1, createdAt: -1 }, { name: "by_trainer_student" });
 
 
   // password_resets — consultado por hash do token; o TTL varre os expirados.

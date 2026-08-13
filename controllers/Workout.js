@@ -70,6 +70,59 @@ module.exports = function (app) {
     res.status(201).send(created);
   });
 
+  // Reordenar a lista da pessoa: `ids` chega na sequência nova, inteira. Vem
+  // antes de `/workouts/:id` no arquivo por organização, não por necessidade —
+  // os caminhos não se confundem.
+  app.put("/people/:personId/workouts/order", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
+    if (trainer === false) return;
+
+    const student = await studentOfTrainer(req, res, trainer);
+    if (student === false) return;
+
+    const ids = (req.body || {}).ids;
+    if (!Array.isArray(ids) || !ids.length) {
+      res.status(400).send({ msg: req.t("errors.requireWorkoutOrder") });
+      return;
+    }
+
+    await app.api.workout.saveOrder(trainer._id, student._id, ids);
+
+    // Sem registro de histórico: arrastar não muda o conteúdo de treino nenhum,
+    // e uma linha de auditoria por gesto de organização só atrapalharia quem
+    // procura uma alteração de verdade depois.
+    res.send({ ok: true });
+  });
+
+  // Todos os treinos do profissional, de todas as pessoas — a tela "Treinos".
+  //
+  // O nome da pessoa vem junto porque, fora da ficha dela, um treino chamado
+  // "Segunda-feira" não identifica nada. Resolvido em UMA consulta para todos os
+  // ids de uma vez, e não um `data()` por treino.
+  app.get("/workouts", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.view");
+    if (trainer === false) return;
+
+    const { rows, total, counts } = await app.api.workout.pageAll(trainer._id, {
+      search: req.query.search,
+      studentId: req.query.personId,
+      status: req.query.status,
+      sort: req.query.sort,
+      dir: req.query.dir,
+      page: req.query.page,
+      limit: req.query.limit,
+    });
+
+    res.send({
+      rows: rows.map(({ personName, ...w }) => ({
+        ...w,
+        student: { _id: w.student, name: personName || null },
+      })),
+      total,
+      counts,
+    });
+  });
+
   // ── A single workout ────────────────────────────────────────────────────
 
   app.get("/workouts/:id", async function (req, res) {

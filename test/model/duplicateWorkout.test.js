@@ -25,6 +25,12 @@ function fakeWorkouts(docs) {
         docs.find((d) => Object.entries(query).every(([k, v]) => String(d[k]) === String(v))) || null
       );
     },
+    // O insert conta os treinos da pessoa para pôr o novo no fim da fila — é
+    // por isso que a cópia não divide a posição com a original.
+    async countDocuments(query) {
+      return docs.filter((d) => Object.entries(query).every(([k, v]) => String(d[k]) === String(v)))
+        .length;
+    },
     async insertOne(doc) {
       const _id = new ObjectId();
       inseridos.push({ ...doc, _id });
