@@ -19,9 +19,25 @@ const TREINADOR = { _id: new ObjectId(), name: "Marlon" };
 const PESSOA = new ObjectId();
 const TREINO = new ObjectId();
 const EXERCICIO = new ObjectId();
+const DIETA = new ObjectId();
+const ALIMENTO = new ObjectId();
 
-function monta({ permissoes = ["people.view", "people.create", "people.edit", "people.delete", "workouts.view", "workouts.manage"], treino = null, comEmail = null } = {}) {
-  const gravado = { pessoas: [], exercicios: null, apagados: [] };
+function monta({
+  permissoes = [
+    "people.view",
+    "people.create",
+    "people.edit",
+    "people.delete",
+    "workouts.view",
+    "workouts.manage",
+    "diets.view",
+    "diets.manage",
+  ],
+  treino = null,
+  dieta = null,
+  comEmail = null,
+} = {}) {
+  const gravado = { pessoas: [], exercicios: null, refeicoes: null, apagados: [] };
 
   const app = fakeApp({
     helpers: {
@@ -62,6 +78,40 @@ function monta({ permissoes = ["people.view", "people.create", "people.edit", "p
       auth: {
         async deleteAllTokensByUser(id) {
           gravado.tokensApagados = String(id);
+        },
+      },
+      diet: {
+        async list() {
+          return [{ _id: DIETA, name: "Cutting", meals: [] }];
+        },
+        async data(_t, id) {
+          if (String(id) !== String(DIETA)) return undefined;
+          return dieta || { _id: DIETA, name: "Cutting", student: PESSOA, meals: [] };
+        },
+        async insert(_t, _s, dados) {
+          gravado.dieta = dados;
+          return DIETA;
+        },
+        async update(_t, _id, mudanca) {
+          gravado.dietaMudanca = mudanca;
+          return true;
+        },
+        async delete(_t, id) {
+          gravado.apagados.push(String(id));
+          return true;
+        },
+        async saveMeals(_t, _id, refeicoes) {
+          gravado.refeicoes = refeicoes;
+          return true;
+        },
+      },
+      food: {
+        async list() {
+          return { rows: [{ _id: ALIMENTO, name: "Arroz", kcal: 130, protein: 2.7, portion: 100 }] };
+        },
+        async data(id) {
+          if (String(id) !== String(ALIMENTO)) return undefined;
+          return { _id: ALIMENTO, name: "Arroz", kcal: 130, protein: 2.7, carbs: 28, fat: 0.3 };
         },
       },
       exercise: {
@@ -490,4 +540,182 @@ test("o que muda dados devolve ALVO — a tela precisa saber onde olhar", async 
       `${nome} precisa existir para o front acompanhar a ação`
     );
   }
+});
+
+
+// ── Dietas ───────────────────────────────────────────────────────────────
+//
+// Mesma promessa das outras: a ferramenta chama o modelo da tela, com a
+// permissão da tela. O que muda é a forma do dado — um plano tem refeições, e
+// cada refeição tem alimentos, então há DUAS posições para errar.
+
+test("criar plano recusa fim antes do começo", async () => {
+  const { app, gravado } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "dieta_criar",
+    arguments: {
+      pessoaId: String(PESSOA),
+      nome: "Cutting",
+      inicio: "2026-03-01",
+      fim: "2026-01-01",
+    },
+  });
+
+  assert.equal(saida(r).erro, "fim_antes_do_inicio");
+  assert.equal(gravado.dieta, undefined);
+});
+
+test("a refeição entra no fim, com a hora validada", async () => {
+  const { app, gravado } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "refeicao_adicionar",
+    arguments: { dietaId: String(DIETA), nome: "Café da manhã", hora: "07:00" },
+  });
+
+  assert.equal(saida(r).ok, true);
+  assert.equal(gravado.refeicoes[0].name, "Café da manhã");
+  assert.equal(gravado.refeicoes[0].time, "07:00");
+});
+
+test("hora impossível é recusada — 25:00 não existe", async () => {
+  // Sem isto ela viraria texto vazio no modelo e a refeição ficaria sem hora,
+  // sem ninguém saber por quê.
+  const { app, gravado } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "refeicao_adicionar",
+    arguments: { dietaId: String(DIETA), nome: "Ceia", hora: "25:00" },
+  });
+
+  assert.equal(saida(r).erro, "hora_invalida");
+  assert.equal(gravado.refeicoes, null);
+});
+
+test("alimento do catálogo entra com os valores PROPORCIONAIS", async () => {
+  // Os valores do catálogo são por 100 g. Copiá-los sem regra de três faria
+  // 30 g de arroz contar como 100 g, e o dia inteiro sairia errado.
+  const dieta = {
+    _id: DIETA,
+    name: "Cutting",
+    student: PESSOA,
+    meals: [{ name: "Almoço", foods: [] }],
+  };
+  const { app, gravado } = monta({ dieta });
+
+  await rpc(app, "tools/call", {
+    name: "refeicao_alimento_adicionar",
+    arguments: {
+      dietaId: String(DIETA),
+      refeicao: 0,
+      alimentoId: String(ALIMENTO),
+      quantidade: 50,
+    },
+  });
+
+  const posto = gravado.refeicoes[0].foods[0];
+  assert.equal(posto.name, "Arroz");
+  assert.equal(posto.quantity, 50);
+  assert.equal(posto.kcal, 65, "metade de 130");
+  assert.equal(posto.protein, 1.4, "metade de 2.7, arredondado");
+});
+
+test("alimento livre entra só com o nome, sem inventar caloria", async () => {
+  // Uma receita da casa não tem rótulo. Zero mentiria na soma do dia.
+  const dieta = { _id: DIETA, name: "x", student: PESSOA, meals: [{ name: "Jantar", foods: [] }] };
+  const { app, gravado } = monta({ dieta });
+
+  await rpc(app, "tools/call", {
+    name: "refeicao_alimento_adicionar",
+    arguments: { dietaId: String(DIETA), refeicao: 0, nome: "Sopa da vó", quantidade: 1 },
+  });
+
+  const posto = gravado.refeicoes[0].foods[0];
+  assert.equal(posto.name, "Sopa da vó");
+  assert.equal(posto.kcal, undefined);
+});
+
+test("sem alimentoId e sem nome, recusa", async () => {
+  const dieta = { _id: DIETA, name: "x", student: PESSOA, meals: [{ name: "Jantar", foods: [] }] };
+  const { app, gravado } = monta({ dieta });
+
+  const r = await rpc(app, "tools/call", {
+    name: "refeicao_alimento_adicionar",
+    arguments: { dietaId: String(DIETA), refeicao: 0 },
+  });
+
+  assert.equal(saida(r).erro, "sem_alimento");
+  assert.equal(gravado.refeicoes, null);
+});
+
+test("as DUAS posições são conferidas, e o erro diz quantas existem", async () => {
+  const dieta = {
+    _id: DIETA,
+    name: "x",
+    student: PESSOA,
+    meals: [{ name: "Almoço", foods: [{ name: "Arroz" }] }],
+  };
+  const { app } = monta({ dieta });
+
+  const semRefeicao = await rpc(app, "tools/call", {
+    name: "refeicao_alimento_remover",
+    arguments: { dietaId: String(DIETA), refeicao: 9, alimento: 0 },
+  });
+  assert.match(saida(semRefeicao).detalhe, /1 refei/);
+
+  const semAlimento = await rpc(app, "tools/call", {
+    name: "refeicao_alimento_remover",
+    arguments: { dietaId: String(DIETA), refeicao: 0, alimento: 9 },
+  });
+  assert.match(saida(semAlimento).detalhe, /1 aliment/);
+});
+
+test("remover refeição leva os alimentos dela junto", async () => {
+  const dieta = {
+    _id: DIETA,
+    name: "x",
+    student: PESSOA,
+    meals: [
+      { name: "Café", foods: [{ name: "Pão" }] },
+      { name: "Almoço", foods: [] },
+    ],
+  };
+  const { app, gravado } = monta({ dieta });
+
+  const r = await rpc(app, "tools/call", {
+    name: "refeicao_remover",
+    arguments: { dietaId: String(DIETA), posicao: 0 },
+  });
+
+  assert.equal(saida(r).removida, "Café");
+  assert.equal(gravado.refeicoes.length, 1);
+  assert.equal(gravado.refeicoes[0].name, "Almoço");
+});
+
+test("a dieta manda RECARREGAR a tela, que não tem rota própria", async () => {
+  // O plano mora numa aba da ficha, com o id na busca da URL: navegar para lá
+  // sem recarregar deixaria a tela aberta mostrando o de antes.
+  const dieta = { _id: DIETA, name: "x", student: PESSOA, meals: [{ name: "Café", foods: [] }] };
+  const { app } = monta({ dieta });
+
+  const r = await rpc(app, "tools/call", {
+    name: "refeicao_editar",
+    arguments: { dietaId: String(DIETA), posicao: 0, hora: "08:30" },
+  });
+
+  assert.equal(saida(r).alvo.recarregar, `diet:${DIETA}`);
+  assert.match(saida(r).alvo.rota, /tab=diet&diet=/);
+});
+
+test("sem a permissão de dieta, recusa", async () => {
+  const { app, gravado } = monta({ permissoes: ["diets.view"] });
+
+  const r = await rpc(app, "tools/call", {
+    name: "refeicao_adicionar",
+    arguments: { dietaId: String(DIETA), nome: "Ceia" },
+  });
+
+  assert.equal(saida(r).erro, "sem_permissao");
+  assert.equal(gravado.refeicoes, null);
 });
