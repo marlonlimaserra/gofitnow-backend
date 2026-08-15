@@ -1,4 +1,6 @@
 const tools = require("../lib/mcpTools.js");
+const tempoReal = require("../lib/tempoReal.js");
+const instanceContext = require("../lib/instance.js");
 
 // A porta MCP: onde um modelo opera o sistema por FERRAMENTA, e não pela tela.
 //
@@ -104,6 +106,29 @@ module.exports = function (app) {
           // enquanto o modelo, lendo o motivo, muda de plano.
           console.error("[mcp]", nome, error);
           return res.send(resultado(id, { ok: false, erro: "falha_interna" }, true));
+        }
+
+        // A TELA acompanha.
+        //
+        // A ferramenta mexeu no banco; quem está com o app aberto não sabe de
+        // nada. O aviso diz para onde ir e o que destacar, e a tela vai sozinha
+        // — parece que o assistente está mexendo nela, e é melhor que isso:
+        // ele mexeu no dado.
+        //
+        // Só para QUEM PEDIU, e nunca em transmissão: a sala é da pessoa.
+        // Falhar aqui não derruba a ferramenta — o trabalho está feito, e um
+        // aviso que não saiu é uma tela que não se moveu, não um dado perdido.
+        if (saida?.ok && saida.alvo) {
+          try {
+            tempoReal.avisar(
+              instanceContext.current(),
+              String(user._id),
+              "assistente:alvo",
+              { ferramenta: nome, ...saida.alvo }
+            );
+          } catch (error) {
+            console.error("[mcp] aviso não saiu:", error.message);
+          }
         }
 
         // O que aconteceu vai para o histórico com autor e alvo, igual à tela.

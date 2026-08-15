@@ -8,6 +8,7 @@ const { fromAcceptLanguage, translator } = require("./lib/i18n");
 const instanceContext = require("./lib/instance.js");
 const clientIp = require("./lib/clientIp.js");
 const clusterLib = require("./lib/cluster.js");
+const tempoReal = require("./lib/tempoReal.js");
 const instanceGate = require("./lib/instanceGate.js");
 const rateLimit = require("./lib/rateLimit.js");
 const appRoutes = require("./appRoutes.js");
@@ -195,9 +196,15 @@ const servir = async () => {
     process.exit(1);
   }
 
-  return app.listen(PORT, HOST, () => {
+  const servidor = app.listen(PORT, HOST, () => {
     console.log(`GoFitNow API running on ${HOST}:${PORT} (pid ${process.pid})`);
   });
+
+  // O canal de tempo real sobe em cima do MESMO servidor HTTP: uma porta só
+  // para atravessar o nginx, e nada de segundo processo para manter de pé.
+  tempoReal.iniciar(servidor, app);
+
+  return servidor;
 };
 
 clusterLib.start({

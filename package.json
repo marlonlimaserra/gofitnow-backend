@@ -1,7 +1,7 @@
 {
   "name": "gofitnow-backend",
   "version": "0.1.0",
-  "description": "API do GoFitNow \u2014 personal trainers e alunos",
+  "description": "API do GoFitNow — personal trainers e alunos",
   "main": "app.js",
   "scripts": {
     "start": "WORKERS=1 nodemon app.js",
@@ -22,6 +22,7 @@
     "moment": "^2.30.1",
     "mongodb": "^6.12.0",
     "nodemailer": "^9.0.5",
+    "socket.io": "^4.8.3",
     "uuid": "^11.0.5",
     "validator": "^13.12.0"
   },
