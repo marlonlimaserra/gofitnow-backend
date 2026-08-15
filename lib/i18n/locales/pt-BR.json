@@ -92,7 +92,54 @@
     "dietNotFound": "Plano não encontrado.",
     "requireMeals": "Mande a lista de refeições.",
     "requireFoodName": "Informe o nome do alimento.",
-    "foodNotFound": "Alimento não encontrado."
+    "foodNotFound": "Alimento não encontrado.",
+    "requireWeightHeight": "Peso e altura são obrigatórios.",
+    "assessmentNotFound": "Avaliação não encontrada.",
+    "conversationNotFound": "Conversa não encontrada.",
+    "emptyMessage": "Escreva alguma coisa antes de enviar.",
+    "invalidAttachment": "Arquivo não aceito ou grande demais.",
+    "appointmentNotFound": "Compromisso não encontrado.",
+    "requireRange": "Informe o período.",
+    "requireDate": "Informe a data e a hora.",
+    "invalidStatus": "Situação inválida.",
+    "serviceNotFound": "Serviço não encontrado.",
+    "chargeNotFound": "Cobrança não encontrada.",
+    "paymentNotFound": "Pagamento não encontrado.",
+    "aiEmptyChat": "Mande ao menos uma mensagem.",
+    "aiChatTooLong": "A conversa ficou longa demais. Comece uma nova.",
+    "aiInvalidKey": "A chave da Anthropic começa com sk-ant-. Confira o que foi colado.",
+    "aiNoOwner": "Esta instância ainda não tem um profissional cadastrado.",
+    "aiNotConfigured": "O assistente ainda não foi configurado. Ponha a chave em Configurações.",
+    "aiUnreachable": "Não deu para falar com a Anthropic. Tente de novo em instantes.",
+    "aiBadKey": "A Anthropic recusou a chave. Confira em Configurações.",
+    "aiRateLimited": "A Anthropic pediu para esperar um pouco. Tente de novo em instantes.",
+    "aiRejected": "A Anthropic recusou o pedido.",
+    "aiFailed": "O assistente não conseguiu responder.",
+    "aiRefused": "O assistente preferiu não responder a isso.",
+    "aiSessionNotFound": "Esta conversa não existe mais.",
+    "aiInvalidUrl": "Informe um endereço válido, começando com https://",
+    "aiPrivateUrl": "Endereço de rede interna não é aceito. Use o endereço público do túnel (ngrok).",
+    "aiInvalidModel": "Informe o nome do modelo, como qwen3:8b.",
+    "aiOllamaUnreachable": "Não deu para falar com o seu Ollama. Confira se ele está no ar e se o túnel continua aberto.",
+    "aiOllamaFailed": "O seu Ollama recusou o pedido. O modelo informado foi baixado nessa máquina?",
+    "aiVoiceNotConfigured": "O modo conversa ainda não tem uma chave da OpenAI configurada.",
+    "aiVoiceUnreachable": "Não deu para falar com a OpenAI. Tente de novo em instantes.",
+    "aiVoiceFailed": "A OpenAI recusou o pedido de voz.",
+    "aiInvalidVoiceKey": "A chave da OpenAI começa com sk-. Confira o que foi colado.",
+    "aiVoiceNoCredit": "Sua conta da OpenAI está sem créditos. Adicione saldo em platform.openai.com/settings/organization/billing — cartão cadastrado não basta, é preciso comprar crédito.",
+    "aiVoiceBadKey": "A OpenAI recusou a chave. Confira em Configurações › Assistente.",
+    "aiVoiceModelNotFound": "O modelo de voz informado não existe nessa conta. Confira o nome em Configurações › Assistente.",
+    "aiVoiceRateLimited": "A OpenAI pediu para esperar um pouco. Tente de novo em instantes.",
+    "invalidPersonEmail": "E-mail inválido.",
+    "passwordNeedsEmail": "Para dar acesso ao app é preciso um e-mail: é com ele que a pessoa entra.",
+    "emailIsLogin": "Essa pessoa entra no app com esse e-mail. Tire o acesso dela antes de remover o endereço.",
+    "aiEmptyLog": "A conversa a registrar chegou vazia.",
+    "bookingPageName": "Dê um nome à página.",
+    "bookingPageSlugRequired": "Escreva o apelido que vai na URL.",
+    "bookingPageSlugShort": "O apelido precisa de ao menos duas letras.",
+    "bookingPageSlugReserved": "Esse apelido é reservado pelo sistema. Escolha outro.",
+    "bookingPageSlugTaken": "Já existe uma página com esse apelido.",
+    "bookingPageNotFound": "Página de agendamento não encontrada."
   },
   "ok": {
     "passwordChanged": "Senha alterada.",
@@ -113,7 +160,13 @@
     "apiKeyRevoked": "Chave revogada.",
     "inviteDone": "Cadastro concluído! Agora é só entrar no app.",
     "dietRemoved": "Plano apagado.",
-    "foodRemoved": "Alimento apagado."
+    "foodRemoved": "Alimento apagado.",
+    "assessmentRemoved": "Avaliação apagada.",
+    "appointmentRemoved": "Compromisso removido.",
+    "serviceRemoved": "Serviço removido.",
+    "chargeRemoved": "Cobrança removida.",
+    "paymentRemoved": "Pagamento removido.",
+    "bookingPageRemoved": "Página de agendamento removida."
   },
   "permissions": {
     "groups": {
@@ -148,6 +201,26 @@
       "foods": {
         "title": "Alimentos",
         "description": "O catálogo de alimentos"
+      },
+      "assessments": {
+        "title": "Avaliação física",
+        "description": "Medidas, dobras e evolução"
+      },
+      "schedule": {
+        "title": "Agenda",
+        "description": "Aulas, horários e agendamentos"
+      },
+      "finance": {
+        "title": "Financeiro",
+        "description": "Cobranças, pagamentos e recibos"
+      },
+      "chat": {
+        "title": "Chat",
+        "description": "As conversas com as pessoas acompanhadas."
+      },
+      "ai": {
+        "title": "Assistente",
+        "description": "O assistente que opera a tela por você."
       }
     },
     "items": {
@@ -222,6 +295,50 @@
       "foods.manage": {
         "label": "Gerenciar alimentos",
         "hint": "Criar, editar e apagar alimentos do catálogo — vale para todas as contas."
+      },
+      "assessments.view": {
+        "label": "Ver avaliações",
+        "hint": "Abrir a aba de avaliação física. A tela está em construção."
+      },
+      "assessments.manage": {
+        "label": "Gerenciar avaliações",
+        "hint": "Registrar e apagar medidas. A tela está em construção."
+      },
+      "schedule.view": {
+        "label": "Ver a agenda",
+        "hint": "Abrir a aba de agenda. A tela está em construção."
+      },
+      "schedule.manage": {
+        "label": "Gerenciar a agenda",
+        "hint": "Marcar e desmarcar horários. A tela está em construção."
+      },
+      "finance.view": {
+        "label": "Ver o financeiro",
+        "hint": "Abrir a aba financeira e ver cobranças. A tela está em construção."
+      },
+      "finance.manage": {
+        "label": "Gerenciar o financeiro",
+        "hint": "Lançar cobranças e baixas. A tela está em construção."
+      },
+      "chat.view": {
+        "label": "Ver conversas",
+        "hint": "Abrir o chat e ler as próprias conversas."
+      },
+      "chat.send": {
+        "label": "Enviar mensagens",
+        "hint": "Escrever e iniciar conversa com alguém."
+      },
+      "schedule.team": {
+        "label": "Agenda da equipe",
+        "hint": "Ver e marcar na agenda dos outros profissionais."
+      },
+      "ai.use": {
+        "label": "Usar o assistente",
+        "hint": "Conversar com o assistente e deixar que ele opere a tela."
+      },
+      "ai.manage": {
+        "label": "Configurar o assistente",
+        "hint": "Trocar a chave e o modelo. Mexe no custo do cliente."
       }
     }
   },
@@ -275,7 +392,28 @@
     "update_diet_meals": "Alterou as refeições de um plano",
     "create_food": "Criou um alimento",
     "update_food": "Alterou um alimento",
-    "delete_food": "Apagou um alimento"
+    "delete_food": "Apagou um alimento",
+    "create_assessment": "Registrou uma avaliação física",
+    "update_assessment": "Alterou uma avaliação física",
+    "delete_assessment": "Apagou uma avaliação física",
+    "create_appointment": "Marcou compromisso",
+    "update_appointment": "Alterou compromisso",
+    "delete_appointment": "Removeu compromisso",
+    "create_service": "Criou serviço",
+    "update_service": "Alterou serviço",
+    "delete_service": "Removeu serviço",
+    "create_charge": "Criou cobrança",
+    "update_charge": "Alterou cobrança",
+    "delete_charge": "Removeu cobrança",
+    "create_payment": "Registrou pagamento",
+    "update_payment": "Alterou pagamento",
+    "delete_payment": "Removeu pagamento",
+    "update_currency": "Alterou a moeda",
+    "update_availability": "Alterou a agenda pública",
+    "update_ai_settings": "Configurou o assistente",
+    "create_booking_page": "Criou uma página de agendamento",
+    "update_booking_page": "Alterou uma página de agendamento",
+    "delete_booking_page": "Removeu uma página de agendamento"
   },
   "categories": {
     "auth": "Acesso",
@@ -284,7 +422,10 @@
     "exercises": "Exercícios",
     "admin": "Administração",
     "diets": "Dietas",
-    "foods": "Alimentos"
+    "foods": "Alimentos",
+    "assessments": "Avaliação física",
+    "schedule": "Agenda",
+    "finance": "Financeiro"
   },
   "targetTypes": {
     "users": "Usuário",
@@ -297,13 +438,21 @@
     "api_keys": "Chave de API",
     "tenants": "Domínio",
     "diets": "Plano alimentar",
-    "foods": "Alimento"
+    "foods": "Alimento",
+    "assessments": "Avaliação física",
+    "appointments": "Compromisso",
+    "services": "Serviço",
+    "charges": "Cobrança",
+    "payments": "Pagamento",
+    "availability": "Agenda pública"
   },
   "autoFill": {
     "groups": {
       "workout": "Treino",
       "people": "Pessoas",
-      "diet": "Dieta"
+      "diet": "Dieta",
+      "assessments": "Avaliação física",
+      "schedule": "Agenda"
     },
     "fields": {
       "workout.name": {
@@ -341,6 +490,22 @@
       "diet.goal": {
         "label": "Objetivo do plano",
         "hint": "Ex.: Emagrecimento"
+      },
+      "diet.mealNote": {
+        "label": "Observação da refeição",
+        "hint": "Ex.: Mastigue devagar e beba água antes"
+      },
+      "assessment.note": {
+        "label": "Observação da avaliação",
+        "hint": "Ex.: Coleta em jejum, pela manhã"
+      },
+      "appointment.title": {
+        "label": "Tipo do compromisso",
+        "hint": "Ex.: Treino, Consulta"
+      },
+      "appointment.note": {
+        "label": "Observação do compromisso",
+        "hint": "Ex.: Levar toalha e garrafa"
       }
     }
   },

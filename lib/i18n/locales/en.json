@@ -92,7 +92,54 @@
     "dietNotFound": "Plan not found.",
     "requireMeals": "Send the list of meals.",
     "requireFoodName": "Enter the food name.",
-    "foodNotFound": "Food not found."
+    "foodNotFound": "Food not found.",
+    "requireWeightHeight": "Weight and height are required.",
+    "assessmentNotFound": "Assessment not found.",
+    "conversationNotFound": "Conversation not found.",
+    "emptyMessage": "Write something before sending.",
+    "invalidAttachment": "File not accepted or too large.",
+    "appointmentNotFound": "Appointment not found.",
+    "requireRange": "Provide the period.",
+    "requireDate": "Provide the date and time.",
+    "invalidStatus": "Invalid status.",
+    "serviceNotFound": "Service not found.",
+    "chargeNotFound": "Charge not found.",
+    "paymentNotFound": "Payment not found.",
+    "aiEmptyChat": "Send at least one message.",
+    "aiChatTooLong": "This conversation got too long. Start a new one.",
+    "aiInvalidKey": "An Anthropic key starts with sk-ant-. Check what was pasted.",
+    "aiNoOwner": "This instance has no professional registered yet.",
+    "aiNotConfigured": "The assistant is not configured yet. Add the key under Settings.",
+    "aiUnreachable": "Could not reach Anthropic. Try again in a moment.",
+    "aiBadKey": "Anthropic rejected the key. Check it under Settings.",
+    "aiRateLimited": "Anthropic asked us to wait a bit. Try again in a moment.",
+    "aiRejected": "Anthropic rejected the request.",
+    "aiFailed": "The assistant could not answer.",
+    "aiRefused": "The assistant chose not to answer that.",
+    "aiSessionNotFound": "This conversation no longer exists.",
+    "aiInvalidUrl": "Enter a valid address, starting with https://",
+    "aiPrivateUrl": "Internal network addresses are not accepted. Use the tunnel's public address (ngrok).",
+    "aiInvalidModel": "Enter the model name, such as qwen3:8b.",
+    "aiOllamaUnreachable": "Could not reach your Ollama. Check that it is running and the tunnel is still open.",
+    "aiOllamaFailed": "Your Ollama rejected the request. Has that model been pulled on the machine?",
+    "aiVoiceNotConfigured": "Conversation mode has no OpenAI key configured yet.",
+    "aiVoiceUnreachable": "Could not reach OpenAI. Try again in a moment.",
+    "aiVoiceFailed": "OpenAI rejected the voice request.",
+    "aiInvalidVoiceKey": "An OpenAI key starts with sk-. Check what was pasted.",
+    "aiVoiceNoCredit": "Your OpenAI account is out of credit. Add funds at platform.openai.com/settings/organization/billing — a card on file is not enough, you have to buy credit.",
+    "aiVoiceBadKey": "OpenAI rejected the key. Check it under Settings › Assistant.",
+    "aiVoiceModelNotFound": "That voice model does not exist on this account. Check the name under Settings › Assistant.",
+    "aiVoiceRateLimited": "OpenAI asked us to wait a bit. Try again in a moment.",
+    "invalidPersonEmail": "Invalid e-mail.",
+    "passwordNeedsEmail": "App access needs an e-mail: that is what the person logs in with.",
+    "emailIsLogin": "This person logs into the app with that e-mail. Revoke their access before removing the address.",
+    "aiEmptyLog": "The conversation to record came in empty.",
+    "bookingPageName": "Give the page a name.",
+    "bookingPageSlugRequired": "Write the alias that goes in the URL.",
+    "bookingPageSlugShort": "The alias needs at least two letters.",
+    "bookingPageSlugReserved": "That alias is reserved by the system. Pick another.",
+    "bookingPageSlugTaken": "A page with that alias already exists.",
+    "bookingPageNotFound": "Booking page not found."
   },
   "ok": {
     "passwordChanged": "Password changed.",
@@ -113,7 +160,13 @@
     "apiKeyRevoked": "Key revoked.",
     "inviteDone": "You're signed up! Just log in to the app now.",
     "dietRemoved": "Plan deleted.",
-    "foodRemoved": "Food deleted."
+    "foodRemoved": "Food deleted.",
+    "assessmentRemoved": "Assessment deleted.",
+    "appointmentRemoved": "Appointment removed.",
+    "serviceRemoved": "Service removed.",
+    "chargeRemoved": "Charge removed.",
+    "paymentRemoved": "Payment removed.",
+    "bookingPageRemoved": "Booking page removed."
   },
   "permissions": {
     "groups": {
@@ -148,6 +201,26 @@
       "foods": {
         "title": "Foods",
         "description": "The food catalogue"
+      },
+      "assessments": {
+        "title": "Assessment",
+        "description": "Measurements, skinfolds and progress"
+      },
+      "schedule": {
+        "title": "Schedule",
+        "description": "Classes, times and bookings"
+      },
+      "finance": {
+        "title": "Billing",
+        "description": "Charges, payments and receipts"
+      },
+      "chat": {
+        "title": "Chat",
+        "description": "Conversations with the people you follow."
+      },
+      "ai": {
+        "title": "Assistant",
+        "description": "The assistant that drives the screen for you."
       }
     },
     "items": {
@@ -222,6 +295,50 @@
       "foods.manage": {
         "label": "Manage foods",
         "hint": "Create, edit and delete catalogue foods — applies to every account."
+      },
+      "assessments.view": {
+        "label": "View assessments",
+        "hint": "Open the assessment tab. The screen is under construction."
+      },
+      "assessments.manage": {
+        "label": "Manage assessments",
+        "hint": "Record and delete measurements. The screen is under construction."
+      },
+      "schedule.view": {
+        "label": "View the schedule",
+        "hint": "Open the schedule tab. The screen is under construction."
+      },
+      "schedule.manage": {
+        "label": "Manage the schedule",
+        "hint": "Book and cancel times. The screen is under construction."
+      },
+      "finance.view": {
+        "label": "View billing",
+        "hint": "Open the billing tab and see charges. The screen is under construction."
+      },
+      "finance.manage": {
+        "label": "Manage billing",
+        "hint": "Create charges and settle them. The screen is under construction."
+      },
+      "chat.view": {
+        "label": "View conversations",
+        "hint": "Open the chat and read your own conversations."
+      },
+      "chat.send": {
+        "label": "Send messages",
+        "hint": "Write, and start a conversation with someone."
+      },
+      "schedule.team": {
+        "label": "Team schedule",
+        "hint": "See and book on other professionals’ schedules."
+      },
+      "ai.use": {
+        "label": "Use the assistant",
+        "hint": "Talk to the assistant and let it drive the screen."
+      },
+      "ai.manage": {
+        "label": "Configure the assistant",
+        "hint": "Change the key and the model. Affects what the account is billed."
       }
     }
   },
@@ -275,7 +392,28 @@
     "update_diet_meals": "Changed a plan's meals",
     "create_food": "Created a food",
     "update_food": "Changed a food",
-    "delete_food": "Deleted a food"
+    "delete_food": "Deleted a food",
+    "create_assessment": "Recorded an assessment",
+    "update_assessment": "Changed an assessment",
+    "delete_assessment": "Deleted an assessment",
+    "create_appointment": "Booked appointment",
+    "update_appointment": "Changed appointment",
+    "delete_appointment": "Removed appointment",
+    "create_service": "Created service",
+    "update_service": "Changed service",
+    "delete_service": "Removed service",
+    "create_charge": "Created charge",
+    "update_charge": "Changed charge",
+    "delete_charge": "Removed charge",
+    "create_payment": "Recorded payment",
+    "update_payment": "Changed payment",
+    "delete_payment": "Removed payment",
+    "update_currency": "Changed the currency",
+    "update_availability": "Changed public availability",
+    "update_ai_settings": "Configured the assistant",
+    "create_booking_page": "Created a booking page",
+    "update_booking_page": "Changed a booking page",
+    "delete_booking_page": "Removed a booking page"
   },
   "categories": {
     "auth": "Access",
@@ -284,7 +422,10 @@
     "exercises": "Exercises",
     "admin": "Administration",
     "diets": "Diets",
-    "foods": "Foods"
+    "foods": "Foods",
+    "assessments": "Assessment",
+    "schedule": "Schedule",
+    "finance": "Finance"
   },
   "targetTypes": {
     "users": "User",
@@ -297,13 +438,21 @@
     "api_keys": "API key",
     "tenants": "Domain",
     "diets": "Meal plan",
-    "foods": "Food"
+    "foods": "Food",
+    "assessments": "Assessment",
+    "appointments": "Appointment",
+    "services": "Service",
+    "charges": "Charge",
+    "payments": "Payment",
+    "availability": "Public availability"
   },
   "autoFill": {
     "groups": {
       "workout": "Workout",
       "people": "People",
-      "diet": "Diet"
+      "diet": "Diet",
+      "assessments": "Physical assessment",
+      "schedule": "Schedule"
     },
     "fields": {
       "workout.name": {
@@ -341,6 +490,22 @@
       "diet.goal": {
         "label": "Plan goal",
         "hint": "e.g. Weight loss"
+      },
+      "diet.mealNote": {
+        "label": "Meal note",
+        "hint": "e.g. Chew slowly and drink water beforehand"
+      },
+      "assessment.note": {
+        "label": "Assessment note",
+        "hint": "E.g.: Fasted, taken in the morning"
+      },
+      "appointment.title": {
+        "label": "Appointment type",
+        "hint": "E.g.: Training, Consultation"
+      },
+      "appointment.note": {
+        "label": "Appointment note",
+        "hint": "E.g.: Bring a towel and water bottle"
       }
     }
   },

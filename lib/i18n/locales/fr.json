@@ -92,7 +92,54 @@
     "dietNotFound": "Plan introuvable.",
     "requireMeals": "Envoyez la liste des repas.",
     "requireFoodName": "Indiquez le nom de l’aliment.",
-    "foodNotFound": "Aliment introuvable."
+    "foodNotFound": "Aliment introuvable.",
+    "requireWeightHeight": "Le poids et la taille sont obligatoires.",
+    "assessmentNotFound": "Évaluation introuvable.",
+    "conversationNotFound": "Conversation introuvable.",
+    "emptyMessage": "Écrivez quelque chose avant d’envoyer.",
+    "invalidAttachment": "Fichier non accepté ou trop volumineux.",
+    "appointmentNotFound": "Rendez-vous introuvable.",
+    "requireRange": "Indiquez la période.",
+    "requireDate": "Indiquez la date et l’heure.",
+    "invalidStatus": "Statut invalide.",
+    "serviceNotFound": "Service introuvable.",
+    "chargeNotFound": "Facture introuvable.",
+    "paymentNotFound": "Paiement introuvable.",
+    "aiEmptyChat": "Envoyez au moins un message.",
+    "aiChatTooLong": "La conversation est devenue trop longue. Commencez-en une nouvelle.",
+    "aiInvalidKey": "Une clé Anthropic commence par sk-ant-. Vérifiez ce qui a été collé.",
+    "aiNoOwner": "Cette instance n’a encore aucun professionnel enregistré.",
+    "aiNotConfigured": "L’assistant n’est pas encore configuré. Ajoutez la clé dans Réglages.",
+    "aiUnreachable": "Impossible de joindre Anthropic. Réessayez dans un instant.",
+    "aiBadKey": "Anthropic a refusé la clé. Vérifiez-la dans Réglages.",
+    "aiRateLimited": "Anthropic a demandé de patienter un peu. Réessayez dans un instant.",
+    "aiRejected": "Anthropic a refusé la demande.",
+    "aiFailed": "L’assistant n’a pas pu répondre.",
+    "aiRefused": "L’assistant a préféré ne pas répondre à cela.",
+    "aiSessionNotFound": "Cette conversation n’existe plus.",
+    "aiInvalidUrl": "Saisissez une adresse valide, commençant par https://",
+    "aiPrivateUrl": "Les adresses de réseau interne ne sont pas acceptées. Utilisez l’adresse publique du tunnel (ngrok).",
+    "aiInvalidModel": "Saisissez le nom du modèle, par exemple qwen3:8b.",
+    "aiOllamaUnreachable": "Impossible de joindre votre Ollama. Vérifiez qu’il tourne et que le tunnel est toujours ouvert.",
+    "aiOllamaFailed": "Votre Ollama a refusé la demande. Ce modèle a-t-il été téléchargé sur cette machine ?",
+    "aiVoiceNotConfigured": "Le mode conversation n’a pas encore de clé OpenAI configurée.",
+    "aiVoiceUnreachable": "Impossible de joindre OpenAI. Réessayez dans un instant.",
+    "aiVoiceFailed": "OpenAI a refusé la demande vocale.",
+    "aiInvalidVoiceKey": "Une clé OpenAI commence par sk-. Vérifiez ce qui a été collé.",
+    "aiVoiceNoCredit": "Votre compte OpenAI n’a plus de crédit. Ajoutez des fonds sur platform.openai.com/settings/organization/billing — une carte enregistrée ne suffit pas, il faut acheter du crédit.",
+    "aiVoiceBadKey": "OpenAI a refusé la clé. Vérifiez-la dans Réglages › Assistant.",
+    "aiVoiceModelNotFound": "Ce modèle vocal n’existe pas sur ce compte. Vérifiez le nom dans Réglages › Assistant.",
+    "aiVoiceRateLimited": "OpenAI a demandé de patienter un peu. Réessayez dans un instant.",
+    "invalidPersonEmail": "E-mail invalide.",
+    "passwordNeedsEmail": "Pour donner accès à l'app il faut un e-mail : c'est avec lui que la personne se connecte.",
+    "emailIsLogin": "Cette personne se connecte à l'app avec cet e-mail. Retirez son accès avant de supprimer l'adresse.",
+    "aiEmptyLog": "La conversation à enregistrer est arrivée vide.",
+    "bookingPageName": "Donnez un nom à la page.",
+    "bookingPageSlugRequired": "Écrivez l'alias qui ira dans l'URL.",
+    "bookingPageSlugShort": "L'alias doit avoir au moins deux lettres.",
+    "bookingPageSlugReserved": "Cet alias est réservé par le système. Choisissez-en un autre.",
+    "bookingPageSlugTaken": "Une page avec cet alias existe déjà.",
+    "bookingPageNotFound": "Page de réservation introuvable."
   },
   "ok": {
     "passwordChanged": "Mot de passe modifié.",
@@ -113,7 +160,13 @@
     "apiKeyRevoked": "Clé révoquée.",
     "inviteDone": "Inscription terminée ! Il ne reste plus qu’à vous connecter.",
     "dietRemoved": "Plan supprimé.",
-    "foodRemoved": "Aliment supprimé."
+    "foodRemoved": "Aliment supprimé.",
+    "assessmentRemoved": "Évaluation supprimée.",
+    "appointmentRemoved": "Rendez-vous supprimé.",
+    "serviceRemoved": "Service supprimé.",
+    "chargeRemoved": "Facture supprimée.",
+    "paymentRemoved": "Paiement supprimé.",
+    "bookingPageRemoved": "Page de réservation supprimée."
   },
   "permissions": {
     "groups": {
@@ -148,6 +201,26 @@
       "foods": {
         "title": "Aliments",
         "description": "Le catalogue d’aliments"
+      },
+      "assessments": {
+        "title": "Évaluation physique",
+        "description": "Mesures, plis cutanés et évolution"
+      },
+      "schedule": {
+        "title": "Agenda",
+        "description": "Cours, horaires et rendez-vous"
+      },
+      "finance": {
+        "title": "Facturation",
+        "description": "Facturations, paiements et reçus"
+      },
+      "chat": {
+        "title": "Chat",
+        "description": "Les conversations avec les personnes suivies."
+      },
+      "ai": {
+        "title": "Assistant",
+        "description": "L’assistant qui pilote l’écran à votre place."
       }
     },
     "items": {
@@ -222,6 +295,50 @@
       "foods.manage": {
         "label": "Gérer les aliments",
         "hint": "Créer, modifier et supprimer des aliments du catalogue — vaut pour tous les comptes."
+      },
+      "assessments.view": {
+        "label": "Voir les évaluations",
+        "hint": "Ouvrir l’onglet d’évaluation physique. L’écran est en construction."
+      },
+      "assessments.manage": {
+        "label": "Gérer les évaluations",
+        "hint": "Enregistrer et supprimer des mesures. L’écran est en construction."
+      },
+      "schedule.view": {
+        "label": "Voir l’agenda",
+        "hint": "Ouvrir l’onglet agenda. L’écran est en construction."
+      },
+      "schedule.manage": {
+        "label": "Gérer l’agenda",
+        "hint": "Réserver et annuler des horaires. L’écran est en construction."
+      },
+      "finance.view": {
+        "label": "Voir la facturation",
+        "hint": "Ouvrir l’onglet facturation et voir les factures. L’écran est en construction."
+      },
+      "finance.manage": {
+        "label": "Gérer la facturation",
+        "hint": "Créer des factures et les solder. L’écran est en construction."
+      },
+      "chat.view": {
+        "label": "Voir les conversations",
+        "hint": "Ouvrir le chat et lire ses propres conversations."
+      },
+      "chat.send": {
+        "label": "Envoyer des messages",
+        "hint": "Écrire et démarrer une conversation."
+      },
+      "schedule.team": {
+        "label": "Agenda de l’équipe",
+        "hint": "Voir et réserver sur l’agenda des autres professionnels."
+      },
+      "ai.use": {
+        "label": "Utiliser l’assistant",
+        "hint": "Discuter avec l’assistant et le laisser piloter l’écran."
+      },
+      "ai.manage": {
+        "label": "Configurer l’assistant",
+        "hint": "Changer la clé et le modèle. Modifie ce qui est facturé au compte."
       }
     }
   },
@@ -275,7 +392,28 @@
     "update_diet_meals": "A modifié les repas d’un plan",
     "create_food": "A créé un aliment",
     "update_food": "A modifié un aliment",
-    "delete_food": "A supprimé un aliment"
+    "delete_food": "A supprimé un aliment",
+    "create_assessment": "A enregistré une évaluation",
+    "update_assessment": "A modifié une évaluation",
+    "delete_assessment": "A supprimé une évaluation",
+    "create_appointment": "A pris un rendez-vous",
+    "update_appointment": "A modifié un rendez-vous",
+    "delete_appointment": "A supprimé un rendez-vous",
+    "create_service": "A créé un service",
+    "update_service": "A modifié un service",
+    "delete_service": "A supprimé un service",
+    "create_charge": "A créé une facture",
+    "update_charge": "A modifié une facture",
+    "delete_charge": "A supprimé une facture",
+    "create_payment": "A enregistré un paiement",
+    "update_payment": "A modifié un paiement",
+    "delete_payment": "A supprimé un paiement",
+    "update_currency": "A changé la devise",
+    "update_availability": "A modifié l’agenda public",
+    "update_ai_settings": "A configuré l’assistant",
+    "create_booking_page": "A créé une page de réservation",
+    "update_booking_page": "A modifié une page de réservation",
+    "delete_booking_page": "A supprimé une page de réservation"
   },
   "categories": {
     "auth": "Accès",
@@ -284,7 +422,10 @@
     "exercises": "Exercices",
     "admin": "Administration",
     "diets": "Régimes",
-    "foods": "Aliments"
+    "foods": "Aliments",
+    "assessments": "Évaluation physique",
+    "schedule": "Agenda",
+    "finance": "Finances"
   },
   "targetTypes": {
     "users": "Utilisateur",
@@ -297,13 +438,21 @@
     "api_keys": "Clé d’API",
     "tenants": "Domaine",
     "diets": "Plan alimentaire",
-    "foods": "Aliment"
+    "foods": "Aliment",
+    "assessments": "Évaluation physique",
+    "appointments": "Rendez-vous",
+    "services": "Service",
+    "charges": "Facture",
+    "payments": "Paiement",
+    "availability": "Agenda public"
   },
   "autoFill": {
     "groups": {
       "workout": "Entraînement",
       "people": "Personnes",
-      "diet": "Régime"
+      "diet": "Régime",
+      "assessments": "Évaluation physique",
+      "schedule": "Agenda"
     },
     "fields": {
       "workout.name": {
@@ -341,6 +490,22 @@
       "diet.goal": {
         "label": "Objectif du plan",
         "hint": "Ex. : Perte de poids"
+      },
+      "diet.mealNote": {
+        "label": "Remarque du repas",
+        "hint": "Ex. : Mâchez lentement et buvez de l’eau avant"
+      },
+      "assessment.note": {
+        "label": "Remarque de l’évaluation",
+        "hint": "Ex. : Relevé à jeun, le matin"
+      },
+      "appointment.title": {
+        "label": "Type de rendez-vous",
+        "hint": "Ex. : Entraînement, Consultation"
+      },
+      "appointment.note": {
+        "label": "Remarque du rendez-vous",
+        "hint": "Ex. : Apporter serviette et gourde"
       }
     }
   },

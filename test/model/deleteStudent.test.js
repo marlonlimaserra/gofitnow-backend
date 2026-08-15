@@ -72,16 +72,94 @@ function monta({ vinculado = true } = {}) {
     return 0;
   } };
 
-  const app = { api: { link, workout, diet } };
+  // As avaliações físicas saem junto desde 13/08/2026, pelo mesmo motivo dos
+  // treinos e dos planos.
+  const assessment = {
+    apagadosDe: [],
+    async deleteAllOfStudent(id) {
+      assessment.apagadosDe.push(String(id));
+      return 0;
+    },
+    async idsOfStudent() {
+      return ["coleta-1", "coleta-2"];
+    },
+  };
+
+  // E as FOTOS saem junto das coletas. Elas são referenciadas pela avaliação,
+  // não pela pessoa: os ids têm de ser lidos ANTES de as coletas sumirem, senão
+  // sobrariam bytes no banco sem nada apontando para eles.
+  const assessmentPhoto = {
+    apagadasDe: [],
+    async deleteAllOfAssessments(ids) {
+      assessmentPhoto.apagadasDe.push(...ids);
+      return 0;
+    },
+  };
+
+  // As conversas somem com a pessoa: uma linha na lista apontando para uma
+  // conta apagada não abre nada e não explica por quê.
+  const chat = {
+    apagadasDe: [],
+    async deleteAllOfUser(id) {
+      chat.apagadasDe.push(String(id));
+      return 0;
+    },
+  };
+
+  // A agenda também: um compromisso apontando para uma pessoa apagada não abre
+  // nada e ainda ocupa horário na grade.
+  const appointment = {
+    apagadosDe: [],
+    async deleteAllOfStudent(id) {
+      appointment.apagadosDe.push(String(id));
+      return 0;
+    },
+  };
+
+  // O financeiro sai junto: cobrança e pagamento de uma pessoa apagada não
+  // aparecem em tela nenhuma e ainda entram na soma de qualquer relatório.
+  const finance = {
+    apagadosDe: [],
+    async deleteAllOfStudent(id) {
+      finance.apagadosDe.push(String(id));
+      return 0;
+    },
+  };
+
+  const app = {
+    api: { link, workout, diet, assessment, assessmentPhoto, chat, appointment, finance },
+  };
   const user = new User_model(app);
   user.collection = async () => users;
   app.api.user = user;
 
-  return { user, users, workouts, link, diet };
+  return {
+    user,
+    users,
+    workouts,
+    link,
+    diet,
+    assessment,
+    assessmentPhoto,
+    chat,
+    appointment,
+    finance,
+  };
 }
 
-test("apaga a pessoa, os vínculos, os treinos e os planos dela", async () => {
-  const { user, users, workouts, link, diet } = monta();
+test("apaga a pessoa, os vínculos, os treinos, os planos e as avaliações", async () => {
+  const {
+    user,
+    users,
+    workouts,
+    link,
+    diet,
+    assessment,
+    assessmentPhoto,
+    chat,
+    appointment,
+    finance,
+  } = monta();
 
   const ok = await user.deleteStudent(TRAINER, PESSOA);
 
@@ -96,6 +174,11 @@ test("apaga a pessoa, os vínculos, os treinos e os planos dela", async () => {
     ["De outra pessoa"]
   );
   assert.deepEqual(diet.apagadosDe, [String(PESSOA)]);
+  assert.deepEqual(assessment.apagadosDe, [String(PESSOA)]);
+  assert.deepEqual(assessmentPhoto.apagadasDe, ["coleta-1", "coleta-2"]);
+  assert.deepEqual(chat.apagadasDe, [String(PESSOA)]);
+  assert.deepEqual(appointment.apagadosDe, [String(PESSOA)]);
+  assert.deepEqual(finance.apagadosDe, [String(PESSOA)]);
 });
 
 test("não encosta nos treinos de quem ficou", async () => {

@@ -173,17 +173,38 @@ module.exports = function (app) {
       res.status(400).send({ msg: req.t("errors.requirePersonName") });
       return;
     }
-    // O e-mail é OBRIGATÓRIO. Ele é a identidade da pessoa dentro desta
-    // instância: é por ele que ela entra no app e é achada na busca.
-    if (!body.email || !app.validator.isEmail(String(body.email).trim())) {
-      res.status(400).send({ msg: req.t("errors.requirePersonEmail") });
+    // O e-mail é OPCIONAL.
+    //
+    // Ele foi obrigatório por bastante tempo, e a razão era boa: é por ele que a
+    // pessoa entra no app. Só que a maioria das fichas nunca vai entrar em app
+    // nenhum — é gente que treina, é atendida e pronto — e exigir um endereço de
+    // quem não tem enche a lista de aluno1@aluno.com, que é pior que campo
+    // vazio: parece dado e não é, e ainda ocupa o índice único.
+    //
+    // Sem e-mail a ficha existe inteira: treino, avaliação, agenda, financeiro.
+    // O que ela não tem é LOGIN. Por isso a única regra nova aqui é a de baixo —
+    // senha sem endereço seria uma chave sem porta.
+    const email = String(body.email || "").trim();
+
+    if (email && !app.validator.isEmail(email)) {
+      res.status(400).send({ msg: req.t("errors.invalidPersonEmail") });
       return;
     }
     if (body.password && String(body.password).length < 6) {
       res.status(400).send({ msg: req.t("errors.passwordTooShort") });
       return;
     }
-    {
+    // Aceitar a senha e gravar a ficha sem ela seria o pior desfecho: o
+    // profissional sai achando que a pessoa já pode entrar.
+    if (body.password && !email) {
+      res.status(400).send({
+        msg: req.t("errors.passwordNeedsEmail"),
+        code: "password_needs_email",
+      });
+      return;
+    }
+
+    if (email) {
       // Dentro da instância o e-mail é único, então já existir aqui significa
       // uma coisa só: essa pessoa já está nesta conta.
       //
@@ -191,7 +212,10 @@ module.exports = function (app) {
       // — que abria o pedido de acesso por e-mail. Com um banco por cliente
       // esse caso deixou de existir: a conta de outra instância é outra conta,
       // e não há nada para pedir a ninguém.
-      const exists = await app.api.user.dataByEmail(body.email);
+      //
+      // Duas fichas SEM e-mail não colidem: o índice é parcial (só onde o campo
+      // é string), e `normalizeEmail` grava ausência em vez de "".
+      const exists = await app.api.user.dataByEmail(email);
       if (exists) {
         res.status(409).send({
           msg: req.t("errors.alreadyInYourList"),
@@ -206,7 +230,8 @@ module.exports = function (app) {
     // an account with more power than the screen offers.
     const role = await app.api.role.dataByName(app.api.role.clientName);
 
-    const id = await app.api.user.insertStudent(trainer._id, { ...body, role: role?._id });
+    // `email` já aparado. Mandar o do corpo deixaria "  " passar como endereço.
+    const id = await app.api.user.insertStudent(trainer._id, { ...body, email, role: role?._id });
 
     // A observacao e do profissional, nao da pessoa: fica no vinculo.
     if (body.notes) await app.api.link.setNotes(trainer._id, id, body.notes);
@@ -238,16 +263,37 @@ module.exports = function (app) {
       res.status(400).send({ msg: req.t("errors.requirePersonName") });
       return;
     }
-    // Sending the field at all means it has to be valid: a person cannot be
-    // left without an e-mail, because that is what makes their record findable
-    // by the other professionals who care for them. Not sending it keeps
-    // whatever is stored, so a partial update still works.
-    if (body.email !== undefined && !app.validator.isEmail(String(body.email).trim())) {
-      res.status(400).send({ msg: req.t("errors.requirePersonEmail") });
+    // Mandar o campo em BRANCO agora significa apagar o endereço — é como se
+    // desfaz um cadastro feito com e-mail. Mandar preenchido continua exigindo
+    // que seja um endereço de verdade. Não mandar mantém o que está gravado, que
+    // é o que faz uma edição parcial funcionar.
+    const email =
+      body.email === undefined ? String(target.email || "").trim() : String(body.email).trim();
+
+    if (body.email !== undefined && email && !app.validator.isEmail(email)) {
+      res.status(400).send({ msg: req.t("errors.invalidPersonEmail") });
       return;
     }
     if (body.password && String(body.password).length < 6) {
       res.status(400).send({ msg: req.t("errors.passwordTooShort") });
+      return;
+    }
+    // Tirar o e-mail de quem entra no app é trancar a pessoa do lado de fora — e
+    // sem aviso nenhum, porque o login some junto com o endereço. Quem quer
+    // mesmo tem o botão de tirar o acesso, que diz o que faz.
+    if (!email && target.password) {
+      res.status(409).send({
+        msg: req.t("errors.emailIsLogin"),
+        code: "email_is_login",
+      });
+      return;
+    }
+    // Dar acesso a quem não tem endereço seria uma chave sem porta.
+    if (body.password && !email) {
+      res.status(400).send({
+        msg: req.t("errors.passwordNeedsEmail"),
+        code: "password_needs_email",
+      });
       return;
     }
     // O e-mail PODE ser trocado aqui.
@@ -261,8 +307,8 @@ module.exports = function (app) {
     //
     // O que continua valendo é a UNICIDADE dentro da instância: dois cadastros
     // com o mesmo e-mail seriam duas fichas disputando o mesmo login.
-    if (body.email !== undefined) {
-      const enviado = String(body.email).trim().toLowerCase();
+    if (body.email !== undefined && email) {
+      const enviado = email.toLowerCase();
       const atual = String(target.email || "").trim().toLowerCase();
 
       if (enviado !== atual) {

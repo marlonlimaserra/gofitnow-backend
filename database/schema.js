@@ -17,13 +17,28 @@ const { seedFoods } = require("./foods.js");
 // mexe no que é do outro.
 const instanceContext = require("../lib/instance.js");
 
-const CENTRAL = ["exercises", "foods"];
+// `ai_usage` é o consumo de IA por instância — contagem e custo, NUNCA conteúdo
+// de conversa. Este arquivo é o dono dela; o painel só lê. A conversa em si mora
+// no banco do cliente (`ai_sessions`), com o resto do que é dele.
+const CENTRAL = ["exercises", "foods", "ai_usage"];
 
 const POR_INSTANCIA = [
   "users",
   "user_tokens",
   "workouts",
   "diets",
+  "assessments",
+  "assessment_photos",
+  "appointments",
+  "services",
+  "availability",
+  "booking_pages",
+  "charges",
+  "payments",
+  "payment_files",
+  "conversations",
+  "messages",
+  "message_files",
   "password_resets",
   "professional_links",
   "roles",
@@ -35,6 +50,7 @@ const POR_INSTANCIA = [
   "api_keys",
   "api_calls",
   "tenants",
+  "ai_sessions",
 ];
 
 // A instância que nasce com o sistema. Sem ela o primeiro boot sobe um servidor
@@ -74,6 +90,16 @@ async function ensureCentral(app) {
   // chave de busca sem acento.
   await db.collection("foods").createIndex({ nameSort: 1 }, { name: "by_name" });
   await db.collection("foods").createIndex({ category: 1, nameSort: 1 }, { name: "by_category" });
+
+  // ai_usage — o consumo por instância. Uma linha por sessão, incrementada a
+  // cada turno; o índice é o que a torna única e o que o painel usa para somar
+  // por cliente e por período.
+  await db
+    .collection("ai_usage")
+    .createIndex({ instance: 1, sessionId: 1 }, { unique: true, name: "instance_session" });
+  await db
+    .collection("ai_usage")
+    .createIndex({ instance: 1, createdAt: -1 }, { name: "by_instance_date" });
 
   const semeados = await seedFoods(db);
   if (semeados) console.log(`[schema] catálogo de alimentos semeado: ${semeados} itens`);
@@ -164,6 +190,100 @@ async function ensureInstance(app, instance) {
     .collection("diets")
     .createIndex({ trainer: 1, student: 1, createdAt: -1 }, { name: "by_trainer_student" });
 
+  // assessments — sempre lidas por (trainer, student), da coleta mais nova para
+  // a mais antiga: é a ordem da linha do tempo e a do gráfico de evolução.
+  await db
+    .collection("assessments")
+    .createIndex({ trainer: 1, student: 1, date: -1 }, { name: "by_trainer_student" });
+
+  // assessment_photos — sempre buscada pelo par (coleta, ângulo), que é também
+  // o que a torna única: subir de novo o mesmo lado substitui, nunca acumula.
+  await db
+    .collection("assessment_photos")
+    .createIndex({ assessment: 1, side: 1 }, { unique: true, name: "by_assessment_side" });
+
+
+  // appointments — a agenda. Lida de duas formas: a semana do profissional
+  // (por data) e o histórico de uma pessoa (por pessoa, do mais novo ao mais
+  // antigo). Um índice para cada, porque são consultas diferentes.
+  await db
+    .collection("appointments")
+    .createIndex({ trainer: 1, date: 1 }, { name: "by_trainer_date" });
+  await db
+    .collection("appointments")
+    .createIndex({ trainer: 1, student: 1, date: -1 }, { name: "by_trainer_student" });
+
+  // services — poucos por cliente, sempre lidos inteiros e em ordem de
+  // apresentação. O índice é só para a ordenação não ler a collection toda.
+  await db.collection("services").createIndex({ order: 1, name: 1 }, { name: "by_order" });
+
+  // availability — uma grade por profissional, lida pelo id dele.
+  await db
+    .collection("availability")
+    .createIndex({ professional: 1 }, { unique: true, name: "professional_unique" });
+
+  // booking_pages — a página é achada pelo APELIDO da URL, e dois apelidos
+  // iguais fariam a mesma rota responder coisas diferentes conforme a ordem do
+  // banco. O índice é quem garante; a checagem no modelo é só pela mensagem.
+  await db
+    .collection("booking_pages")
+    .createIndex({ slug: 1 }, { unique: true, name: "slug_unique" });
+
+  // charges e payments — sempre lidos de uma pessoa, do mais recente para o
+  // mais antigo, que é a ordem da aba Financeiro.
+  await db.collection("charges").createIndex({ student: 1, dueDate: -1 }, { name: "by_student" });
+  // E pelo compromisso, que é como a cobrança automática confere se já existe.
+  await db.collection("charges").createIndex({ appointment: 1 }, { name: "by_appointment" });
+  await db.collection("payments").createIndex({ student: 1, date: -1 }, { name: "by_student" });
+  await db
+    .collection("payment_files")
+    .createIndex({ payment: 1 }, { unique: true, name: "payment_unique" });
+
+  // conversations — a lista de quem fala com quem.
+  //
+  // A unicidade é sobre `pairKey`, um ESCALAR com os dois ids ordenados, e não
+  // sobre `members`. Índice único em array é multikey: ele exigiria que cada id
+  // fosse único na collection, isto é, que cada pessoa participasse de no
+  // máximo uma conversa. Foi assim que nasceu e quebrou na segunda conversa de
+  // qualquer um.
+  await db.collection("conversations").dropIndex("members_unique").catch(() => {});
+
+  // Retroativo para o que foi criado antes de `pairKey` existir. Barato e
+  // idempotente: sem documento sem a chave, não escreve nada.
+  await db.collection("conversations").updateMany({ pairKey: { $exists: false } }, [
+    {
+      $set: {
+        pairKey: {
+          $reduce: {
+            input: { $map: { input: "$members", in: { $toString: "$$this" } } },
+            initialValue: "",
+            in: {
+              $concat: ["$$value", { $cond: [{ $eq: ["$$value", ""] }, "", "_"] }, "$$this"],
+            },
+          },
+        },
+      },
+    },
+  ]);
+
+  await db
+    .collection("conversations")
+    .createIndex({ pairKey: 1 }, { unique: true, name: "pair_unique" });
+  await db
+    .collection("conversations")
+    .createIndex({ members: 1, lastAt: -1 }, { name: "by_member_recent" });
+
+  // messages — sempre lidas de uma conversa, da mais nova para a mais antiga.
+  await db
+    .collection("messages")
+    .createIndex({ conversation: 1, createdAt: -1 }, { name: "by_conversation" });
+
+  // message_files — buscado pelo id da mensagem; um anexo por mensagem.
+  await db
+    .collection("message_files")
+    .createIndex({ message: 1 }, { unique: true, name: "message_unique" });
+  // E pela conversa, que é como a exclusão em cascata os encontra.
+  await db.collection("message_files").createIndex({ conversation: 1 }, { name: "by_conversation" });
 
   // password_resets — consultado por hash do token; o TTL varre os expirados.
   await db
@@ -228,6 +348,16 @@ async function ensureInstance(app, instance) {
   await db
     .collection("api_keys")
     .createIndex({ user: 1, revokedAt: 1, createdAt: -1 }, { name: "by_user_state" });
+
+  // ai_sessions — a lista do histórico é sempre "as minhas, a mais recente
+  // primeiro". `updatedAt` e não `createdAt`: uma conversa retomada volta ao
+  // topo, que é onde quem a retomou espera achá-la.
+  await db
+    .collection("ai_sessions")
+    .createIndex({ user: 1, updatedAt: -1 }, { name: "by_user_date" });
+  // O resumo de gasto varre por período, sem filtrar por conta: é a conta do
+  // cliente inteiro.
+  await db.collection("ai_sessions").createIndex({ createdAt: -1 }, { name: "by_date" });
 
   // api_calls — a tela lê sempre por conta e por data decrescente.
   await db.collection("api_calls").createIndex({ user: 1, createdAt: -1 }, { name: "by_user_date" });

@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const currencies = require("../lib/currencies.js");
 
 const theme = require("../lib/theme.js");
 const domainLib = require("../lib/domain.js");
@@ -193,6 +194,53 @@ Tenant_model.prototype.saveTheme = async function (userId, entrada) {
   );
 
   return limpo;
+};
+
+// A moeda em que este cliente trabalha.
+//
+// Fica no TENANT e não na conta de cada usuário: é uma característica do
+// negócio, não uma preferência de quem está logado. Dois profissionais da mesma
+// clínica cobrando em moedas diferentes tornariam o caixa impossível de somar.
+Tenant_model.prototype.saveCurrency = async function (userId, code, lista) {
+  const col = await this.collection();
+
+  const padrao = currencies.normalize(code);
+  const habilitadas = currencies.normalizeList(lista, padrao);
+
+  await col.updateOne(
+    { user: new ObjectId(userId) },
+    {
+      $set: { currency: padrao, currencies: habilitadas, updatedAt: new Date() },
+      $setOnInsert: { user: new ObjectId(userId), status: "none", createdAt: new Date() },
+    },
+    { upsert: true }
+  );
+
+  return { currency: padrao, currencies: habilitadas };
+};
+
+// As moedas da INSTÂNCIA, não as de um usuário: o financeiro é do cliente
+// inteiro, e todo mundo que abre a tela tem de ver as mesmas opções.
+Tenant_model.prototype.currencyOfInstance = async function () {
+  const doc = await this.dataOfInstance();
+
+  const padrao = currencies.normalize(doc?.currency);
+  return {
+    currency: padrao,
+    // Conta antiga não tem a lista: ela trabalha com a padrão, e só.
+    currencies: currencies.normalizeList(doc?.currencies, padrao),
+  };
+};
+
+// A moeda de um lançamento: a pedida, se estiver habilitada; senão a padrão.
+//
+// Recusar seria pior: um pedido com moeda desabilitada viraria erro de tela
+// numa situação em que a resposta certa é óbvia.
+Tenant_model.prototype.currencyFor = async function (pedida) {
+  const { currency, currencies: habilitadas } = await this.currencyOfInstance();
+
+  const alvo = String(pedida || "").toUpperCase();
+  return habilitadas.includes(alvo) ? alvo : currency;
 };
 
 // O que a tela de login recebe, sem sessão nenhuma.

@@ -73,6 +73,63 @@ Center_model.prototype.collection = async function () {
   return db.collection("instances");
 };
 
+// ── Consumo de IA, no central ───────────────────────────────────────────────
+//
+// O que vai para cá e o que NÃO vai é a decisão mais importante deste arquivo.
+//
+// VAI: instância, modelo, tokens, custo, quantos turnos. É a pergunta que só o
+// central pode responder — "quanto cada cliente está gastando de IA" —, e ela
+// atravessa clientes por natureza.
+//
+// NÃO VAI: uma linha da conversa. Nem a fala, nem o título, nem o nome de quem
+// foi cadastrado, nem o id do usuário. O sistema inteiro é construído sobre um
+// banco por cliente, sem `tenant_id` em lugar nenhum, justamente para não haver
+// um lugar onde o dado de todo mundo se encontra. Seria uma ironia furar isso
+// pela porta da IA, que é onde passa o dado mais sensível — a conversa em que
+// alguém dita o telefone e o objetivo de um paciente.
+//
+// `sessionId` viaja como texto opaco: serve para o painel contar sessões
+// distintas e para uma auditoria conseguir cruzar com a instância se precisar.
+// Sozinho, não abre nada — quem lê a conversa é o banco do cliente.
+Center_model.prototype.usoIaCollection = async function () {
+  const db = await this.app.mongodb.centralDb();
+  return db.collection("ai_usage");
+};
+
+Center_model.prototype.registrarUsoIa = async function ({
+  instance,
+  sessionId,
+  model,
+  usage,
+  costMicros,
+}) {
+  const nome = instanceContext.normalize(instance);
+  if (!nome) return;
+
+  const col = await this.usoIaCollection();
+  const agora = new Date();
+
+  // Uma linha por SESSÃO, incrementada a cada turno — não uma linha por turno.
+  // Uma conversa de vinte passos viraria vinte documentos para responder uma
+  // pergunta que é sobre a conversa inteira.
+  await col.updateOne(
+    { instance: nome, sessionId: String(sessionId) },
+    {
+      $set: { model, updatedAt: agora },
+      $inc: {
+        costMicros: Number(costMicros || 0),
+        turns: 1,
+        inputTokens: Number(usage?.input_tokens || 0),
+        outputTokens: Number(usage?.output_tokens || 0),
+        cacheWriteTokens: Number(usage?.cache_creation_input_tokens || 0),
+        cacheReadTokens: Number(usage?.cache_read_input_tokens || 0),
+      },
+      $setOnInsert: { createdAt: agora },
+    },
+    { upsert: true }
+  );
+};
+
 Center_model.prototype.byInstance = async function (instance) {
   const nome = instanceContext.normalize(instance);
   if (!nome) return undefined;

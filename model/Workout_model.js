@@ -226,78 +226,69 @@ Workout_model.prototype.pageAll = async function (trainerId, filtros = {}) {
     etapas.push({ $match: { name: { $regex: escapado, $options: "i" } } });
   }
 
-  etapas.push(
-    {
-      $lookup: {
-        from: "users",
-        localField: "student",
-        foreignField: "_id",
-        pipeline: [{ $project: { name: 1 } }],
-        as: "pessoa",
-      },
-    },
-    {
-      $addFields: {
-        personName: { $ifNull: [{ $arrayElemAt: ["$pessoa.name", 0] }, ""] },
-        exerciseCount: { $size: { $ifNull: ["$exercises", []] } },
-        setCount: {
-          $sum: {
-            $map: {
-              input: { $ifNull: ["$exercises", []] },
-              as: "e",
-              in: { $size: { $ifNull: ["$$e.sets", []] } },
-            },
-          },
-        },
-        muscleGroups: {
-          $sortArray: {
-            input: {
-              $setUnion: [
-                {
-                  $filter: {
-                    input: { $ifNull: ["$exercises.muscleGroup", []] },
-                    as: "g",
-                    cond: { $ne: ["$$g", ""] },
-                  },
-                },
-                [],
-              ],
-            },
-            sortBy: 1,
-          },
-        },
-        // O status calculado no banco, com a mesma regra do statusOf: fim antes
-        // de hoje é passado, início depois de hoje é futuro, o resto é atual.
-        status: {
-          $switch: {
-            branches: [
-              {
-                case: {
-                  $and: [{ $ne: ["$endDate", ""] }, { $lt: ["$endDate", hoje] }],
-                },
-                then: "past",
-              },
-              {
-                case: {
-                  $and: [{ $ne: ["$startDate", ""] }, { $gt: ["$startDate", hoje] }],
-                },
-                then: "future",
-              },
-            ],
-            default: "current",
-          },
-        },
-        primeiroDia: { $ifNull: [{ $arrayElemAt: ["$weekdays", 0] }, ""] },
-      },
-    }
-  );
-
   const campo = ORDEM_TREINOS[filtros.sort] || "createdAt";
   const direcao = filtros.dir === "asc" ? 1 : -1;
   const limite = Math.min(Math.max(Number(filtros.limit) || 15, 1), 200);
   const pagina = Math.max(Number(filtros.page) || 1, 1);
 
   const daAba = filtroDeStatus(filtros.status, hoje);
+
+  // ── O que é calculado ANTES do corte, e o que é calculado depois ──────────
+  //
+  // A resposta sempre teve só quinze linhas — o corte é do banco, não do
+  // navegador. O que não era verdade é que o TRABALHO fosse de quinze: o
+  // pipeline juntava a pessoa, somava séries e reunia grupos musculares dos 638
+  // treinos para jogar 623 fora no estágio seguinte. Medido no servidor, 65ms
+  // por requisição virando 6ms quando o cálculo vem depois do $limit.
+  //
+  // Antes do corte fica só o que os estágios seguintes precisam para decidir
+  // QUAIS quinze são: o status (as contagens das abas contam todo mundo), e os
+  // dois campos calculados por onde a tela ordena.
+  const juntarPessoa = [
+    // Sem sub-pipeline de propósito. `localField/foreignField` com `pipeline`
+    // junto desliga a junção indexada do Mongo: 46ms contra 15ms para a mesma
+    // junção, medido em 8.0. O preço é o documento inteiro da pessoa entrar no
+    // `pessoa` — inclusive senha e salt —, e por isso o campo é DESCARTADO no
+    // $project do fim. Tirar aquele `pessoa: 0` vaza hash de senha para a tela.
+    { $lookup: { from: "users", localField: "student", foreignField: "_id", as: "pessoa" } },
+    { $addFields: { personName: { $ifNull: [{ $arrayElemAt: ["$pessoa.name", 0] }, ""] } } },
+  ];
+
+  etapas.push({
+    $addFields: {
+      // O status calculado no banco, com a mesma regra do statusOf: fim antes
+      // de hoje é passado, início depois de hoje é futuro, o resto é atual.
+      status: {
+        $switch: {
+          branches: [
+            {
+              case: {
+                $and: [{ $ne: ["$endDate", ""] }, { $lt: ["$endDate", hoje] }],
+              },
+              then: "past",
+            },
+            {
+              case: {
+                $and: [{ $ne: ["$startDate", ""] }, { $gt: ["$startDate", hoje] }],
+              },
+              then: "future",
+            },
+          ],
+          default: "current",
+        },
+      },
+      // Os dois baratos: `$size` e `$arrayElemAt` não percorrem série nenhuma, e
+      // a tela ordena por eles.
+      exerciseCount: { $size: { $ifNull: ["$exercises", []] } },
+      primeiroDia: { $ifNull: [{ $arrayElemAt: ["$weekdays", 0] }, ""] },
+    },
+  });
+
+  // Ordenar pelo nome da pessoa é o único caso em que a junção precisa vir
+  // antes: não dá para escolher as quinze primeiras por um campo que ainda não
+  // existe. Custa 22ms em vez de 6ms — e continua sendo um terço dos 65ms.
+  const ordenaPorPessoa = campo === "personName";
+  if (ordenaPorPessoa) etapas.push(...juntarPessoa);
 
   // As CONTAGENS das abas saem da mesma passagem, e antes do filtro de aba: a
   // aba "Passados" precisa saber quantos atuais existem para escrever o número
@@ -311,8 +302,41 @@ Workout_model.prototype.pageAll = async function (trainerId, filtros = {}) {
         { $sort: { __vazio: 1, [campo]: direcao, _id: 1 } },
         { $skip: (pagina - 1) * limite },
         { $limit: limite },
+        // Daqui para baixo são QUINZE documentos, não a coleção inteira.
+        ...(ordenaPorPessoa ? [] : juntarPessoa),
+        {
+          $addFields: {
+            setCount: {
+              $sum: {
+                $map: {
+                  input: { $ifNull: ["$exercises", []] },
+                  as: "e",
+                  in: { $size: { $ifNull: ["$$e.sets", []] } },
+                },
+              },
+            },
+            muscleGroups: {
+              $sortArray: {
+                input: {
+                  $setUnion: [
+                    {
+                      $filter: {
+                        input: { $ifNull: ["$exercises.muscleGroup", []] },
+                        as: "g",
+                        cond: { $ne: ["$$g", ""] },
+                      },
+                    },
+                    [],
+                  ],
+                },
+                sortBy: 1,
+              },
+            },
+          },
+        },
         // Os exercícios NÃO vão na resposta: são o corpo do treino, e a tela
-        // mostra só a contagem que já foi calculada acima.
+        // mostra só as contagens calculadas acima. `pessoa` sai junto, e é o que
+        // impede o documento inteiro da pessoa de chegar ao navegador.
         { $project: { exercises: 0, pessoa: 0, __vazio: 0, primeiroDia: 0 } },
       ],
       total: [...(daAba ? [{ $match: daAba }] : []), { $count: "n" }],

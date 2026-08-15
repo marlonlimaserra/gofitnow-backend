@@ -322,3 +322,261 @@ test("frase e título têm cor própria, e podem ser escondidos", () => {
   assert.equal(theme.sanitize({}).hideSubtitle, false);
   assert.equal(theme.sanitize({ titleColor: "nao-e-cor" }).titleColor, "");
 });
+
+// ── A segunda cor dos botões ─────────────────────────────────────────────
+//
+// Vazia é o normal: botão sólido, da cor da marca. Preenchida, os botões
+// primários viram um degradê que vai da marca até ela. Só a segunda ponta é
+// guardada — a primeira é sempre a marca, e é isso que faz o botão continuar
+// acompanhando a marca no dia em que ela mudar.
+
+test("a segunda cor nasce vazia — botão sólido é o normal", () => {
+  const t = theme.sanitize({});
+  assert.equal(t.brandTo, "");
+});
+
+test("a segunda cor é guardada quando é cor de verdade", () => {
+  const t = theme.sanitize({ brandTo: "#2563EB" });
+  assert.equal(t.brandTo, "#2563eb");
+});
+
+test("lixo no lugar da segunda cor vira VAZIO, não o padrão", () => {
+  // Vazio é "sem degradê". Cair num padrão colorido daria a alguém um botão
+  // degradê que ninguém pediu.
+  assert.equal(theme.sanitize({ brandTo: "azul" }).brandTo, "");
+  assert.equal(theme.sanitize({ brandTo: 123 }).brandTo, "");
+});
+
+test("os degradês prontos trazem as DUAS pontas", () => {
+  // Oferecer só a segunda cor faria "pôr do sol" ficar verde-laranja para quem
+  // tem marca verde — um par que ninguém escolheu.
+  assert.ok(theme.GRADIENTS.length >= 4);
+
+  for (const g of theme.GRADIENTS) {
+    assert.ok(g.key, "cada pronto precisa de chave para a tradução");
+    assert.equal(theme.sanitize({ brand: g.brand }).brand, g.brand);
+    assert.equal(theme.sanitize({ brandTo: g.brandTo }).brandTo, g.brandTo);
+  }
+});
+
+test("nenhum pronto é uma cor só", () => {
+  // Duas pontas iguais é um botão sólido com um passo a mais para chegar lá.
+  for (const g of theme.GRADIENTS) {
+    assert.notEqual(g.brand, g.brandTo, g.key);
+  }
+});
+
+// ── Os botões: sombra, mouse e clique ────────────────────────────────────
+//
+// Vazio é "como está" nos três, e é o padrão. Qualquer outro valor vale para
+// TODOS os botões primários — inclusive os que hoje não têm sombra nenhuma —,
+// então o padrão é o único que não muda a tela de ninguém.
+
+test("os três nascem vazios: nada muda para quem nunca escolheu", () => {
+  const t = theme.sanitize({});
+
+  assert.equal(t.buttonShadow, "");
+  assert.equal(t.buttonHover, "");
+  assert.equal(t.buttonPress, "");
+});
+
+test("valor de fora da lista vira vazio, não o primeiro da lista", () => {
+  // Cair num valor qualquer daria a alguém um efeito que ninguém pediu.
+  assert.equal(theme.sanitize({ buttonShadow: "gigante" }).buttonShadow, "");
+  assert.equal(theme.sanitize({ buttonHover: "explodir" }).buttonHover, "");
+  assert.equal(theme.sanitize({ buttonPress: "sumir" }).buttonPress, "");
+});
+
+test("cada valor da lista é aceito como ele é", () => {
+  for (const v of theme.BUTTON_SHADOWS) {
+    assert.equal(theme.sanitize({ buttonShadow: v }).buttonShadow, v);
+  }
+  for (const v of theme.BUTTON_HOVERS) {
+    assert.equal(theme.sanitize({ buttonHover: v }).buttonHover, v);
+  }
+  for (const v of theme.BUTTON_PRESSES) {
+    assert.equal(theme.sanitize({ buttonPress: v }).buttonPress, v);
+  }
+});
+
+test("todo pronto aguenta TEXTO BRANCO nas duas pontas", () => {
+  // O texto do botão é branco. Um pronto com uma ponta clara seria um botão
+  // com metade do rótulo ilegível — e ninguém veria isso numa revisão de cor
+  // por hexadecimal.
+  //
+  // 3:1 é a régua do texto grande e em negrito, que é o caso do botão.
+  const luminancia = (hex) => {
+    const canais = [1, 3, 5]
+      .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+
+    return 0.2126 * canais[0] + 0.7152 * canais[1] + 0.0722 * canais[2];
+  };
+
+  const contraste = (hex) => 1.05 / (luminancia(hex) + 0.05);
+
+  for (const g of theme.GRADIENTS) {
+    assert.ok(contraste(g.brand) >= 3, `${g.key}: ponta ${g.brand} clara demais`);
+    assert.ok(contraste(g.brandTo) >= 3, `${g.key}: ponta ${g.brandTo} clara demais`);
+  }
+});
+
+test("nenhum pronto repete o par de outro", () => {
+  const vistos = new Set();
+
+  for (const g of theme.GRADIENTS) {
+    const par = `${g.brand}>${g.brandTo}`;
+    assert.ok(!vistos.has(par), `${g.key} repete ${par}`);
+    vistos.add(par);
+  }
+});
+
+// ── As imagens do tema ───────────────────────────────────────────────────
+//
+// Quem grava o tema também recolhe o lixo: as imagens que ele não referencia
+// mais são APAGADAS do banco. Por isso a lista de campos de imagem é uma coisa
+// só, e não uma lista escrita à mão em quem faz a faxina.
+//
+// A lista à mão existiu, ficou para trás quando a logo do menu nasceu, e o
+// efeito foi mudo e destrutivo: a imagem era enviada, gravada no tema, e
+// apagada na gravação SEGUINTE — a logo do menu virava 404 sozinha, algum tempo
+// depois, sem nada nos logs.
+
+test("as URLs de imagem do tema saem todas juntas", () => {
+  const urls = theme.imageUrls({
+    logo: "u/1",
+    menuLogo: "u/2",
+    photo: "u/3",
+    photos: ["u/4", "u/5"],
+  });
+
+  assert.deepEqual(urls, ["u/1", "u/2", "u/3", "u/4", "u/5"]);
+});
+
+test("campo de imagem vazio não entra na lista", () => {
+  // Um vazio na lista de "em uso" não apagaria nada, mas seria um `undefined`
+  // atravessando a consulta — e é ruído que esconde o erro de verdade.
+  assert.deepEqual(theme.imageUrls({ logo: "u/1", menuLogo: "", photos: [] }), ["u/1"]);
+  assert.deepEqual(theme.imageUrls({}), []);
+});
+
+test("TODO campo de imagem do saneamento está na lista da faxina", () => {
+  // Esta é a que impede o bug de voltar. O saneamento é a única lista completa
+  // de campos que guardam endereço de imagem: cada um passa por `parseUrl`.
+  // Um campo novo que não entre em IMAGE_FIELDS teria a imagem apagada na
+  // gravação seguinte, em silêncio.
+  const { readFileSync } = require("node:fs");
+  const fonte = readFileSync(require.resolve("../../lib/theme.js"), "utf8");
+
+  const comUrl = [...fonte.matchAll(/^\s{4}(\w+): parseUrl\(/gm)].map((m) => m[1]);
+  assert.ok(comUrl.length >= 3, "não achei os campos de imagem no saneamento");
+
+  for (const campo of comUrl) {
+    assert.ok(
+      theme.IMAGE_FIELDS.includes(campo),
+      `${campo} guarda imagem e não está em IMAGE_FIELDS — ela seria apagada`
+    );
+  }
+});
+
+// ── O fundo de depois de entrar ──────────────────────────────────────────
+//
+// A área onde se trabalha. O padrão é NÃO ter fundo: um desenho atrás de uma
+// tabela cansa em dez minutos, e quem quiser um pode escurecê-lo.
+
+test("sem fundo é o padrão", () => {
+  const t = theme.sanitize({});
+
+  assert.equal(t.appBg, "");
+  assert.equal(t.appBgPattern, "");
+  assert.equal(t.appBgDim, 0);
+});
+
+test("desenho de fora da lista não vira fundo", () => {
+  assert.equal(theme.sanitize({ appBgPattern: "xadrez" }).appBgPattern, "");
+});
+
+test("o escurecer é contido entre 0 e o teto", () => {
+  // Acima do teto o conteúdo perde contraste com o próprio fundo.
+  assert.equal(theme.sanitize({ appBgDim: 200 }).appBgDim, theme.MAX_APP_BG_DIM);
+  assert.equal(theme.sanitize({ appBgDim: -5 }).appBgDim, 0);
+  assert.equal(theme.sanitize({ appBgDim: 35 }).appBgDim, 35);
+});
+
+test("a imagem do fundo entra na faxina, como as outras", () => {
+  // Sem isto ela seria apagada do banco na gravação seguinte e viraria 404 —
+  // exatamente o que aconteceu com a logo do menu.
+  assert.ok(theme.IMAGE_FIELDS.includes("appBg"));
+  assert.deepEqual(theme.imageUrls({ appBg: "u/9" }), ["u/9"]);
+});
+
+// ── A barra do navegador ─────────────────────────────────────────────────
+//
+// O ícone da aba e o que vai escrito nela.
+
+test("o título da aba nasce como NOME FIXO", () => {
+  // Uma aba que diz "Pessoas" não diz de quem. Com quinze abas abertas, o nome
+  // é o que identifica.
+  assert.equal(theme.sanitize({}).tabTitle, "fixed");
+  assert.equal(theme.sanitize({}).tabName, "");
+  assert.equal(theme.sanitize({}).favicon, "");
+});
+
+test("modo de fora da lista cai no nome fixo, e não em vazio", () => {
+  // Uma aba SEMPRE tem título; não existe "sem título".
+  assert.equal(theme.sanitize({ tabTitle: "sumido" }).tabTitle, "fixed");
+});
+
+test("o favicon entra na faxina de imagens", () => {
+  // Sem isto ele seria apagado do banco na gravação seguinte e viraria 404 —
+  // o mesmo que aconteceu com a logo do menu.
+  assert.ok(theme.IMAGE_FIELDS.includes("favicon"));
+  assert.deepEqual(theme.imageUrls({ favicon: "u/1" }), ["u/1"]);
+});
+
+test("o nome da aba tem teto — barra de navegador não é campo de texto", () => {
+  assert.equal(theme.sanitize({ tabName: "x".repeat(200) }).tabName.length, 40);
+});
+
+// ── O link compartilhado ─────────────────────────────────────────────────
+//
+// O cartão que WhatsApp, LinkedIn e Google montam. Eles NÃO executam
+// JavaScript: leem o HTML cru, e é a função de borda que o reescreve.
+
+test("tudo vazio é o padrão do GoFitNow", () => {
+  const t = theme.sanitize({});
+
+  assert.equal(t.metaTitle, "");
+  assert.equal(t.metaDescription, "");
+  assert.equal(t.metaImage, "");
+  assert.equal(t.metaRobots, "", "sem tag de robô é o que o app faz hoje");
+  assert.equal(t.metaCard, "summary_large_image");
+});
+
+test("a descrição para no tamanho que os robôs leem", () => {
+  // Guardar mais é guardar o que ninguém vê.
+  assert.equal(theme.sanitize({ metaDescription: "x".repeat(500) }).metaDescription.length, 200);
+  assert.equal(theme.sanitize({ metaTitle: "x".repeat(500) }).metaTitle.length, 70);
+});
+
+test("formato e robô fora da lista caem no padrão", () => {
+  assert.equal(theme.sanitize({ metaCard: "gigante" }).metaCard, "summary_large_image");
+  assert.equal(theme.sanitize({ metaRobots: "talvez" }).metaRobots, "");
+});
+
+test("a imagem de compartilhamento entra na faxina", () => {
+  assert.ok(theme.IMAGE_FIELDS.includes("metaImage"));
+});
+
+test("cor de barra inválida vira vazio — vazio acompanha a marca", () => {
+  assert.equal(theme.sanitize({ metaThemeColor: "azulzão" }).metaThemeColor, "");
+});
+
+test("apagar o fundo é contido, e o teto não é 100", () => {
+  // Apagar por inteiro é o mesmo que não ter fundo — e aí a escolha certa é
+  // "Sem fundo", que nem paga o download da imagem.
+  assert.equal(theme.sanitize({ appBgFade: 300 }).appBgFade, theme.MAX_APP_BG_FADE);
+  assert.ok(theme.MAX_APP_BG_FADE < 100);
+  assert.equal(theme.sanitize({ appBgFade: -1 }).appBgFade, 0);
+  assert.equal(theme.sanitize({}).appBgFade, 0);
+});

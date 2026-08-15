@@ -53,6 +53,13 @@ function numeroOuNulo(valor) {
 // momento em que a pessoa escolhe, porque é lá que ela vê o número mudar. O
 // servidor guarda o que foi combinado, não recalcula: recalcular amanhã, com uma
 // tabela corrigida, mudaria um plano que já foi impresso e entregue.
+// `group` junta alimentos ALTERNATIVOS: "pão de forma OU tapioca". Os que
+// compartilham o número são opções da mesma escolha; números diferentes somam.
+//
+// Um número e não uma lista aninhada porque isto é acrescentado a um formato que
+// já existe: refeição gravada antes desta ideia tem `group` ausente, e cada
+// alimento dela continua valendo por si — nenhuma migração, nenhum plano
+// reinterpretado.
 function limparAlimento(a, i) {
   return {
     foodId: ObjectId.isValid(a.foodId) ? new ObjectId(a.foodId) : null,
@@ -63,6 +70,7 @@ function limparAlimento(a, i) {
     protein: numeroOuNulo(a.protein),
     carbs: numeroOuNulo(a.carbs),
     fat: numeroOuNulo(a.fat),
+    group: Number.isInteger(Number(a.group)) && Number(a.group) >= 0 ? Number(a.group) : null,
     order: i,
   };
 }
@@ -81,6 +89,26 @@ function limparRefeicao(r, i) {
     foods: (r.foods || []).map(limparAlimento),
     order: i,
   };
+}
+
+// Só a PRIMEIRA opção de cada grupo entra na conta.
+//
+// "Pão de forma ou tapioca" é uma escolha, não duas refeições: somar as duas
+// diria que a pessoa come as duas, e o total do dia ficaria inflado. A primeira
+// é a referência porque é a que o profissional listou primeiro — e é o que ele
+// vê no topo quando confere as calorias.
+//
+// Alimento sem grupo vale por si: é o caso de tudo que foi gravado antes de
+// existir substituição, e do prato comum que não tem alternativa.
+function principais(foods) {
+  const vistos = new Set();
+
+  return (foods || []).filter((f, i) => {
+    const chave = f.group === null || f.group === undefined ? `solo-${i}` : `grupo-${f.group}`;
+    if (vistos.has(chave)) return false;
+    vistos.add(chave);
+    return true;
+  });
 }
 
 // A soma de uma refeição e a do plano inteiro.
@@ -113,7 +141,7 @@ function somar(itens) {
 
 function comTotais(doc) {
   const meals = (doc.meals || [])
-    .map((m) => ({ ...m, totals: somar(m.foods || []) }))
+    .map((m) => ({ ...m, totals: somar(principais(m.foods)) }))
     // Ordenadas pelo HORÁRIO, que é como o dia acontece. Refeição sem horário
     // vai para o fim: ela não sabe onde entrar no dia.
     .sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"));
@@ -124,7 +152,7 @@ function comTotais(doc) {
     status: statusOf(doc),
     mealCount: meals.length,
     foodCount: meals.reduce((t, m) => t + (m.foods || []).length, 0),
-    totals: somar(meals.flatMap((m) => m.foods || [])),
+    totals: somar(meals.flatMap((m) => principais(m.foods))),
   };
 }
 

@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const { MIMES, parseImageDataUri } = require("../lib/imageDataUri.js");
 
 // A collection `avatars` — a foto de perfil de cada conta.
 //
@@ -14,10 +15,6 @@ function Avatar_model(app) {
   this.app = app;
 }
 
-// O que o navegador consegue exibir sem plugin. SVG fica de fora: é um
-// documento executável, não uma imagem, e serviria script na nossa origem.
-const MIMES = ["image/jpeg", "image/png", "image/webp"];
-
 // Teto do que é aceito, já contando a inflação de ~33% do base64. A tela envia
 // bem menos que isso; o limite existe para o que não veio da tela.
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -28,17 +25,11 @@ Avatar_model.prototype.collection = async function () {
 };
 
 // "data:image/jpeg;base64,AAAA…" → { mime, buffer } ou undefined.
+//
+// A leitura em si é compartilhada com as outras imagens do sistema; o que é
+// desta é o teto de tamanho.
 Avatar_model.prototype.parseDataUri = function (dataUri) {
-  const match = /^data:([a-z/+-]+);base64,(.+)$/i.exec(String(dataUri || "").trim());
-  if (!match) return undefined;
-
-  const mime = match[1].toLowerCase();
-  if (!MIMES.includes(mime)) return undefined;
-
-  const buffer = Buffer.from(match[2], "base64");
-  if (buffer.length === 0 || buffer.length > MAX_BYTES) return undefined;
-
-  return { mime, buffer };
+  return parseImageDataUri(dataUri, MAX_BYTES);
 };
 
 Avatar_model.prototype.save = async function (userId, mime, buffer) {

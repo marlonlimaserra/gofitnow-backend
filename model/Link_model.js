@@ -158,10 +158,22 @@ Link_model.prototype.exists = async function (professionalId, personId) {
 };
 
 // The ids of everyone this professional follows.
-Link_model.prototype.personIdsOf = async function (professionalId) {
+// `filtros.active` filtra aqui em vez de na listagem de pessoas, e a diferença
+// é de custo: lá o status só existe depois de juntar o vínculo de todo mundo —
+// 30ms com 215 pessoas. Aqui os vínculos já estão na mão, e filtrar sai de
+// graça; a lista de pessoas recebe menos ids e nem precisa da junção antes do
+// corte.
+Link_model.prototype.personIdsOf = async function (professionalId, filtros = {}) {
   const col = await this.collection();
   const docs = await col.find({ professional: new ObjectId(professionalId) }).toArray();
-  return docs.map((d) => d.person);
+
+  if (filtros.active === undefined || filtros.active === "") return docs.map((d) => d.person);
+
+  // Ativo é tudo que não é exatamente 0 — a mesma regra do `activeOf`, e a que
+  // faz vínculo antigo, criado antes do campo existir, continuar contando como
+  // ativo em vez de sumir da lista.
+  const querAtivo = Number(filtros.active) ? 1 : 0;
+  return docs.filter((d) => (d.active === 0 ? 0 : 1) === querAtivo).map((d) => d.person);
 };
 
 // The other direction: every professional who follows this person. The person

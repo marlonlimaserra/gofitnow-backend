@@ -10,7 +10,7 @@ const PESSOA = { _id: "p1", name: "Ana", email: "ana@x.com" };
 // Monta a rota de verdade sobre modelos de mentira, e devolve o que os modelos
 // receberam — é sobre isso que os testes afirmam.
 function monta({ target = PESSOA, existente } = {}) {
-  const chamadas = { updateStudent: [], setNotes: [], setActive: [] };
+  const chamadas = { updateStudent: [], setNotes: [], setActive: [], insertStudent: [] };
   const permissao = permiteTudo(TRAINER);
 
   const app = fakeApp({
@@ -26,6 +26,10 @@ function monta({ target = PESSOA, existente } = {}) {
         async updateStudent(trainerId, id, obj) {
           chamadas.updateStudent.push(obj);
           return true;
+        },
+        async insertStudent(trainerId, obj) {
+          chamadas.insertStudent.push(obj);
+          return "novo1";
         },
         async data() {
           return { ...target, name: "Ana" };
@@ -46,6 +50,12 @@ function monta({ target = PESSOA, existente } = {}) {
           return 1;
         },
       },
+      role: {
+        clientName: "Pessoa",
+        async dataByName() {
+          return { _id: "r1" };
+        },
+      },
       actionHistory: { diff: () => ({}) },
     },
   });
@@ -56,6 +66,79 @@ function monta({ target = PESSOA, existente } = {}) {
 
 const put = (app, body, headers) =>
   call(app, "put", "/people/p1", { body, params: { id: "p1" }, headers });
+
+const post = (app, body) => call(app, "post", "/people", { body });
+
+// ── Cadastrar ─────────────────────────────────────────────────────────────
+//
+// O e-mail deixou de ser obrigatório em 14/08/2026. A maior parte das fichas
+// nunca vai entrar no app, e exigir endereço de quem não tem enchia a lista de
+// aluno1@aluno.com — que parece dado, não é, e ainda ocupa o índice único.
+
+test("cadastra só com o nome — sem e-mail nenhum", async () => {
+  const { app, chamadas } = monta();
+  const r = await post(app, { name: "Ana" });
+
+  assert.equal(r.status, 201);
+  assert.equal(chamadas.insertStudent.length, 1);
+  assert.equal(chamadas.insertStudent[0].email, "");
+});
+
+test("e-mail só de espaços entra como ficha sem e-mail, não como endereço em branco", async () => {
+  // Gravar "   " passaria pelo índice parcial como string e roubaria o lugar de
+  // outra ficha vazia. Quem apara é a rota, antes do modelo.
+  const { app, chamadas } = monta();
+  const r = await post(app, { name: "Ana", email: "   " });
+
+  assert.equal(r.status, 201);
+  assert.equal(chamadas.insertStudent[0].email, "");
+});
+
+test("e-mail escrito errado continua sendo recusado", async () => {
+  // Opcional não é o mesmo que aceito de qualquer jeito: "ana@" é engano de
+  // digitação, e gravar assim quebraria o login e o e-mail que sai daqui.
+  const { app, chamadas } = monta();
+  const r = await post(app, { name: "Ana", email: "ana@" });
+
+  assert.equal(r.status, 400);
+  assert.equal(chamadas.insertStudent.length, 0);
+});
+
+test("senha sem e-mail é recusada — seria chave sem porta", async () => {
+  // O pior desfecho seria gravar a ficha ignorando a senha: o profissional sai
+  // achando que a pessoa já pode entrar no app.
+  const { app, chamadas } = monta();
+  const r = await post(app, { name: "Ana", password: "segredo123" });
+
+  assert.equal(r.status, 400);
+  assert.equal(r.body.code, "password_needs_email");
+  assert.equal(chamadas.insertStudent.length, 0);
+});
+
+test("duas fichas sem e-mail não disputam nada — a checagem de repetido nem roda", async () => {
+  // `dataByEmail` devolvendo alguém não pode barrar quem não mandou endereço.
+  const { app } = monta({ existente: { _id: "outra" } });
+  const r = await post(app, { name: "Ana" });
+
+  assert.equal(r.status, 201);
+});
+
+test("com e-mail, o já cadastrado continua dando 409", async () => {
+  const { app, chamadas } = monta({ existente: { _id: "outra" } });
+  const r = await post(app, { name: "Ana", email: "ana@x.com" });
+
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, "email_taken");
+  assert.equal(chamadas.insertStudent.length, 0);
+});
+
+test("nome continua obrigatório — é o que sobrou de identidade", async () => {
+  const { app, chamadas } = monta();
+  const r = await post(app, { name: "A", email: "ana@x.com" });
+
+  assert.equal(r.status, 400);
+  assert.equal(chamadas.insertStudent.length, 0);
+});
 
 test("editar mandando o MESMO e-mail continua funcionando", async () => {
   // O formulário envia a ficha inteira; recusar um valor igual ao gravado só
@@ -133,6 +216,50 @@ test("a recusa sai no idioma do pedido", async () => {
     const r = await put(app, { email: "ocupado@x.com" }, { "accept-language": lang });
     assert.match(r.body.msg, trecho, lang);
   }
+});
+
+test("apagar o e-mail de quem NÃO entra no app é permitido", async () => {
+  // O caminho de volta do cadastro sem e-mail: gravou errado, apaga. O modelo
+  // recebe a string vazia e transforma em campo ausente.
+  const { app, chamadas } = monta({ target: { _id: "p1", name: "Ana", email: "ana@x.com" } });
+  const r = await put(app, { name: "Ana", email: "" });
+
+  assert.equal(r.status, 200);
+  assert.equal(chamadas.updateStudent[0].email, "");
+});
+
+test("apagar o e-mail de quem ENTRA no app é recusado", async () => {
+  // Sem endereço não há login. Apagar em silêncio trancaria a pessoa do lado de
+  // fora sem ninguém saber — quem quer isso tem o botão de tirar o acesso, que
+  // ao menos diz o que faz.
+  const { app, chamadas } = monta({
+    target: { _id: "p1", name: "Ana", email: "ana@x.com", password: "hash" },
+  });
+  const r = await put(app, { email: "" });
+
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, "email_is_login");
+  assert.equal(chamadas.updateStudent.length, 0);
+});
+
+test("dar acesso a quem está sem e-mail é recusado", async () => {
+  const { app, chamadas } = monta({ target: { _id: "p1", name: "Ana" } });
+  const r = await put(app, { password: "segredo123" });
+
+  assert.equal(r.status, 400);
+  assert.equal(r.body.code, "password_needs_email");
+  assert.equal(chamadas.updateStudent.length, 0);
+});
+
+test("dar acesso junto com o e-mail, na mesma gravada, funciona", async () => {
+  // É o caso real: a ficha nasceu sem endereço e agora a pessoa quer entrar no
+  // app. Os dois campos vêm no mesmo salvar, e ler só o que está gravado
+  // recusaria com "precisa de e-mail" bem na hora em que ele está sendo dado.
+  const { app, chamadas } = monta({ target: { _id: "p1", name: "Ana" } });
+  const r = await put(app, { email: "ana@x.com", password: "segredo123" });
+
+  assert.equal(r.status, 200);
+  assert.equal(chamadas.updateStudent.length, 1);
 });
 
 test("nome com menos de 2 letras é recusado antes de tocar o modelo", async () => {

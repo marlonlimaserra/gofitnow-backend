@@ -1,4 +1,5 @@
 const domainLib = require("../lib/domain.js");
+const currencies = require("../lib/currencies.js");
 const themeLib = require("../lib/theme.js");
 const cloudflare = require("../lib/cloudflare.js");
 const dnscheck = require("../lib/dnscheck.js");
@@ -104,6 +105,21 @@ module.exports = function (app) {
       motionSpeedRange: { min: themeLib.MIN_MOTION_SPEED, max: themeLib.MAX_MOTION_SPEED },
       overlayRange: { min: themeLib.MIN_OVERLAY, max: themeLib.MAX_OVERLAY },
       presets: themeLib.PRESETS,
+      gradients: themeLib.GRADIENTS,
+      buttonShadows: themeLib.BUTTON_SHADOWS,
+      buttonHovers: themeLib.BUTTON_HOVERS,
+      buttonPresses: themeLib.BUTTON_PRESSES,
+      appBgPatterns: themeLib.APP_BG_PATTERNS,
+      appBgColors: themeLib.APP_BG_COLORS,
+      appBgMotions: themeLib.APP_BG_MOTIONS,
+      fonts: themeLib.FONTS,
+      menuLayouts: themeLib.MENU_LAYOUTS,
+      tabTitles: themeLib.TAB_TITLES,
+      metaCards: themeLib.META_CARDS,
+      metaRobots: themeLib.META_ROBOTS,
+      appBgSpeedRange: { min: themeLib.MIN_APP_BG_SPEED, max: themeLib.MAX_APP_BG_SPEED },
+      appBgDimMax: themeLib.MAX_APP_BG_DIM,
+      appBgFadeMax: themeLib.MAX_APP_BG_FADE,
       maxPhotos: themeLib.MAX_PHOTOS,
       // A tela precisa saber se dá para registrar antes de oferecer o botão.
       dnsReady: cf.isConfigured(),
@@ -339,6 +355,41 @@ module.exports = function (app) {
     res.send({ customDomain: "", customStatus: "none" });
   });
 
+  // A moeda do cliente.
+  //
+  // Rota própria e não dentro do tema: uma é aparência, a outra é regra de
+  // negócio — e quem mexe numa não está mexendo na outra.
+  app.get("/me/currency", async function (req, res) {
+    const user = await app.helpers.ReqProtected.verify(req, res);
+    if (user === false) return;
+
+    const moedas = await app.api.tenant.currencyOfInstance();
+
+    res.send({
+      currency: moedas.currency,
+      currencies: moedas.currencies,
+      options: currencies.CURRENCIES,
+    });
+  });
+
+  app.put("/me/currency", async function (req, res) {
+    // Trocar a moeda muda como TODO valor do cliente é lido. É administração,
+    // não preferência — daí exigir a permissão do financeiro.
+    const user = await app.helpers.ReqProtected.can(req, res, "finance.manage");
+    if (user === false) return;
+
+    const body = req.body || {};
+    const salvas = await app.api.tenant.saveCurrency(user._id, body.currency, body.currencies);
+
+    app.insertUserActionHistory(req, user, "update_currency", {
+      category: "admin",
+      local: { target_type: "tenants", target_id: String(user._id) },
+      extra: { currency: salvas.currency, currencies: salvas.currencies.join(", ") },
+    });
+
+    res.send(salvas);
+  });
+
   app.put("/me/tenant/theme", async function (req, res) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;
@@ -351,8 +402,14 @@ module.exports = function (app) {
     //
     // Nunca derruba a rota: o tema já está gravado, e falhar a resposta por
     // causa da faxina faria a tela dizer que não salvou o que salvou.
+    //
+    // A lista tem de conter TODA imagem que o tema referencia. Faltou
+    // `menuLogo` quando a logo do menu nasceu, e o efeito foi mudo e destrutivo:
+    // a imagem era enviada, gravada no tema, e apagada do banco na gravação
+    // seguinte por não estar aqui. A URL continuava no tema, apontando para o
+    // nada — a logo do menu virava 404 sozinha, algum tempo depois.
     try {
-      await app.api.brandImage.pruneUnused(user._id, [salvo.logo, salvo.photo, ...salvo.photos]);
+      await app.api.brandImage.pruneUnused(user._id, themeLib.imageUrls(salvo));
     } catch (error) {
       // Fica para a próxima gravação.
     }

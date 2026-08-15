@@ -196,6 +196,49 @@ User_model.prototype.namesByIds = async function (ids) {
   return new Map(docs.map((d) => [String(d._id), d.name]));
 };
 
+// Nome e avatar de várias contas de uma vez — o mínimo para desenhar uma
+// pessoa numa lista.
+//
+// Separado de `namesByIds` porque ali o retorno é um Map de id → nome, usado em
+// vários lugares para escrever um nome solto. Acrescentar campo àquele mudaria
+// o formato para todo mundo que já o consome.
+User_model.prototype.briefByIds = async function (ids) {
+  const validos = [...new Set((ids || []).map(String))]
+    .filter((id) => ObjectId.isValid(id))
+    .map((id) => new ObjectId(id));
+
+  if (!validos.length) return {};
+
+  const col = await this.collection();
+  const docs = await col
+    .find({ _id: { $in: validos } }, { projection: { name: 1, avatarAt: 1 } })
+    .toArray();
+
+  return Object.fromEntries(
+    docs.map((d) => [String(d._id), { name: d.name, avatarAt: d.avatarAt || null }])
+  );
+};
+
+// Os profissionais deste cliente — as contas que atendem.
+//
+// É `type: trainer` e não "quem tem permissão de agenda": permissão diz o que a
+// conta PODE fazer, e a lista aqui responde quem EXISTE para ser escolhido. Uma
+// recepcionista com acesso à agenda não é alguém a quem se marca um horário.
+User_model.prototype.professionals = async function () {
+  const col = await this.collection();
+
+  const docs = await col
+    .find({ type: "trainer" }, { projection: { name: 1, avatarAt: 1 } })
+    .sort({ name: 1 })
+    .toArray();
+
+  return docs.map((d) => ({ _id: d._id, name: d.name, avatarAt: d.avatarAt || null }));
+};
+
+User_model.prototype.professionalIds = async function () {
+  return (await this.professionals()).map((p) => p._id);
+};
+
 User_model.prototype.dataByEmail = async function (email) {
   const e = normalizeEmail(email);
   if (!e) return undefined;
@@ -371,6 +414,16 @@ User_model.prototype.countStudentsOfTrainer = async function (trainerId) {
   return await this.app.api.link.countPeopleOf(trainerId);
 };
 
+// Quantas contas de PROFISSIONAL existem nesta instância.
+//
+// Uma só pergunta a responde: "esta casa já tem dono?". É o que impede a rota
+// interna de primeiro acesso de criar um segundo administrador em cliente que
+// já está rodando.
+User_model.prototype.countTrainers = async function () {
+  const col = await this.collection();
+  return await col.countDocuments({ type: "trainer" });
+};
+
 // How many ACTIVE accounts can still hand permissions out. Used to stop the
 // last one from demoting or deleting themself and leaving the platform with
 // no way back into the permission screens.
@@ -449,7 +502,9 @@ const ORDEM_PESSOAS = {
 User_model.prototype.pageStudents = async function (trainerId, filtros = {}) {
   const col = await this.collection();
 
-  const ids = await this.app.api.link.personIdsOf(trainerId);
+  // O filtro de ativo/inativo vai no VÍNCULO, que é onde o status mora — e é
+  // por isso que ele some do pipeline lá embaixo.
+  const ids = await this.app.api.link.personIdsOf(trainerId, { active: filtros.active });
   if (!ids.length) return { rows: [], total: 0 };
 
   const etapas = [{ $match: { _id: { $in: ids } } }];
@@ -466,7 +521,16 @@ User_model.prototype.pageStudents = async function (trainerId, filtros = {}) {
     });
   }
 
-  etapas.push(
+  // A junção com o vínculo — e o `active`/`notes` que saem dela.
+  //
+  // Ela é a parte cara desta consulta: um `$expr` correlacionado por pessoa, que
+  // o Mongo não resolve por índice. Rodá-la antes do corte custa 32ms com 215
+  // pessoas; depois do corte, 5ms — porque aí são quinze junções em vez de 215.
+  //
+  // Só que nem sempre dá: filtrar ou ordenar por `active` precisa do campo antes
+  // de escolher QUAIS quinze. Nesses dois casos ela sobe, e é o preço de filtrar
+  // por algo que não mora na pessoa.
+  const juntarVinculo = [
     {
       $lookup: {
         from: "professional_links",
@@ -491,17 +555,24 @@ User_model.prototype.pageStudents = async function (trainerId, filtros = {}) {
       $addFields: {
         active: { $ifNull: [{ $arrayElemAt: ["$vinculo.active", 0] }, 1] },
         notes: { $ifNull: [{ $arrayElemAt: ["$vinculo.notes", 0] }, ""] },
-        hasAccess: { $cond: [{ $ifNull: ["$password", false] }, true, false] },
       },
-    }
-  );
+    },
+  ];
 
-  if (filtros.active !== undefined && filtros.active !== "") {
-    etapas.push({ $match: { active: Number(filtros.active) ? 1 : 0 } });
-  }
+  // `hasAccess` fica sempre antes: é campo de ordenação e não custa nada — sai
+  // de um `$cond` no próprio documento, sem junção.
+  etapas.push({
+    $addFields: { hasAccess: { $cond: [{ $ifNull: ["$password", false] }, true, false] } },
+  });
 
   const campo = ORDEM_PESSOAS[filtros.sort] || "createdAt";
   const direcao = filtros.dir === "asc" ? 1 : -1;
+
+  // Filtrar por status já aconteceu, na escolha dos ids. O que ainda obriga a
+  // junção a subir é ORDENAR por ele: não dá para escolher as quinze primeiras
+  // por um campo que só existe depois de juntar.
+  const precisaDoVinculoAntes = campo === "active";
+  if (precisaDoVinculoAntes) etapas.push(...juntarVinculo);
 
   // Vazio sempre no fim, nas duas direções — a mesma regra que a tela seguia
   // quando ordenava sozinha. Ordenar por Objetivo para encontrar uma fileira de
@@ -523,6 +594,8 @@ User_model.prototype.pageStudents = async function (trainerId, filtros = {}) {
         { $sort: ordem },
         { $skip: (pagina - 1) * limite },
         { $limit: limite },
+        // Daqui para baixo são quinze pessoas, não a lista inteira.
+        ...(precisaDoVinculoAntes ? [] : juntarVinculo),
         { $project: { password: 0, salt: 0, vinculo: 0, __vazio: 0 } },
       ],
       total: [{ $count: "n" }],
@@ -689,6 +762,17 @@ User_model.prototype.deleteStudent = async function (trainerId, id) {
   await this.app.api.link.deleteAllOf(id);
   await this.app.api.workout.deleteAllOfStudent(id);
   await this.app.api.diet.deleteAllOfStudent(id);
+  // As fotos são referenciadas pela COLETA, não pela pessoa — então os ids
+  // precisam ser lidos antes de as coletas sumirem.
+  // As conversas somem com a pessoa: uma linha na lista apontando para uma
+  // conta apagada não abre nada e não explica por quê.
+  await this.app.api.chat.deleteAllOfUser(id);
+  await this.app.api.appointment.deleteAllOfStudent(id);
+  await this.app.api.finance.deleteAllOfStudent(id);
+
+  const coletas = await this.app.api.assessment.idsOfStudent(id);
+  await this.app.api.assessmentPhoto.deleteAllOfAssessments(coletas);
+  await this.app.api.assessment.deleteAllOfStudent(id);
 
   return r.deletedCount > 0;
 };
