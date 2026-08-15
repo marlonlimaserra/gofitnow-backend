@@ -413,7 +413,8 @@
     "update_ai_settings": "Configuró el asistente",
     "create_booking_page": "Creó una página de reserva",
     "update_booking_page": "Cambió una página de reserva",
-    "delete_booking_page": "Eliminó una página de reserva"
+    "delete_booking_page": "Eliminó una página de reserva",
+    "mcp_tool": "El asistente usó una herramienta"
   },
   "categories": {
     "auth": "Acceso",
@@ -444,7 +445,8 @@
     "services": "Servicio",
     "charges": "Cobro",
     "payments": "Pago",
-    "availability": "Agenda pública"
+    "availability": "Agenda pública",
+    "mcp": "Herramienta del asistente"
   },
   "autoFill": {
     "groups": {

@@ -27,5 +27,7 @@ routes.Ai = require("./controllers/Ai.js");
 routes.Brand = require("./controllers/Brand.js");
 // Chamadas por outro serviço nosso (o painel do center), não por navegador.
 routes.Internal = require("./controllers/Internal.js");
+// A porta MCP: onde um modelo opera o sistema por ferramenta, e não pela tela.
+routes.Mcp = require("./controllers/Mcp.js");
 
 module.exports = routes;

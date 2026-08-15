@@ -413,7 +413,8 @@
     "update_ai_settings": "A configuré l’assistant",
     "create_booking_page": "A créé une page de réservation",
     "update_booking_page": "A modifié une page de réservation",
-    "delete_booking_page": "A supprimé une page de réservation"
+    "delete_booking_page": "A supprimé une page de réservation",
+    "mcp_tool": "L'assistant a utilisé un outil"
   },
   "categories": {
     "auth": "Accès",
@@ -444,7 +445,8 @@
     "services": "Service",
     "charges": "Facture",
     "payments": "Paiement",
-    "availability": "Agenda public"
+    "availability": "Agenda public",
+    "mcp": "Outil de l'assistant"
   },
   "autoFill": {
     "groups": {

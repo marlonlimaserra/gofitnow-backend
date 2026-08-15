@@ -413,7 +413,8 @@
     "update_ai_settings": "Configured the assistant",
     "create_booking_page": "Created a booking page",
     "update_booking_page": "Changed a booking page",
-    "delete_booking_page": "Removed a booking page"
+    "delete_booking_page": "Removed a booking page",
+    "mcp_tool": "Assistant used a tool"
   },
   "categories": {
     "auth": "Access",
@@ -444,7 +445,8 @@
     "services": "Service",
     "charges": "Charge",
     "payments": "Payment",
-    "availability": "Public availability"
+    "availability": "Public availability",
+    "mcp": "Assistant tool"
   },
   "autoFill": {
     "groups": {

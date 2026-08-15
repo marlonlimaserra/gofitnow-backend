@@ -413,7 +413,8 @@
     "update_ai_settings": "Configurou o assistente",
     "create_booking_page": "Criou uma página de agendamento",
     "update_booking_page": "Alterou uma página de agendamento",
-    "delete_booking_page": "Removeu uma página de agendamento"
+    "delete_booking_page": "Removeu uma página de agendamento",
+    "mcp_tool": "Assistente usou uma ferramenta"
   },
   "categories": {
     "auth": "Acesso",
@@ -444,7 +445,8 @@
     "services": "Serviço",
     "charges": "Cobrança",
     "payments": "Pagamento",
-    "availability": "Agenda pública"
+    "availability": "Agenda pública",
+    "mcp": "Ferramenta do assistente"
   },
   "autoFill": {
     "groups": {
