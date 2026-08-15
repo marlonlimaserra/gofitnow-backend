@@ -218,6 +218,44 @@ test("a resposta diz ONDE olhar — é o que faz a tela acompanhar", async () =>
   assert.equal(saida(r).alvo.rota, `/people/${PESSOA}`);
 });
 
+test("achar UMA pessoa leva a tela até ela", async () => {
+  // Procurar alguém pelo nome quase sempre é o começo de "e agora faz X com
+  // ela": abrir a ficha adianta o passo seguinte e mostra que a busca acertou.
+  const { app } = monta();
+
+  const r = await rpc(app, "tools/call", { name: "pessoa_buscar", arguments: { termo: "bru" } });
+
+  assert.equal(saida(r).alvo.rota, `/people/${PESSOA}`);
+});
+
+test("achar VÁRIAS não navega para nenhuma", async () => {
+  // Escolher uma seria escolher pela pessoa; ir para a lista sem o filtro seria
+  // pior que ficar parado, porque ela teria de buscar de novo à mão.
+  const { app } = monta();
+  app.api.user.pageStudents = async () => ({
+    rows: [
+      { _id: PESSOA, name: "Bruna" },
+      { _id: new ObjectId(), name: "Bruno" },
+    ],
+  });
+
+  const r = await rpc(app, "tools/call", { name: "pessoa_buscar", arguments: { termo: "bru" } });
+
+  assert.equal(saida(r).pessoas.length, 2);
+  assert.equal(saida(r).alvo, undefined);
+});
+
+test("ver um treino abre o treino", async () => {
+  const { app } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "treino_ver",
+    arguments: { treinoId: String(TREINO) },
+  });
+
+  assert.equal(saida(r).alvo.rota, `/people/${PESSOA}/workouts/${TREINO}`);
+});
+
 test("a ficha devolvida NÃO traz senha nem salt", async () => {
   // O que entra no contexto de um modelo sai na resposta dele em algum momento.
   const { app } = monta();
