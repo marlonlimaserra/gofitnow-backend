@@ -1,5 +1,14 @@
 const ai = require("../lib/ai.js");
 const instanceContext = require("../lib/instance.js");
+const mcpTools = require("../lib/mcpTools.js");
+
+// Quantas vezes o servidor pode ir ao modelo dentro de UM turno.
+//
+// Cada volta é uma ferramenta executada e uma pergunta nova. Seis dá para
+// "busca o exercício, acrescenta, ajusta as séries, confere" com folga — e é
+// baixo o bastante para um laço que se enrosque parar de custar dinheiro.
+const MAX_PASSOS_DE_FERRAMENTA = 6;
+const tempoReal = require("../lib/tempoReal.js");
 
 // O assistente.
 //
@@ -145,6 +154,63 @@ module.exports = function (app) {
   // estado), o servidor acrescenta modelo, instrução e ferramentas, e devolve a
   // resposta crua — inclusive os pedidos de ferramenta, que é o que a tela
   // executa antes de chamar de novo.
+  // Executa uma ferramenta DO SERVIDOR pedida pelo modelo.
+  //
+  // É o mesmo caminho da porta MCP — a permissão da tela, o histórico e o aviso
+  // de tempo real. Uma segunda implementação aqui seria uma segunda regra, e a
+  // divergência apareceria como "pela conversa deixa, pelo MCP não".
+  async function executarFerramenta(req, user, nome, entrada) {
+    const ferramenta = mcpTools.achar(nome);
+    if (!ferramenta) return { ok: false, erro: "ferramenta_desconhecida" };
+
+    if (!app.helpers.ReqProtected.has(user, ferramenta.permissao)) {
+      return { ok: false, erro: "sem_permissao", detalhe: ferramenta.permissao };
+    }
+
+    let saida;
+    try {
+      saida = await ferramenta.executar(app, user, entrada || {});
+    } catch (error) {
+      console.error("[ai] ferramenta", nome, error);
+      return { ok: false, erro: "falha_interna" };
+    }
+
+    if (saida?.ok && saida.alvo) {
+      try {
+        tempoReal.avisar(instanceContext.current(), String(user._id), "assistente:alvo", {
+          ferramenta: nome,
+          ...saida.alvo,
+        });
+      } catch (error) {
+        // A tela não acompanhar não desfaz o que já foi gravado.
+      }
+    }
+
+    if (saida?.ok) {
+      app.insertUserActionHistory(req, user, "mcp_tool", {
+        category: "admin",
+        local: { target_type: "mcp", target_id: nome },
+        extra: { ferramenta: nome, argumentos: entrada || {}, via: "conversa" },
+      });
+    }
+
+    return saida;
+  }
+
+  // A porta para o TURNO MISTO.
+  //
+  // Quando o modelo pede, no mesmo turno, uma ferramenta do servidor e uma da
+  // tela, o laço lá de baixo não pode resolver sozinho: o protocolo exige uma
+  // resposta para CADA pedido, e metade delas depende do navegador. Então a
+  // tela executa as dela e pede as nossas por aqui.
+  app.post("/ai/tool", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "ai.use");
+    if (user === false) return;
+
+    const saida = await executarFerramenta(req, user, req.body?.name, req.body?.input);
+    res.send(saida);
+  });
+
   app.post("/ai/chat", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "ai.use");
     if (user === false) return;
@@ -160,10 +226,24 @@ module.exports = function (app) {
 
     const local = credenciais.provider === "ollama";
 
+    // A conversa CRESCE dentro deste turno.
+    //
+    // Quando o modelo pede uma ferramenta do SERVIDOR, quem executa somos nós —
+    // e aí ele precisa ver o resultado para seguir. Devolver isso para a tela e
+    // esperar ela voltar seria uma ida e volta de rede por passo, que é
+    // exatamente o custo que a porta de ferramentas veio tirar.
+    //
+    // O laço para quando o modelo escreve texto ou pede algo que só o navegador
+    // faz (ver_tela, clicar, preencher).
+    let conversa = messages;
+    let dados = null;
+    let usoTotal = null;
+
+    for (let passo = 0; passo < MAX_PASSOS_DE_FERRAMENTA; passo++) {
     const body = ai.requestBody({
       provider: credenciais.provider,
       model: credenciais.model,
-      messages,
+      messages: conversa,
       language: req.lang,
       user,
       // A palavra que ESTE profissional escolheu. Vem da conta de quem está
@@ -215,7 +295,7 @@ module.exports = function (app) {
     const cru = await resposta.json().catch(() => null);
     // A resposta do Ollama vem no dialeto da OpenAI e é traduzida aqui, na
     // borda. Daqui para baixo o código é um só.
-    const dados = local && resposta.ok ? ai.ollama.daResposta(cru) : cru;
+    dados = local && resposta.ok ? ai.ollama.daResposta(cru) : cru;
 
     if (!resposta.ok) {
       // O erro da Anthropic é repassado com o CÓDIGO dela e uma frase nossa.
@@ -252,6 +332,39 @@ module.exports = function (app) {
       return res.status(200).send({ refusal: true, msg: req.t("errors.aiRefused") });
     }
 
+    // O gasto de TODOS os passos deste turno, somado: cada ida ao modelo custa,
+    // e mostrar só a última faria o turno parecer barato.
+    usoTotal = ai.somarUsage(usoTotal, dados?.usage);
+
+    // O que o modelo pediu, separado por quem executa.
+    const pedidos = (dados?.content || []).filter((c) => c.type === "tool_use");
+    const doServidor = pedidos.filter((c) => ai.NOMES_DO_SERVIDOR.has(c.name));
+
+    // Só seguimos sozinhos quando TUDO no turno é nosso. Um turno misto —
+    // ferramenta nossa e clique na mesma resposta — não pode ser resolvido pela
+    // metade: o protocolo exige uma resposta para cada pedido, e as do
+    // navegador só ele tem. Nesse caso a tela recebe o turno inteiro e pede as
+    // nossas por `/ai/tool`.
+    if (!doServidor.length || doServidor.length !== pedidos.length) break;
+
+    const resultados = [];
+    for (const pedido of doServidor) {
+      const saida = await executarFerramenta(req, user, pedido.name, pedido.input);
+      resultados.push({
+        type: "tool_result",
+        tool_use_id: pedido.id,
+        content: JSON.stringify(saida),
+        ...(saida?.ok === false ? { is_error: true } : {}),
+      });
+    }
+
+    conversa = [
+      ...conversa,
+      { role: "assistant", content: dados.content },
+      { role: "user", content: resultados },
+    ];
+    }
+
     // ── A partir daqui a resposta é boa; o que falta é guardar ────────────
     //
     // A gravação nunca derruba o turno. A pessoa está no meio de uma tarefa, e
@@ -267,8 +380,8 @@ module.exports = function (app) {
         // A conversa COM a resposta nova: o que a tela mandou mais o que
         // acabou de voltar. Sem isto, a última fala do assistente ficaria de
         // fora até o turno seguinte — e numa conversa que termina, para sempre.
-        messages: [...messages, { role: "assistant", content: dados?.content || [] }],
-        usage: dados?.usage,
+        messages: [...conversa, { role: "assistant", content: dados?.content || [] }],
+        usage: usoTotal,
         provider: credenciais.provider,
       });
     } catch (error) {
@@ -283,8 +396,8 @@ module.exports = function (app) {
           instance: instanceContext.required(),
           sessionId: String(sessao._id),
           model: credenciais.model,
-          usage: dados?.usage,
-          costMicros: ai.custoMicros(dados?.usage, credenciais.model, credenciais.provider),
+          usage: usoTotal,
+          costMicros: ai.custoMicros(usoTotal, credenciais.model, credenciais.provider),
         });
       } catch (error) {
         // O central estar fora não pode derrubar a conversa do cliente.
@@ -295,7 +408,11 @@ module.exports = function (app) {
       content: dados?.content || [],
       stop_reason: dados?.stop_reason || null,
       model: dados?.model || credenciais.model,
-      usage: dados?.usage || null,
+      usage: usoTotal || null,
+      // A conversa CRESCEU aqui dentro quando o servidor executou ferramenta.
+      // A tela precisa da versão nova, senão o próximo turno mandaria de volta
+      // uma conversa sem os resultados e o modelo repetiria o que já fez.
+      messages: conversa !== messages ? conversa : undefined,
       // A tela guarda isto e devolve no próximo turno — é o que costura os
       // turnos numa conversa só.
       sessionId: sessao ? String(sessao._id) : null,

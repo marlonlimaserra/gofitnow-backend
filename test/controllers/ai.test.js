@@ -50,6 +50,14 @@ function monta({
       return resposta;
     },
     api: {
+      // O que a ferramenta do servidor usa. Sem isto ela estouraria e o
+      // resultado voltaria como "falha_interna" — e o teste do laço passaria
+      // igual, provando só que o laço gira, não que a ferramenta funciona.
+      user: {
+        async pageStudents() {
+          return { rows: [{ _id: "p1", name: "Bruna", email: "bruna@x.com", active: 1 }] };
+        },
+      },
       // O histórico da conversa, no banco DO CLIENTE.
       aiSession: {
         async registrarTurno(entrada) {
@@ -266,7 +274,7 @@ test("o idioma da instrução vem do Accept-Language, não de uma constante", as
   assert.ok(enviados[0].body.system.includes("fr"));
 });
 
-test("as três ferramentas vão declaradas, e o corpo não aceita ferramenta da tela", async () => {
+test("o catálogo vai declarado, e o corpo não aceita ferramenta da tela", async () => {
   const { app, enviados } = monta();
 
   await call(app, "post", "/ai/chat", {
@@ -274,7 +282,12 @@ test("as três ferramentas vão declaradas, e o corpo não aceita ferramenta da 
   });
 
   const nomes = enviados[0].body.tools.map((t) => t.name);
-  assert.deepEqual(nomes, ["ver_tela", "clicar", "preencher"]);
+
+  // As ferramentas do SERVIDOR vêm primeiro, e as três da tela continuam no
+  // fim. A ordem importa por causa do cache: o catálogo é o começo do prefixo,
+  // e um catálogo que muda de ordem invalidaria o cache a cada turno.
+  assert.ok(nomes.includes("pessoa_criar"), "as do servidor precisam estar lá");
+  assert.deepEqual(nomes.slice(-3), ["ver_tela", "clicar", "preencher"]);
   // Quem manda na instrução é o servidor: o que a tela mandou foi descartado.
   assert.ok(!enviados[0].body.system.includes("ignore tudo"));
 });
@@ -632,7 +645,7 @@ test("a instrução e as ferramentas viajam no dialeto da OpenAI", async () => {
   assert.equal(corpo.system, undefined);
 
   assert.deepEqual(
-    corpo.tools.map((t) => t.function.name),
+    corpo.tools.map((t) => t.function.name).slice(-3),
     ["ver_tela", "clicar", "preencher"]
   );
   assert.equal(corpo.tools[0].type, "function");
@@ -818,7 +831,7 @@ test("a instrução e as ferramentas vão presas ao token, do servidor", async (
 
   // As MESMAS três ferramentas do modo escrita — quem executa continua sendo a
   // tela.
-  assert.deepEqual(corpo.tools.map((t) => t.name), ["ver_tela", "clicar", "preencher"]);
+  assert.deepEqual(corpo.tools.map((t) => t.name).slice(-3), ["ver_tela", "clicar", "preencher"]);
   // A palavra do profissional atravessa, como sempre.
   assert.ok(corpo.instructions.includes("paciente"));
   // E a instrução de VOZ, que não existe no modo escrita.
@@ -991,4 +1004,165 @@ test("cada código da OpenAI vira a frase que diz o que fazer", () => {
   assert.equal(chave("", 401), "errors.aiVoiceBadKey");
   // O que não se conhece cai na frase genérica, com o texto original junto.
   assert.equal(chave("coisa_nova"), "errors.aiVoiceFailed");
+});
+
+
+// ── O laço de ferramenta no SERVIDOR ─────────────────────────────────────
+//
+// Quando o modelo pede uma ferramenta nossa, quem executa é o servidor — e ele
+// segue a conversa sozinho, sem devolver para a tela. É onde está o ganho: uma
+// ida e volta de rede por passo era o custo que a porta de ferramentas veio
+// tirar.
+//
+// É também o pedaço mais fácil de errar: um laço que não para custa dinheiro a
+// cada volta, e um turno misto respondido pela metade quebra o protocolo — a
+// Anthropic exige uma resposta para CADA pedido.
+
+// Uma sequência de respostas: cada chamada ao modelo consome a próxima.
+function emSequencia(respostas) {
+  let i = 0;
+  return {
+    ok: true,
+    status: 200,
+    json: async () => respostas[Math.min(i++, respostas.length - 1)],
+  };
+}
+
+const PEDE_FERRAMENTA = {
+  content: [
+    { type: "tool_use", id: "t1", name: "pessoa_buscar", input: { termo: "bruna" } },
+  ],
+  stop_reason: "tool_use",
+  model: "claude-opus-5",
+  usage: { input_tokens: 100, output_tokens: 10 },
+};
+
+const RESPONDE_TEXTO = {
+  content: [{ type: "text", text: "Achei a Bruna." }],
+  stop_reason: "end_turn",
+  model: "claude-opus-5",
+  usage: { input_tokens: 120, output_tokens: 20 },
+};
+
+const PEDE_CLIQUE = {
+  content: [{ type: "tool_use", id: "t2", name: "clicar", input: { id: "botao:1" } }],
+  stop_reason: "tool_use",
+  model: "claude-opus-5",
+};
+
+function comFerramentas(respostas, extra = {}) {
+  return monta({
+    resposta: emSequencia(respostas),
+    ...extra,
+  });
+}
+
+test("ferramenta do servidor é executada AQUI, e a conversa segue sozinha", async () => {
+  const { app, enviados } = comFerramentas([PEDE_FERRAMENTA, RESPONDE_TEXTO]);
+
+  const r = await call(app, "post", "/ai/chat", { body: { messages: CONVERSA } });
+
+  // Duas idas ao modelo num único pedido da tela: a segunda já leva o resultado.
+  assert.equal(enviados.length, 2);
+  assert.equal(r.body.content[0].text, "Achei a Bruna.");
+
+  const segunda = enviados[1].body.messages;
+  const ultima = segunda[segunda.length - 1];
+  assert.equal(ultima.role, "user");
+  assert.equal(ultima.content[0].type, "tool_result");
+  assert.equal(ultima.content[0].tool_use_id, "t1");
+
+  // E a ferramenta ACONTECEU: o resultado traz a pessoa achada. Sem esta
+  // asserção, o caso passaria mesmo se toda ferramenta estourasse.
+  const achado = JSON.parse(ultima.content[0].content);
+  assert.equal(achado.ok, true);
+  assert.equal(achado.pessoas[0].nome, "Bruna");
+});
+
+test("a conversa que cresceu volta para a tela", async () => {
+  // Sem isto, o próximo turno mandaria de volta uma conversa SEM os resultados
+  // e o modelo repetiria o que já tinha feito.
+  const { app } = comFerramentas([PEDE_FERRAMENTA, RESPONDE_TEXTO]);
+
+  const r = await call(app, "post", "/ai/chat", { body: { messages: CONVERSA } });
+
+  assert.ok(Array.isArray(r.body.messages));
+  assert.ok(r.body.messages.length > CONVERSA.length);
+});
+
+test("turno de CLIQUE volta para a tela, sem laço", async () => {
+  // O navegador é o único que sabe clicar. Seguir sozinho aqui deixaria o
+  // pedido sem resposta.
+  const { app, enviados } = comFerramentas([PEDE_CLIQUE]);
+
+  const r = await call(app, "post", "/ai/chat", { body: { messages: CONVERSA } });
+
+  assert.equal(enviados.length, 1);
+  assert.equal(r.body.content[0].name, "clicar");
+  assert.equal(r.body.messages, undefined, "nada cresceu: a tela manda a dela");
+});
+
+test("turno MISTO não é resolvido pela metade", async () => {
+  // Ferramenta nossa e clique na mesma resposta: o protocolo exige resposta
+  // para cada pedido, e metade delas depende do navegador. Vai inteiro para a
+  // tela, que pede as nossas por `/ai/tool`.
+  const misto = {
+    content: [
+      { type: "tool_use", id: "t1", name: "pessoa_buscar", input: { termo: "x" } },
+      { type: "tool_use", id: "t2", name: "clicar", input: { id: "b" } },
+    ],
+    stop_reason: "tool_use",
+    model: "claude-opus-5",
+  };
+
+  const { app, enviados } = comFerramentas([misto]);
+
+  const r = await call(app, "post", "/ai/chat", { body: { messages: CONVERSA } });
+
+  assert.equal(enviados.length, 1, "não pode seguir sozinho");
+  assert.equal(r.body.content.length, 2);
+});
+
+test("o laço TEM teto — um modelo enroscado custa a cada volta", async () => {
+  const { app, enviados } = comFerramentas([PEDE_FERRAMENTA]);
+
+  await call(app, "post", "/ai/chat", { body: { messages: CONVERSA } });
+
+  assert.ok(enviados.length <= 6, `foram ${enviados.length} idas ao modelo`);
+  assert.ok(enviados.length > 1, "e ele chegou a tentar mais de uma vez");
+});
+
+test("o gasto somado é o do TURNO, não o da última ida", async () => {
+  // Mostrar só a última faria um turno de seis passos parecer barato.
+  const { app } = comFerramentas([PEDE_FERRAMENTA, RESPONDE_TEXTO]);
+
+  const r = await call(app, "post", "/ai/chat", { body: { messages: CONVERSA } });
+
+  assert.equal(r.body.usage.input_tokens, 220);
+  assert.equal(r.body.usage.output_tokens, 30);
+});
+
+test("sem permissão, a ferramenta recusa e o modelo lê o motivo", async () => {
+  // A permissão é a da tela. E a recusa volta como RESULTADO: o modelo precisa
+  // poder dizer à pessoa o que faltou, em vez de tentar de novo igual.
+  const { app, enviados } = comFerramentas([PEDE_FERRAMENTA, RESPONDE_TEXTO], {
+    canManage: false,
+  });
+
+  await call(app, "post", "/ai/chat", { body: { messages: CONVERSA } });
+
+  const segunda = enviados[1].body.messages;
+  const resultado = segunda[segunda.length - 1].content[0];
+  assert.equal(resultado.is_error, true);
+  assert.match(resultado.content, /sem_permissao/);
+});
+
+test("a porta /ai/tool existe para o turno misto", async () => {
+  const { app } = monta();
+
+  const r = await call(app, "post", "/ai/tool", {
+    body: { name: "pessoa_buscar", input: { termo: "bruna" } },
+  });
+
+  assert.equal(r.status, 200);
 });
