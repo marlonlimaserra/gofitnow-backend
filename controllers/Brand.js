@@ -59,9 +59,34 @@ module.exports = function (app) {
     const parsed = app.api.brandImage.parseDataUri((req.body || {}).image);
     if (!parsed) return res.status(400).send({ msg: req.t("errors.invalidBrandImage") });
 
-    if ((await app.api.brandImage.count(user._id)) >= BrandImage.MAX_POR_CONTA) {
+    // O TETO SAI DO PLANO, que mora no central.
+    //
+    // Um número no plano manda, inclusive o zero: "este plano não inclui imagem
+    // de marca" é uma venda legítima, e quem a assina ainda pode apontar para
+    // uma imagem hospedada fora — o campo de endereço continua na tela.
+    //
+    // Sem plano, ou com o limite em branco, vale o padrão do produto. É de
+    // propósito que "ilimitado" no painel não vire "sem teto nenhum" aqui: o
+    // tema usa oito imagens, e uma rota de upload aberta é como se enche um
+    // banco por engano.
+    const limites = await app.api.center.limitsFor(req.instance);
+    const doPlano = limites ? limites.brandImages : null;
+    const teto =
+      Number.isInteger(doPlano) && doPlano >= 0 ? doPlano : BrandImage.PADRAO_POR_CONTA;
+
+    if (teto === 0) {
+      // Mensagem própria, e não a do teto: "você já tem 0 imagens guardadas,
+      // salve a aparência para liberar" mandaria fazer uma faxina que não
+      // liberaria nada.
       return res.status(409).send({
-        msg: req.t("errors.tooManyBrandImages", { max: BrandImage.MAX_POR_CONTA }),
+        msg: req.t("errors.brandImagesNotInPlan"),
+        code: "not_in_plan",
+      });
+    }
+
+    if ((await app.api.brandImage.count(user._id)) >= teto) {
+      return res.status(409).send({
+        msg: req.t("errors.tooManyBrandImages", { max: teto }),
         code: "too_many",
       });
     }

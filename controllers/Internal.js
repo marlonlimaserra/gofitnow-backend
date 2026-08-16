@@ -159,6 +159,9 @@ module.exports = function (app) {
       people: await conta("users", { type: "student" }),
       workouts: await conta("workouts"),
       apiKeys: await conta("api_keys", { revokedAt: null }),
+      // Sem filtro: a faxina do tema já apaga o que não é referenciado, então o
+      // que está na collection é o que conta contra o limite.
+      brandImages: await conta("brand_images"),
     });
   });
 };

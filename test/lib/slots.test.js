@@ -256,6 +256,137 @@ test("horário sem vaga não é oferecido", () => {
   );
 });
 
+test("com incluirOcupados, o horário tomado vem junto — com zero vaga", () => {
+  // A página pública mostra o ocupado apagado. Uma terça que pula das 07h para
+  // as 09h parece erro de configuração, e quem olha não tem como saber que as
+  // 08h existem e estão tomadas: ver o horário é o que explica o buraco.
+  const livres = slots.livresDoDia({
+    dia: TERCA,
+    semana: SEMANA,
+    passo: 60,
+    duracao: 60,
+    serviceId: "s1",
+    capacidade: 1,
+    compromissos: [{ date: as(8), minutes: 60, service: "s1" }],
+    agora: as(0),
+    incluirOcupados: true,
+  });
+
+  assert.deepEqual(
+    livres.map((l) => l.start.getHours()),
+    [7, 8, 9]
+  );
+  assert.equal(livres.find((l) => l.start.getHours() === 8).seats, 0);
+});
+
+test("o que está bloqueado ou fora de prazo NÃO volta como ocupado", () => {
+  // São coisas diferentes, e mostrar as duas juntas seria mentir sobre a agenda:
+  // o horário bloqueado não existe naquele dia, e o de ontem não existe mais.
+  // Só o que alguém MARCOU aparece apagado.
+  const livres = slots.livresDoDia({
+    dia: TERCA,
+    semana: SEMANA,
+    passo: 60,
+    duracao: 60,
+    compromissos: [],
+    bloqueios: [{ from: as(8), to: as(9, 30) }],
+    agora: as(0),
+    incluirOcupados: true,
+  });
+
+  assert.deepEqual(
+    livres.map((l) => l.start.getHours()),
+    [7]
+  );
+});
+
+test("sem pedir, o ocupado continua fora — é ele que grava a marcação", () => {
+  // A mesma função decide se a marcação pode ser gravada. Um ocupado na lista
+  // ali venderia a última vaga duas vezes.
+  const livres = slots.livresDoDia({
+    dia: TERCA,
+    semana: SEMANA,
+    passo: 60,
+    duracao: 60,
+    serviceId: "s1",
+    capacidade: 1,
+    compromissos: [{ date: as(8), minutes: 60, service: "s1" }],
+    agora: as(0),
+  });
+
+  assert.ok(!livres.some((l) => l.start.getHours() === 8));
+});
+
+// ── O FUSO de quem atende ────────────────────────────────────────────────
+//
+// "No painel eu coloco 8 e no calendário aparece 5." A grade guarda hora de
+// PAREDE — o relógio do estúdio —, e ela virava instante com o fuso do
+// PROCESSO. Com o servidor em UTC, "08:00" virava 08:00Z e o navegador em
+// Brasília desenhava 05:00.
+//
+// O servidor continua em UTC de propósito. Quem diz que horas são "08:00" é o
+// fuso da conta, e ele desce por argumento até aqui.
+
+test("08:00 na grade vira 08:00 no relógio de quem atende", () => {
+  const livres = slots.livresDoDia({
+    dia: new Date("2026-08-20T12:00:00.000Z"),
+    semana: { thu: [{ from: "08:00", to: "10:00" }] },
+    passo: 60,
+    duracao: 60,
+    compromissos: [],
+    agora: new Date("2026-08-01T00:00:00.000Z"),
+    fuso: "America/Sao_Paulo",
+  });
+
+  // A janela de 08:00 às 10:00 cabe dois atendimentos de uma hora.
+  assert.deepEqual(
+    livres.map((l) => l.start.toISOString()),
+    ["2026-08-20T11:00:00.000Z", "2026-08-20T12:00:00.000Z"]
+  );
+});
+
+test("o mesmo 08:00 em outro fuso é outro instante", () => {
+  // A prova de que o fuso está sendo usado e não ignorado: se ele fosse
+  // decorativo, os dois dariam o mesmo horário UTC.
+  const emLisboa = slots.livresDoDia({
+    dia: new Date("2026-08-20T12:00:00.000Z"),
+    semana: { thu: [{ from: "08:00", to: "10:00" }] },
+    passo: 60,
+    duracao: 60,
+    compromissos: [],
+    agora: new Date("2026-08-01T00:00:00.000Z"),
+    fuso: "Europe/Lisbon",
+  });
+
+  assert.deepEqual(
+    emLisboa.map((l) => l.start.toISOString()),
+    ["2026-08-20T07:00:00.000Z", "2026-08-20T08:00:00.000Z"]
+  );
+});
+
+test("a grade lida é a do dia de QUEM ATENDE", () => {
+  // 22:00Z de sexta já é SÁBADO em Tóquio. Lendo o dia com o relógio do
+  // processo — seja ele UTC no servidor ou Brasília na máquina de quem
+  // desenvolve —, o pedido consultaria a grade de sexta, que aqui está vazia.
+  //
+  // O fuso de teste é Tóquio de propósito: ele discorda tanto de UTC quanto de
+  // Brasília, então este caso falha em qualquer máquina se o dia voltar a ser
+  // lido no fuso errado.
+  const livres = slots.livresDoDia({
+    dia: new Date("2026-08-21T22:00:00.000Z"),
+    semana: { fri: [], sat: [{ from: "08:00", to: "10:00" }] },
+    passo: 60,
+    duracao: 60,
+    compromissos: [],
+    agora: new Date("2026-08-01T00:00:00.000Z"),
+    fuso: "Asia/Tokyo",
+  });
+
+  assert.equal(livres.length, 2, "em Tóquio já é sábado");
+  // 08:00 de sábado em Tóquio = 23:00Z de sexta.
+  assert.equal(livres[0].start.toISOString(), "2026-08-21T23:00:00.000Z");
+});
+
 // ── O horário de uma página de agendamento ───────────────────────────────
 //
 // Uma página é dona do calendário dela. A rota pública decide de quem é o

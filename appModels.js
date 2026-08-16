@@ -15,6 +15,8 @@ models.chat = require("./model/Chat_model.js");
 models.appointment = require("./model/Appointment_model.js");
 models.service = require("./model/Service_model.js");
 models.finance = require("./model/Finance_model.js");
+// As formas de pagamento de cada conta. Eram uma lista fixa dentro do financeiro.
+models.paymentMethod = require("./model/PaymentMethod_model.js");
 models.availability = require("./model/Availability_model.js");
 models.bookingPage = require("./model/BookingPage_model.js");
 models.food = require("./model/Food_model.js");

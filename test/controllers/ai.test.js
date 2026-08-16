@@ -5,6 +5,16 @@ const { fakeApp, call } = require("../helpers/harness.js");
 const AiController = require("../../controllers/Ai.js");
 const ai = require("../../lib/ai.js");
 
+// Nenhuma ferramenta de TELA vai no catálogo.
+//
+// Havia três — ver_tela, clicar, preencher —, e saíram por decisão de quem
+// usa: "não quero mais que a IA clique em botão de salvar, em botão de criar;
+// tudo deve ser feito pelo MCP". Enquanto o clique esteve à mão o modelo o
+// preferia mesmo tendo ferramenta, e nenhuma instrução resolveu isso — tirar a
+// opção resolveu.
+const DE_TELA = ["ver_tela", "clicar", "preencher"];
+
+
 const USER = {
   _id: "u1",
   name: "Marlon",
@@ -283,13 +293,68 @@ test("o catálogo vai declarado, e o corpo não aceita ferramenta da tela", asyn
 
   const nomes = enviados[0].body.tools.map((t) => t.name);
 
-  // As ferramentas do SERVIDOR vêm primeiro, e as três da tela continuam no
-  // fim. A ordem importa por causa do cache: o catálogo é o começo do prefixo,
-  // e um catálogo que muda de ordem invalidaria o cache a cada turno.
   assert.ok(nomes.includes("pessoa_criar"), "as do servidor precisam estar lá");
-  assert.deepEqual(nomes.slice(-3), ["ver_tela", "clicar", "preencher"]);
+  for (const daTela of DE_TELA) {
+    assert.ok(!nomes.includes(daTela), `${daTela} não pode voltar ao catálogo`);
+  }
   // Quem manda na instrução é o servidor: o que a tela mandou foi descartado.
   assert.ok(!enviados[0].body.system.includes("ignore tudo"));
+});
+
+test("o que é relido a cada resposta tem teto — é o limite por minuto da conta", async () => {
+  // O relato: "não consigo criar uma refeição porque toda hora aparece um
+  // negócio amarelo dizendo que a mini está pedindo tempo".
+  //
+  // O amarelo é o limite por minuto da OpenAI (40.000 tokens no
+  // gpt-realtime-mini). Na voz, instrução e catálogo são relidos INTEIROS a
+  // cada resposta: são o piso do gasto, pagos antes de qualquer palavra. Eram
+  // ~5.000 tokens, ou um oitavo do minuto por resposta — cinco frases seguidas
+  // e a conta fecha.
+  //
+  // O teto aqui é grosseiro de propósito: ele não persegue um número, só
+  // impede que instrução e catálogo voltem a crescer sem ninguém perceber.
+  //
+  // Ele subiu de 17.000 para 21.000 quando entraram as 16 ferramentas de
+  // financeiro, agenda e avaliação — e isso é a troca, dita com todas as letras:
+  // cada ferramenta é uma coisa que o assistente passa a saber fazer e ~90
+  // tokens a mais em TODA resposta. Vinte mil caracteres é onde o fixo ainda
+  // cabe folgado num minuto de conversa; passar disso é aceitar pausas.
+  const sessao = ai.realtimeSession({
+    words: { singular: "aluno", plural: "alunos" },
+    language: "pt",
+    user: { name: "Marlon" },
+  });
+
+  const fixo = sessao.instructions.length + JSON.stringify(sessao.tools).length;
+
+  assert.ok(
+    fixo < 21000,
+    `instrução + catálogo somam ${fixo} caracteres; acima disso o limite por minuto chega em poucas frases`
+  );
+});
+
+test("a instrução não manda pedir confirmação do que já foi pedido", async () => {
+  // O relato: "pedir para deletar o plano alimentar e ela abriu o diálogo e
+  // tava pronta pra apertar o botão, era pra ter excluído direto".
+  //
+  // A instrução mandava confirmar antes de excluir "mesmo que tenham pedido" —
+  // regra escrita para a era do clique, quando excluir era achar o botão certo
+  // numa tela. Com ferramenta de dados o pedido JÁ é a decisão, e perguntar de
+  // novo é fazer o profissional pedir duas vezes pela mesma coisa.
+  const { app, enviados } = monta();
+
+  await call(app, "post", "/ai/chat", { body: { messages: CONVERSA } });
+  const bruto = enviados[0].body.system;
+  const instrucao = Array.isArray(bruto) ? bruto.map((p) => p.text || p).join("\n") : bruto;
+
+  assert.ok(
+    !/confirme em uma frase antes de clicar, mesmo que tenham pedido/.test(instrucao),
+    "a ordem de confirmar exclusão pedida não pode voltar"
+  );
+  assert.match(instrucao, /Pedido é decisão tomada/);
+  // A trava do formulário CONTINUA: ali gravar é do profissional, porque lá
+  // existe um botão de salvar e a ação não é a ferramenta.
+  assert.match(instrucao, /por iniciativa própria/);
 });
 
 test("modelo sem suporte a esforço não recebe output_config", async () => {
@@ -644,10 +709,9 @@ test("a instrução e as ferramentas viajam no dialeto da OpenAI", async () => {
   assert.ok(corpo.messages[0].content.includes("paciente"));
   assert.equal(corpo.system, undefined);
 
-  assert.deepEqual(
-    corpo.tools.map((t) => t.function.name).slice(-3),
-    ["ver_tela", "clicar", "preencher"]
-  );
+  const nomesOpenAI = corpo.tools.map((t) => t.function.name);
+  assert.ok(nomesOpenAI.includes("pessoa_criar"));
+  for (const daTela of DE_TELA) assert.ok(!nomesOpenAI.includes(daTela));
   assert.equal(corpo.tools[0].type, "function");
 
   // O contexto padrão do Ollama é 4096, e a instrução mais um retrato de tela
@@ -829,9 +893,12 @@ test("a instrução e as ferramentas vão presas ao token, do servidor", async (
   assert.equal(enviados[0].url, "https://api.openai.com/v1/realtime/client_secrets");
   assert.equal(enviados[0].init.headers.authorization, "Bearer sk-proj-CHAVEDAOPENAI");
 
-  // As MESMAS três ferramentas do modo escrita — quem executa continua sendo a
-  // tela.
-  assert.deepEqual(corpo.tools.map((t) => t.name).slice(-3), ["ver_tela", "clicar", "preencher"]);
+  // O MESMO catálogo do modo escrita — e, como lá, sem nenhuma ferramenta de
+  // tela. A voz foi onde o clique mais apareceu: era ela que recebia o retrato
+  // inteiro a cada ação.
+  const nomesDaVoz = corpo.tools.map((t) => t.name);
+  assert.ok(nomesDaVoz.includes("dieta_criar"));
+  for (const daTela of DE_TELA) assert.ok(!nomesDaVoz.includes(daTela));
   // A palavra do profissional atravessa, como sempre.
   assert.ok(corpo.instructions.includes("paciente"));
   // E a instrução de VOZ, que não existe no modo escrita.

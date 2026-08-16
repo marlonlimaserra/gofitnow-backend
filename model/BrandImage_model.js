@@ -26,9 +26,14 @@ const MIMES = ["image/jpeg", "image/png", "image/webp"];
 // antes de enviar; o limite existe para o que não veio da tela.
 const MAX_BYTES = 4 * 1024 * 1024;
 
-// Teto por conta. Sem ele, um upload em laço encheria o banco — e o tema usa no
-// máximo uma logo, uma foto e seis do carrossel.
-const MAX_POR_CONTA = 24;
+// O teto de quem NÃO TEM número no plano.
+//
+// Quem manda no limite é o plano do cliente, que mora no central (ver
+// Brand.js). Este valor é o que vale sem plano, ou com o campo em branco — que
+// na tela do painel se chama "ilimitado". Uma rota de upload sem teto nenhum é
+// um caminho de encher o banco em laço, e o tema usa no máximo uma logo, uma
+// foto e seis do carrossel.
+const PADRAO_POR_CONTA = 24;
 
 BrandImage_model.prototype.collection = async function () {
   const db = await this.app.mongodb.connectToServer();
@@ -98,4 +103,4 @@ BrandImage_model.prototype.pruneUnused = async function (userId, emUso) {
 module.exports = BrandImage_model;
 module.exports.MIMES = MIMES;
 module.exports.MAX_BYTES = MAX_BYTES;
-module.exports.MAX_POR_CONTA = MAX_POR_CONTA;
+module.exports.PADRAO_POR_CONTA = PADRAO_POR_CONTA;

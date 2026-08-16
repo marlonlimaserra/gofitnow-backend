@@ -44,6 +44,7 @@ const POR_INSTANCIA = [
   "roles",
   "user_action_history",
   "workout_templates",
+  "payment_methods",
   "auto_fill_values",
   "avatars",
   "brand_images",
@@ -78,18 +79,47 @@ async function ensureCentral(app) {
   // A collection `instances` NÃO é criada aqui: ela mora no banco do painel, e
   // o dono do schema dela é o painel. Este backend só a lê.
 
-  // exercises — catálogo ÚNICO, igual para todo mundo. Sem `trainer`: o escopo
-  // por profissional saiu quando o catálogo virou central.
+  // exercises — o catálogo compartilhado (`instance: null`) mais o que cada
+  // conta criou (`instance: "marlon"`), na mesma collection.
+  //
+  // Os índices começam por `instance` porque TODA consulta começa por ele: a
+  // conta nunca lê a collection inteira, lê a fatia dela que é sua mais a
+  // compartilhada. Um índice que comece por `nameSort` faria o Mongo varrer os
+  // mil e quatrocentos para depois descartar os de outras contas.
   //
   // A ordenação e a busca usam `nameSort` (nome sem acento, minúsculo) — ver
   // Exercise_model.
-  await db.collection("exercises").createIndex({ nameSort: 1 }, { name: "by_name" });
-  await db.collection("exercises").createIndex({ muscleGroup: 1, nameSort: 1 }, { name: "by_group" });
+  // `hasVideo` na frente do nome: a lista mostra os que têm demonstração
+  // primeiro e os sem vídeo no fim. Sem ele no índice, essa ordenação passaria a
+  // ser feita na memória, com mil e quatrocentos documentos por página.
+  await db
+    .collection("exercises")
+    .createIndex({ instance: 1, hasVideo: -1, nameSort: 1 }, { name: "by_instance_video_name" });
+  await db.collection("exercises").createIndex({ instance: 1, nameSort: 1 }, { name: "by_instance_name" });
+  await db
+    .collection("exercises")
+    .createIndex({ instance: 1, muscleGroup: 1, nameSort: 1 }, { name: "by_instance_group" });
+
+  // Os índices sem `instance` deixaram de servir a qualquer consulta, e índice
+  // morto não é inofensivo: continua sendo atualizado em toda escrita.
+  for (const morto of ["by_name", "by_group"]) {
+    await dropIndexIfPresent(db, "exercises", morto);
+  }
 
   // foods — o catálogo de alimentos, central como o de exercícios e com a mesma
   // chave de busca sem acento.
   await db.collection("foods").createIndex({ nameSort: 1 }, { name: "by_name" });
   await db.collection("foods").createIndex({ category: 1, nameSort: 1 }, { name: "by_category" });
+
+  // A FOTO do alimento: `imageKey` aponta para uma linha de `food_images`, que
+  // é do painel. Muitos alimentos para uma foto — as três tabelas dizem "peito
+  // de frango grelhado" de quatro maneiras, e é uma imagem só.
+  //
+  // O índice mora aqui porque `foods` é desta base: o painel escreve o campo,
+  // mas quem cria e mantém o schema desta collection é quem a semeou. Ele serve
+  // à fila de trabalho da tela do painel ("o que ainda está sem foto") e à
+  // limpeza que desliga todas as linhas de uma imagem apagada.
+  await db.collection("foods").createIndex({ imageKey: 1 }, { name: "by_image" });
 
   // ai_usage — o consumo por instância. Uma linha por sessão, incrementada a
   // cada turno; o índice é o que a torna única e o que o painel usa para somar
@@ -321,6 +351,12 @@ async function ensureInstance(app, instance) {
   await db
     .collection("user_action_history")
     .createIndex({ action: 1, createdAt: -1 }, { name: "by_action" });
+
+  // payment_methods — lidos SEMPRE na ordem escolhida, e a chave é única: ela é
+  // o que fica gravado no pagamento, e duas formas com a mesma chave seriam a
+  // mesma forma com dois nomes.
+  await db.collection("payment_methods").createIndex({ order: 1 }, { name: "by_order" });
+  await db.collection("payment_methods").createIndex({ key: 1 }, { unique: true, name: "key_unique" });
 
   // workout_templates — sempre lidos por profissional, em ordem alfabética.
   await db

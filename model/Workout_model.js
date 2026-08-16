@@ -509,7 +509,14 @@ Workout_model.prototype.saveExercises = async function (trainerId, id, exercises
       load: s.load !== undefined && s.load !== "" ? String(s.load) : "",
       intensity: s.intensity !== undefined && s.intensity !== "" ? String(s.intensity) : "",
       speed: s.speed || "",
+      // A pausa virou FAIXA: `rest` é o mínimo e `restMax` o teto.
+      //
+      // O campo antigo continua sendo o mínimo, de propósito: os treinos já
+      // gravados têm só ele, e uma pausa de "60" lida como mínimo continua
+      // querendo dizer o que sempre quis. Sem teto, a tela mostra o número
+      // sozinho, exatamente como antes.
       rest: s.rest !== undefined && s.rest !== "" ? String(s.rest) : "",
+      restMax: s.restMax !== undefined && s.restMax !== "" ? String(s.restMax) : "",
     })),
   }));
 

@@ -47,7 +47,7 @@ module.exports = function (app) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;
 
-    const { name, email, username, peopleSingular, peoplePlural, lang } = req.body || {};
+    const { name, email, username, peopleSingular, peoplePlural, lang, bio } = req.body || {};
 
     if (name !== undefined && String(name).trim().length < 2) {
       res.status(400).send({ msg: req.t("errors.requireOwnName") });
@@ -118,6 +118,9 @@ module.exports = function (app) {
       peopleSingular,
       peoplePlural,
       lang,
+      // A apresentação que a página pública de agendamento mostra. É sobre a
+      // pessoa, então quem a escreve é ela — não o admin por ela.
+      bio,
     });
 
     const updated = await app.api.user.data(user._id);

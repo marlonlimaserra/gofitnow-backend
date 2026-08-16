@@ -13,7 +13,10 @@ const PNG =
 
 const INSTANCIA = "marlon";
 
-function monta({ imagem, quantas = 0, viaApiKey = false } = {}) {
+// `limites` é o que o central responderia sobre o plano deste cliente.
+// `undefined` é o caso de quem não tem plano nenhum — e é o padrão, porque foi
+// assim que a rota viveu até o limite existir.
+function monta({ imagem, quantas = 0, viaApiKey = false, limites } = {}) {
   const salvas = [];
 
   const app = fakeApp({
@@ -40,6 +43,11 @@ function monta({ imagem, quantas = 0, viaApiKey = false } = {}) {
         },
         async data() {
           return imagem;
+        },
+      },
+      center: {
+        async limitsFor() {
+          return limites || {};
         },
       },
     },
@@ -115,13 +123,71 @@ test("o que não é imagem é recusado antes de guardar", async () => {
   assert.deepEqual(salvas, []);
 });
 
-test("passando do teto por conta, responde 409 e diz o limite", async () => {
-  const { app, salvas } = monta({ quantas: BrandImage.MAX_POR_CONTA });
+test("sem plano, o teto é o padrão do produto", async () => {
+  const { app, salvas } = monta({ quantas: BrandImage.PADRAO_POR_CONTA });
   const r = await call(app, "post", "/me/brand/image", { body: { image: PNG } });
 
   assert.equal(r.status, 409);
   assert.equal(r.body.code, "too_many");
-  assert.match(r.body.msg, new RegExp(String(BrandImage.MAX_POR_CONTA)));
+  assert.match(r.body.msg, new RegExp(String(BrandImage.PADRAO_POR_CONTA)));
+  assert.deepEqual(salvas, []);
+});
+
+test("o número do plano manda, e a mensagem diz esse número", async () => {
+  // Três é bem menos que o padrão: se o padrão vencesse, a quarta imagem
+  // passaria e o teste falharia por passar, que é o jeito certo de falhar.
+  const { app, salvas } = monta({ quantas: 3, limites: { brandImages: 3 } });
+  const r = await call(app, "post", "/me/brand/image", { body: { image: PNG } });
+
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, "too_many");
+  assert.match(r.body.msg, /3/);
+  assert.deepEqual(salvas, []);
+});
+
+test("abaixo do número do plano, sobe", async () => {
+  const { app, salvas } = monta({ quantas: 2, limites: { brandImages: 3 } });
+  const r = await call(app, "post", "/me/brand/image", { body: { image: PNG } });
+
+  assert.equal(r.status, 200);
+  assert.equal(salvas.length, 1);
+});
+
+test("um plano acima do padrão vale — o padrão é só de quem não tem número", async () => {
+  const { app, salvas } = monta({
+    quantas: BrandImage.PADRAO_POR_CONTA + 5,
+    limites: { brandImages: 100 },
+  });
+  const r = await call(app, "post", "/me/brand/image", { body: { image: PNG } });
+
+  assert.equal(r.status, 200);
+  assert.equal(salvas.length, 1);
+});
+
+test("plano com zero não sobe nenhuma, e a mensagem não manda fazer faxina", async () => {
+  // Zero é um limite de verdade — um plano sem imagem de marca é venda
+  // legítima. A mensagem do teto ("salve a aparência para liberar as que não
+  // estão em uso") mandaria limpar o que não existe.
+  const { app, salvas } = monta({ quantas: 0, limites: { brandImages: 0 } });
+  const r = await call(app, "post", "/me/brand/image", { body: { image: PNG } });
+
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, "not_in_plan");
+  assert.doesNotMatch(r.body.msg, /aparência/);
+  assert.deepEqual(salvas, []);
+});
+
+test("limite em branco no plano é o padrão, não é torneira aberta", async () => {
+  // `null` na tela do painel se chama "ilimitado". Numa rota de upload, sem
+  // teto nenhum é um caminho de encher o banco em laço.
+  const { app, salvas } = monta({
+    quantas: BrandImage.PADRAO_POR_CONTA,
+    limites: { brandImages: null },
+  });
+  const r = await call(app, "post", "/me/brand/image", { body: { image: PNG } });
+
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, "too_many");
   assert.deepEqual(salvas, []);
 });
 

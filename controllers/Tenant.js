@@ -359,6 +359,41 @@ module.exports = function (app) {
   //
   // Rota própria e não dentro do tema: uma é aparência, a outra é regra de
   // negócio — e quem mexe numa não está mexendo na outra.
+  // ── O FUSO da conta ───────────────────────────────────────────────────────
+  //
+  // O servidor roda em UTC de propósito, e por isso alguém precisa dizer de qual
+  // relógio é o "08:00" da grade semanal. É configuração da CONTA e não de cada
+  // pessoa: a agenda é uma só, e um professor em viagem não pode mover o
+  // expediente do estúdio.
+  //
+  // Ler é aberto a quem entrou — toda tela que mostra hora precisa saber o fuso.
+  app.get("/me/timezone", async function (req, res) {
+    const user = await app.helpers.ReqProtected.verify(req, res);
+    if (user === false) return;
+
+    res.send({ timezone: await app.api.tenant.timezoneOfInstance() });
+  });
+
+  app.put("/me/timezone", async function (req, res) {
+    // Mesma permissão da agenda: mudar o fuso move o expediente de todo mundo.
+    const user = await app.helpers.ReqProtected.can(req, res, "schedule.manage");
+    if (user === false) return;
+
+    const salvo = await app.api.tenant.saveTimezone(user._id, (req.body || {}).timezone);
+    if (!salvo) {
+      res.status(400).send({ msg: req.t("errors.invalidTimezone") });
+      return;
+    }
+
+    app.insertUserActionHistory(req, user, "update_timezone", {
+      category: "admin",
+      local: { target_type: "tenants", target_id: String(user._id) },
+      extra: { timezone: salvo },
+    });
+
+    res.send({ timezone: salvo });
+  });
+
   app.get("/me/currency", async function (req, res) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;

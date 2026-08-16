@@ -158,6 +158,50 @@ Center_model.prototype.isActive = async function (instance) {
   return guardar("i:" + nome, ativa);
 };
 
+// Os LIMITES do plano deste cliente — `{ people: 50, brandImages: 8, … }`.
+//
+// São DOIS documentos: o registro da instância guarda só a chave do plano
+// (`plan: "pro"`), e os números moram em `plans`, no mesmo banco central. Ler os
+// dois na hora é o que faz uma mudança de plano valer para todo mundo que o
+// assina — copiar os números para dentro de cada registro deixaria cada cliente
+// carregando uma versão velha da tabela.
+//
+// `null` num limite é ILIMITADO e é diferente de `0`, que é um limite de
+// verdade. Esta função não interpreta nenhum dos dois: devolve o que está
+// gravado, e quem chama decide o que "ilimitado" significa na rota dele — pode
+// haver teto técnico que o plano não conhece.
+//
+// SEM PLANO devolve `{}`, e é o mesmo que sai quando o central não responde.
+// Inventar um limite barraria um cliente que pagou, e isso é pior do que não
+// barrar.
+//
+// O cache faz a troca de plano demorar até meio minuto para ser sentida: quem
+// muda o plano é o painel, que é outro processo e não tem como avisar este
+// daqui. Meio minuto num limite é barato; uma ida ao Mongo em todo upload, não.
+Center_model.prototype.limitsFor = async function (instance) {
+  const nome = instanceContext.normalize(instance);
+  if (!nome) return {};
+
+  const guardado = lido("p:" + nome);
+  if (guardado !== undefined) return guardado;
+
+  try {
+    const doc = await this.byInstance(nome);
+    if (!doc || !doc.plan) return guardar("p:" + nome, {});
+
+    // `plans` é do painel: ele cria, indexa e escreve. Daqui é só leitura, pela
+    // mesma porta por onde `instances` já é lida.
+    const db = await this.app.mongodb.centralDb();
+    const plano = await db.collection("plans").findOne({ key: String(doc.plan) });
+
+    return guardar("p:" + nome, (plano && plano.limits) || {});
+  } catch (error) {
+    // Não guarda o vazio: o próximo pedido tenta de novo, em vez de carregar a
+    // falha de rede pelo prazo inteiro do cache.
+    return {};
+  }
+};
+
 // De qual instância é este ENDEREÇO — a pergunta que o app do navegador faz.
 //
 // Ele é servido em `marlon.gofitnow.fit` mas chama `backend.gofitnow.fit`, então o
@@ -189,6 +233,10 @@ Center_model.prototype.forget = function (instance) {
   if (!nome) return cache.clear();
 
   cache.delete("i:" + nome);
+  // Os limites também: um cliente que acabou de nascer pode ter ganhado plano
+  // no mesmo cadastro, e um `{}` guardado o deixaria sem limite nenhum até o
+  // prazo virar.
+  cache.delete("p:" + nome);
   // Os endereços dela também: o cadastro que acabou de nascer tem host novo, e
   // um "não é de ninguém" guardado sobre esse host duraria o prazo inteiro.
   for (const k of cache.keys()) if (k.startsWith("h:")) cache.delete(k);

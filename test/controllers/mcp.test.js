@@ -21,6 +21,11 @@ const TREINO = new ObjectId();
 const EXERCICIO = new ObjectId();
 const DIETA = new ObjectId();
 const ALIMENTO = new ObjectId();
+const COBRANCA = new ObjectId();
+const PAGAMENTO = new ObjectId();
+const COMPROMISSO = new ObjectId();
+const AVALIACAO = new ObjectId();
+const SERVICO = new ObjectId();
 
 function monta({
   permissoes = [
@@ -32,12 +37,21 @@ function monta({
     "workouts.manage",
     "diets.view",
     "diets.manage",
+    "finance.view",
+    "finance.manage",
+    "schedule.view",
+    "schedule.manage",
+    "assessments.view",
+    "assessments.manage",
   ],
   treino = null,
   dieta = null,
   comEmail = null,
+  prescricao = false,
+  conflito = false,
+  semVinculo = false,
 } = {}) {
-  const gravado = { pessoas: [], exercicios: null, refeicoes: null, apagados: [] };
+  const gravado = { pessoas: [], exercicios: null, refeicoes: null, apagados: [], conflito };
 
   const app = fakeApp({
     helpers: {
@@ -52,10 +66,14 @@ function monta({
     },
     api: {
       user: {
+        async briefByIds(ids) {
+          return Object.fromEntries((ids || []).map((id) => [String(id), { name: "Bruna" }]));
+        },
         async pageStudents() {
           return { rows: [{ _id: PESSOA, name: "Bruna", email: "bruna@x.com", active: 1 }] };
         },
         async dataStudent(_t, id) {
+          if (semVinculo) return undefined;
           if (String(id) !== String(PESSOA)) return undefined;
           return { _id: PESSOA, name: "Bruna", email: "bruna@x.com", password: comEmail ? "hash" : null };
         },
@@ -105,6 +123,179 @@ function monta({
           return true;
         },
       },
+      finance: {
+        async balanceOf() {
+          return { BRL: { charged: 25000, paid: 15000, balance: 10000 } };
+        },
+        async paidByCharge() {
+          return { [String(COBRANCA)]: 15000 };
+        },
+        async listCharges() {
+          return [
+            {
+              _id: COBRANCA,
+              student: PESSOA,
+              amount: 25000,
+              currency: "BRL",
+              description: "Mensalidade",
+              dueDate: new Date("2026-08-05"),
+              status: "open",
+            },
+          ];
+        },
+        async listPayments() {
+          return [
+            {
+              _id: PAGAMENTO,
+              student: PESSOA,
+              charge: COBRANCA,
+              amount: 15000,
+              currency: "BRL",
+              method: "pix",
+              date: new Date("2026-08-05T12:00:00.000Z"),
+              status: "paid",
+              note: "primeira parte",
+            },
+          ];
+        },
+        async chargeData(id) {
+          if (String(id) !== String(COBRANCA)) return undefined;
+          return {
+            _id: COBRANCA,
+            student: PESSOA,
+            amount: gravado.cobrancaMudanca?.amount ?? 25000,
+            currency: "BRL",
+            description: "Mensalidade",
+            dueDate: new Date("2026-08-05"),
+            status: gravado.cobrancaMudanca?.status ?? "open",
+          };
+        },
+        async paymentData(id) {
+          if (String(id) !== String(PAGAMENTO)) return undefined;
+          return {
+            _id: PAGAMENTO,
+            student: PESSOA,
+            amount: gravado.pagamento?.amount === "" ? 0 : 15000,
+            currency: "BRL",
+            method: gravado.pagamento?.method || "pix",
+            date: new Date(),
+            status: "paid",
+          };
+        },
+        async insertCharge(_s, dados, _quem, moeda) {
+          gravado.cobranca = dados;
+          gravado.cobrancaMoeda = moeda;
+          return COBRANCA;
+        },
+        async updateCharge(_id, dados) {
+          gravado.cobrancaMudanca = dados;
+          return true;
+        },
+        async deleteCharge(id) {
+          gravado.apagados.push(String(id));
+          return true;
+        },
+        async insertPayment(_s, dados, _quem, moeda) {
+          gravado.pagamento = dados;
+          gravado.pagamentoMoeda = moeda;
+          return PAGAMENTO;
+        },
+        async deletePayment(id) {
+          gravado.apagados.push(String(id));
+          return true;
+        },
+      },
+      paymentMethod: {
+        async keys() {
+          return ["pix", "cash", "other"];
+        },
+      },
+      appointment: {
+        async between() {
+          return [
+            {
+              _id: COMPROMISSO,
+              student: PESSOA,
+              date: new Date("2026-08-20T13:00:00.000Z"),
+              minutes: 60,
+              status: "scheduled",
+              title: "",
+            },
+          ];
+        },
+        async data(_t, id) {
+          if (String(id) !== String(COMPROMISSO)) return undefined;
+          return {
+            _id: COMPROMISSO,
+            student: PESSOA,
+            date: gravado.compromissoMudanca?.date || new Date("2026-08-20T13:00:00.000Z"),
+            minutes: gravado.compromissoMudanca?.minutes || 60,
+            status: gravado.situacao || "scheduled",
+            title: "",
+          };
+        },
+        async conflicts() {
+          return gravado.conflito ? [{ _id: new ObjectId() }] : [];
+        },
+        async insert(_t, _s, dados) {
+          gravado.compromisso = dados;
+          return COMPROMISSO;
+        },
+        async update(_t, _id, dados) {
+          gravado.compromissoMudanca = dados;
+          return true;
+        },
+        async setStatus(_t, _id, status) {
+          gravado.situacao = status;
+          return true;
+        },
+        async delete(id) {
+          gravado.apagados.push(String(id));
+          return true;
+        },
+      },
+      assessment: {
+        async list() {
+          return [{ _id: AVALIACAO, student: PESSOA, date: new Date("2026-08-01"), weight: 71, height: 1.63 }];
+        },
+        async data(_t, id) {
+          if (String(id) !== String(AVALIACAO)) return undefined;
+          return {
+            _id: AVALIACAO,
+            student: PESSOA,
+            date: new Date("2026-08-01"),
+            weight: gravado.avaliacaoMudanca?.weight ?? 71,
+            height: 1.63,
+            skinfolds: { triceps: 12 },
+          };
+        },
+        async insert(_t, _s, dados) {
+          gravado.avaliacao = dados;
+          return AVALIACAO;
+        },
+        async update(_t, _id, dados) {
+          gravado.avaliacaoMudanca = dados;
+          return true;
+        },
+        async delete(id) {
+          gravado.apagados.push(String(id));
+          return true;
+        },
+      },
+      service: {
+        async list() {
+          return [{ _id: SERVICO, name: "Consulta", minutes: 60, price: 8000, currency: "BRL" }];
+        },
+        async data(id) {
+          if (String(id) !== String(SERVICO)) return undefined;
+          return { _id: SERVICO, name: "Consulta", minutes: 60, price: 8000 };
+        },
+      },
+      tenant: {
+        async currencyOfInstance() {
+          return { currency: "BRL", currencies: ["BRL", "USD"] };
+        },
+      },
       food: {
         async list() {
           return { rows: [{ _id: ALIMENTO, name: "Arroz", kcal: 130, protein: 2.7, portion: 100 }] };
@@ -120,7 +311,20 @@ function monta({
         },
         async data(id) {
           if (String(id) !== String(EXERCICIO)) return undefined;
-          return { _id: EXERCICIO, name: "Remada baixa", muscleGroup: "Costas" };
+          return {
+            _id: EXERCICIO,
+            name: "Remada baixa",
+            muscleGroup: "Costas",
+            ...(prescricao
+              ? {
+                  defaultMethod: "pyramid",
+                  defaultSets: [
+                    { unit: "reps", quantity: "15", load: "90" },
+                    { unit: "reps", quantity: "12", load: "95" },
+                  ],
+                }
+              : {}),
+          };
         },
       },
       workout: {
@@ -391,6 +595,52 @@ test("acrescentar exercício COPIA nome e grupo do catálogo", async () => {
   assert.equal(gravado.exercicios[0].sets[0].quantity, "12");
 });
 
+test("o exercício chega com a PRESCRIÇÃO que o cadastro guardou", async () => {
+  // O mesmo que a tela faz ao adicionar: quem cadastrou "Remada baixa com
+  // triângulo" com 4 séries de 15/12/10/8 espera que ela chegue assim, pela voz
+  // ou pelo dedo — se fosse só na tela, pedir por voz daria outro treino.
+  const { app, gravado } = monta({ prescricao: true });
+
+  const r = await rpc(app, "tools/call", {
+    name: "treino_exercicio_adicionar",
+    arguments: { treinoId: String(TREINO), exercicioId: String(EXERCICIO) },
+  });
+
+  assert.equal(saida(r).ok, true);
+  const posto = gravado.exercicios[0];
+  assert.equal(posto.sets.length, 2);
+  assert.equal(posto.sets[0].quantity, "15");
+  assert.equal(posto.sets[1].load, "95");
+  assert.equal(posto.method, "pyramid");
+});
+
+test("o que o profissional DIZ vence a prescrição guardada", async () => {
+  // "Acrescenta remada, 3 séries de 12" é uma prescrição feita agora. Aplicar o
+  // padrão por cima seria ignorar o que acabou de ser dito.
+  const { app, gravado } = monta({ prescricao: true });
+
+  await rpc(app, "tools/call", {
+    name: "treino_exercicio_adicionar",
+    arguments: { treinoId: String(TREINO), exercicioId: String(EXERCICIO), series: 3, quantidade: "12" },
+  });
+
+  const posto = gravado.exercicios[0];
+  assert.equal(posto.sets.length, 3);
+  assert.ok(posto.sets.every((s) => s.quantity === "12"));
+});
+
+test("exercício sem prescrição continua entrando com uma série em branco", async () => {
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "treino_exercicio_adicionar",
+    arguments: { treinoId: String(TREINO), exercicioId: String(EXERCICIO) },
+  });
+
+  assert.equal(gravado.exercicios[0].sets.length, 1);
+  assert.equal(gravado.exercicios[0].sets[0].quantity, "");
+});
+
 test("exercício fora do catálogo é recusado — não se inventa nome", async () => {
   const { app, gravado } = monta();
 
@@ -548,6 +798,45 @@ test("o que muda dados devolve ALVO — a tela precisa saber onde olhar", async 
 // Mesma promessa das outras: a ferramenta chama o modelo da tela, com a
 // permissão da tela. O que muda é a forma do dado — um plano tem refeições, e
 // cada refeição tem alimentos, então há DUAS posições para errar.
+
+test("criar plano grava e diz onde a tela deve olhar", async () => {
+  // O caminho feliz faltava aqui, e o buraco apareceu em produção: pedir "cria
+  // um plano alimentar" por voz voltava "Ferramenta desconhecida: dieta_criar" —
+  // era o navegador que não sabia rotear, não a ferramenta. Com o caminho feliz
+  // coberto dos dois lados, a próxima falha aponta o lado certo.
+  const { app, gravado } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "dieta_criar",
+    arguments: {
+      pessoaId: String(PESSOA),
+      nome: "Keto",
+      objetivo: "Perda de peso",
+      metaKcal: 900,
+    },
+  });
+
+  assert.equal(saida(r).ok, true);
+  assert.equal(gravado.dieta.name, "Keto");
+  assert.equal(gravado.dieta.goal, "Perda de peso");
+  assert.equal(gravado.dieta.targetKcal, 900);
+  assert.equal(saida(r).alvo.recarregar, `diet:${DIETA}`);
+  assert.match(saida(r).alvo.rota, /tab=diet&diet=/);
+});
+
+test("excluir plano também manda recarregar", async () => {
+  // O plano some do banco; sem o aviso ele continua na lista de quem está com a
+  // ficha aberta — e o profissional acha que o pedido se perdeu.
+  const { app } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "dieta_excluir",
+    arguments: { dietaId: String(DIETA) },
+  });
+
+  assert.equal(saida(r).ok, true);
+  assert.equal(saida(r).alvo.recarregar, `diet:${DIETA}`);
+});
 
 test("criar plano recusa fim antes do começo", async () => {
   const { app, gravado } = monta();
@@ -718,4 +1007,269 @@ test("sem a permissão de dieta, recusa", async () => {
 
   assert.equal(saida(r).erro, "sem_permissao");
   assert.equal(gravado.refeicoes, null);
+});
+
+// ── Financeiro ───────────────────────────────────────────────────────────
+//
+// Cobrança e pagamento são coisas SEPARADAS, e as ferramentas guardam isso: uma
+// diz quem deve, a outra diz o que entrou. Uma ferramenta só, de "registrar
+// dinheiro", não responderia a primeira pergunta.
+
+test("o financeiro sai com o dinheiro em centavos E escrito", async () => {
+  // Só centavos faria o modelo dizer "25000" ao profissional; só texto o
+  // impediria de somar. Os dois, e cada um serve a um leitor.
+  const { app } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "financeiro_ver",
+    arguments: { pessoaId: String(PESSOA) },
+  });
+
+  const cobranca = saida(r).cobrancas[0];
+  assert.equal(cobranca.valor.centavos, 25000);
+  assert.match(cobranca.valor.texto, /250,00/);
+  assert.equal(cobranca.falta.centavos, 10000);
+});
+
+test("a situação da cobrança é a que a TELA mostra, não a gravada", async () => {
+  // "Quitada" é consequência de os pagamentos cobrirem o valor. Devolver o
+  // `status` cru faria o modelo dizer "em aberto" para uma cobrança que a
+  // pessoa vê quitada.
+  const { app } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "financeiro_ver",
+    arguments: { pessoaId: String(PESSOA) },
+  });
+
+  assert.equal(saida(r).cobrancas[0].situacao, "em aberto");
+  assert.equal(saida(r).pagamentos[0].observacao, "primeira parte");
+});
+
+test("cobrar aceita o valor como a pessoa fala", async () => {
+  const { app, gravado } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "cobranca_criar",
+    arguments: { pessoaId: String(PESSOA), valor: "250,00", descricao: "Mensalidade" },
+  });
+
+  assert.equal(saida(r).ok, true);
+  assert.equal(gravado.cobranca.amount, "250,00");
+  assert.equal(saida(r).alvo.recarregar, `finance:${PESSOA}`);
+});
+
+test("cobrança de outra pessoa não é encontrada", async () => {
+  // O id vem de fora. Sem esta conferência, saber o id de uma cobrança abriria
+  // o financeiro de quem não é seu.
+  const { app } = monta({ semVinculo: true });
+
+  const r = await rpc(app, "tools/call", {
+    name: "cobranca_editar",
+    arguments: { cobrancaId: String(COBRANCA), valor: "10,00" },
+  });
+
+  assert.equal(saida(r).erro, "cobranca_nao_encontrada");
+});
+
+test("marcar cobrança como paga não é oferecido — ela é consequência", async () => {
+  const paga = tools.achar("cobranca_editar").schema.properties.situacao.enum;
+
+  assert.deepEqual(paga, ["open", "canceled"]);
+});
+
+test("pagamento com forma que não existe no catálogo é recusado", async () => {
+  // `method` vira coluna de relatório. Uma chave inventada seria uma forma de
+  // pagamento que não é forma de pagamento nenhuma.
+  const { app, gravado } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "pagamento_registrar",
+    arguments: { pessoaId: String(PESSOA), valor: "100", forma: "bitcoin" },
+  });
+
+  assert.equal(saida(r).erro, "forma_desconhecida");
+  assert.equal(gravado.pagamento, undefined);
+});
+
+test("50 dólares entram como DÓLAR", async () => {
+  // A ferramenta não tinha o campo, e pedir "registra 50 dólares" gravava 50
+  // reais, calado. A moeda fica gravada em cada lançamento porque é ela que dá
+  // sentido ao número.
+  const { app, gravado } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "pagamento_registrar",
+    arguments: { pessoaId: String(PESSOA), valor: "50", forma: "pix", moeda: "usd" },
+  });
+
+  assert.equal(saida(r).ok, true);
+  assert.equal(gravado.pagamentoMoeda, "USD");
+});
+
+test("moeda que a conta não usa é recusada, e não vira a padrão", async () => {
+  // Aceitar caladamente faria um relatório somar ienes com reais.
+  const { app, gravado } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "cobranca_criar",
+    arguments: { pessoaId: String(PESSOA), valor: "50", moeda: "JPY" },
+  });
+
+  assert.equal(saida(r).erro, "moeda_desconhecida");
+  assert.equal(gravado.cobranca, undefined);
+});
+
+test("sem moeda dita, a da conta manda", async () => {
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "cobranca_criar",
+    arguments: { pessoaId: String(PESSOA), valor: "50" },
+  });
+
+  assert.equal(gravado.cobrancaMoeda, "BRL");
+});
+
+test("pagamento avulso é legítimo — nem toda entrada tem cobrança", async () => {
+  const { app, gravado } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "pagamento_registrar",
+    arguments: { pessoaId: String(PESSOA), valor: "100", forma: "pix" },
+  });
+
+  assert.equal(saida(r).ok, true);
+  assert.equal(gravado.pagamento.charge, undefined);
+});
+
+// ── Agenda ───────────────────────────────────────────────────────────────
+
+test("marcar em cima de outro atendimento AVISA, e não recusa", async () => {
+  // Recusar impediria o encaixe combinado por telefone; calar faria a
+  // sobreposição aparecer quando as duas pessoas chegassem.
+  const { app } = monta({ conflito: true });
+
+  const r = await rpc(app, "tools/call", {
+    name: "compromisso_criar",
+    arguments: { pessoaId: String(PESSOA), quando: "2026-08-20T10:00:00.000Z" },
+  });
+
+  assert.equal(saida(r).ok, true);
+  assert.equal(saida(r).conflita, true);
+});
+
+test("sem duração dita, a do SERVIÇO manda", async () => {
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "compromisso_criar",
+    arguments: {
+      pessoaId: String(PESSOA),
+      quando: "2026-08-20T10:00:00.000Z",
+      servicoId: String(SERVICO),
+    },
+  });
+
+  assert.equal(gravado.compromisso.minutes, 60);
+});
+
+test("data impossível não vira compromisso", async () => {
+  const { app, gravado } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "compromisso_criar",
+    arguments: { pessoaId: String(PESSOA), quando: "quinta que vem" },
+  });
+
+  assert.equal(saida(r).erro, "data_invalida");
+  assert.equal(gravado.compromisso, undefined);
+});
+
+test("faltou e desmarcado são situações DIFERENTES", async () => {
+  // Juntá-las apagaria a única informação que a agenda tem sobre assiduidade.
+  const situacoes = tools.achar("compromisso_situacao").schema.properties.situacao.enum;
+
+  assert.ok(situacoes.includes("missed"));
+  assert.ok(situacoes.includes("canceled"));
+});
+
+test("a agenda recarrega o DIA do compromisso, e não a semana inteira", async () => {
+  const { app } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "compromisso_situacao",
+    arguments: { compromissoId: String(COMPROMISSO), situacao: "done" },
+  });
+
+  assert.equal(saida(r).ok, true);
+  assert.equal(saida(r).alvo.recarregar, "agenda:2026-08-20");
+});
+
+// ── Avaliação física ─────────────────────────────────────────────────────
+
+test("a avaliação NÃO recebe percentual de gordura nem IMC", async () => {
+  // Eles são derivados do método e do protocolo, calculados na tela. Gravar um
+  // número mandado de fora seria gravar algo que a próxima conta contradiz.
+  const campos = Object.keys(tools.achar("avaliacao_criar").schema.properties);
+
+  assert.ok(!campos.some((c) => /gordura|imc|massa/i.test(c)));
+  assert.ok(campos.includes("dobras"));
+  assert.ok(campos.includes("circunferencias"));
+});
+
+test("a avaliação criada por ferramenta nasce PRONTA, não rascunho", async () => {
+  // O rascunho existe para a tela gravar campo a campo enquanto se digita. Aqui
+  // a medida chega inteira — e um rascunho ficaria pendurado na ficha.
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "avaliacao_criar",
+    arguments: { pessoaId: String(PESSOA), peso: 71, altura: 163 },
+  });
+
+  assert.equal(gravado.avaliacao.draft, false);
+  assert.equal(gravado.avaliacao.weight, 71);
+});
+
+test("a lista de avaliações não devolve resultado calculado", async () => {
+  const { app } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "avaliacao_listar",
+    arguments: { pessoaId: String(PESSOA) },
+  });
+
+  const primeira = saida(r).avaliacoes[0];
+  assert.equal(primeira.peso, 71);
+  assert.ok(!("gordura" in primeira));
+});
+
+test("toda ferramenta nova também declara permissão e schema", async () => {
+  // O mesmo caso do catálogo antigo, valendo para as dezesseis que entraram.
+  for (const nome of [
+    "financeiro_ver",
+    "cobranca_criar",
+    "pagamento_registrar",
+    "agenda_ver",
+    "compromisso_criar",
+    "avaliacao_criar",
+  ]) {
+    const f = tools.achar(nome);
+    assert.ok(f, nome);
+    assert.ok(f.permissao, nome + " sem permissão");
+    assert.equal(f.schema.type, "object", nome);
+  }
+});
+
+test("sem a permissão da área, a ferramenta recusa", async () => {
+  const { app, gravado } = monta({ permissoes: ["people.view"] });
+
+  const r = await rpc(app, "tools/call", {
+    name: "cobranca_criar",
+    arguments: { pessoaId: String(PESSOA), valor: "10" },
+  });
+
+  assert.match(saida(r).erro, /permiss/i);
+  assert.equal(gravado.cobranca, undefined);
 });

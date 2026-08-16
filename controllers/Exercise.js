@@ -1,12 +1,14 @@
 module.exports = function (app) {
-  // O catálogo de exercícios — ÚNICO, no banco central, igual para todo mundo.
+  // O catálogo de exercícios: o compartilhado, que é igual para todo mundo, mais
+  // o que ESTA conta criou. Os dois na mesma lista, em ordem alfabética — quem
+  // monta treino não precisa saber de onde cada um veio, só que o "Afundo +
+  // remada cross + alter" dele está ali, ao lado do original.
   //
-  // A sessão continua sendo exigida (ninguém lê o catálogo sem entrar), mas ela
-  // já NÃO delimita o que se vê: não há catálogo de um profissional para
-  // alcançar o do outro.
-  //
-  // `exercises.manage` passou a valer muito mais do que valia: quem edita ou
-  // apaga mexe no catálogo de todas as instâncias. Vale revisar quem a tem.
+  // Escrever é sempre na conta. Não existe caminho no app para alterar o
+  // compartilhado: `Exercise_model.update` e `.delete` filtram por instância, e
+  // uma tentativa em cima de um compartilhado devolve 404 por não achar nada
+  // que seja seu. O botão da tela para esse caso é "Editar", e ele CRIA a sua
+  // versão em vez de mudar a de todos — foi o pedido que trouxe isto aqui.
 
   // Muscle groups in use, for the filter dropdown.
   app.get("/exercises/groups", async function (req, res) {
@@ -16,7 +18,11 @@ module.exports = function (app) {
     res.send(await app.api.exercise.groups());
   });
 
-  // ?search=&group=&page=&limit=
+  // ?search=&group=&page=&limit=&mine=1
+  //
+  // `mine=1` é a tela "Meus exercícios", nas configurações: a mesma lista sem o
+  // catálogo compartilhado, para poder editar e apagar o que é seu sem procurar
+  // entre mil e quatrocentos que não são.
   app.get("/exercises", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "exercises.view");
     if (trainer === false) return;
@@ -27,6 +33,10 @@ module.exports = function (app) {
         muscleGroup: req.query.group,
         page: req.query.page,
         limit: req.query.limit,
+        onlyMine: req.query.mine === "1",
+        // `demo=1` — só o que já tem a demonstração em 3D. É o filtro que
+        // separa o que está pronto do que ainda falta animar.
+        comClipe: req.query.demo === "1",
       })
     );
   });
@@ -51,6 +61,28 @@ module.exports = function (app) {
     });
 
     res.status(201).send(created);
+  });
+
+  // A DEMONSTRAÇÃO EM 3D, servida como imagem — uma por PADRÃO de movimento.
+  //
+  // Rota pública porque `<img src>` não manda cabeçalho de sessão — e pode ser
+  // pública sem susto: é um boneco fazendo agachamento, igual para todos os
+  // clientes, sem nome, foto ou dado de ninguém dentro.
+  //
+  // O cache é de um ano e `immutable`: o endereço leva a versão (`?v=`), então
+  // trocar a animação troca a URL, e nunca há um clipe velho preso no
+  // navegador de alguém.
+  app.get("/public/clips/:slug.webp", async function (req, res) {
+    const clipe = await app.api.exercise.clip(req.params.slug);
+
+    if (!clipe) {
+      res.status(404).send({ msg: "no_clip" });
+      return;
+    }
+
+    res.setHeader("Content-Type", "image/webp");
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.send(clipe.dados);
   });
 
   app.get("/exercises/:id", async function (req, res) {
@@ -93,9 +125,8 @@ module.exports = function (app) {
     res.send(updated);
   });
 
-  // Deleting from the catalog does NOT touch sessions already using the
-  // exercise: they keep their own name and sets, so the assembled workout
-  // stays intact.
+  // Apagar NÃO desmonta treino nenhum: a série guarda o próprio nome e as
+  // próprias cargas, então o treino já montado continua inteiro.
   app.delete("/exercises/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "exercises.manage");
     if (trainer === false) return;

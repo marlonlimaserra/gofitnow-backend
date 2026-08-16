@@ -247,4 +247,123 @@ module.exports = function (app) {
     await app.api.finance.removeReceipt(req.params.id);
     res.send({ msg: req.t("ok.photoRemoved") });
   });
+
+  // ── As formas de pagamento ────────────────────────────────────────────────
+  //
+  // Eram uma lista fixa no código. Continuam sendo um CATÁLOGO — a chave que fica
+  // gravada no pagamento não muda —, mas quem manda no catálogo é cada conta:
+  // renomear, desativar o que não usa, criar "Cheque" ou "Cartão da recepção" e
+  // pôr na ordem em que se pergunta.
+  //
+  // Ler é `finance.view`: o seletor do formulário de pagamento precisa da lista.
+  // Mexer é `finance.manage`.
+
+  app.get("/payment-methods", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "finance.view");
+    if (trainer === false) return;
+
+    // `?todas=1` traz também as desativadas — é a tela de configuração. O
+    // formulário de pagamento pede só as ativas.
+    const rows =
+      req.query.todas === "1"
+        ? await app.api.paymentMethod.list()
+        : await app.api.paymentMethod.listActive();
+
+    res.send({ rows });
+  });
+
+  app.post("/payment-methods", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "finance.manage");
+    if (trainer === false) return;
+
+    const feito = await app.api.paymentMethod.insert(req.body || {});
+
+    if (feito.erro === "name") {
+      res.status(400).send({ msg: req.t("errors.requirePaymentMethodName") });
+      return;
+    }
+    if (feito.erro === "duplicate") {
+      res.status(409).send({ msg: req.t("errors.paymentMethodExists") });
+      return;
+    }
+
+    app.insertUserActionHistory(req, trainer, "create_payment_method", {
+      category: "finance",
+      local: { target_type: "payment_methods", target_id: String(feito.id) },
+      extra: { name: req.body?.name },
+    });
+
+    res.status(201).send({ _id: feito.id });
+  });
+
+  // ANTES do `/:id`: registrada depois, esta rota nunca seria alcançada — o
+  // Express casaria "order" como se fosse um id, e reordenar viraria uma
+  // tentativa de editar a forma de pagamento chamada "order".
+  app.put("/payment-methods/order", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "finance.manage");
+    if (trainer === false) return;
+
+    const ok = await app.api.paymentMethod.reorder(req.body?.ids);
+    if (!ok) {
+      res.status(400).send({ msg: req.t("errors.invalidOrder") });
+      return;
+    }
+
+    res.send({ msg: req.t("ok.paymentMethodSaved") });
+  });
+
+  app.put("/payment-methods/:id", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "finance.manage");
+    if (trainer === false) return;
+
+    const feito = await app.api.paymentMethod.update(req.params.id, req.body || {});
+
+    if (feito?.erro === "name") {
+      res.status(400).send({ msg: req.t("errors.requirePaymentMethodName") });
+      return;
+    }
+    if (!feito) {
+      res.status(404).send({ msg: req.t("errors.paymentMethodNotFound") });
+      return;
+    }
+
+    app.insertUserActionHistory(req, trainer, "update_payment_method", {
+      category: "finance",
+      local: { target_type: "payment_methods", target_id: String(req.params.id) },
+      extra: { name: req.body?.name, active: req.body?.active },
+    });
+
+    res.send({ msg: req.t("ok.paymentMethodSaved") });
+  });
+
+  app.delete("/payment-methods/:id", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "finance.manage");
+    if (trainer === false) return;
+
+    const feito = await app.api.paymentMethod.delete(req.params.id);
+
+    // As duas recusas dizem o MOTIVO, porque nos dois casos existe uma saída e
+    // ela é a mesma: desativar. Um "não foi possível" mandaria a pessoa tentar
+    // de novo até desistir.
+    if (feito?.erro === "system") {
+      res.status(409).send({ msg: req.t("errors.paymentMethodSystem"), code: "system" });
+      return;
+    }
+    if (feito?.erro === "inUse") {
+      res.status(409).send({ msg: req.t("errors.paymentMethodInUse"), code: "in_use" });
+      return;
+    }
+    if (!feito) {
+      res.status(404).send({ msg: req.t("errors.paymentMethodNotFound") });
+      return;
+    }
+
+    app.insertUserActionHistory(req, trainer, "delete_payment_method", {
+      category: "finance",
+      local: { target_type: "payment_methods", target_id: String(req.params.id) },
+    });
+
+    res.send({ msg: req.t("ok.paymentMethodRemoved") });
+  });
+
 };

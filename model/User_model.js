@@ -211,11 +211,14 @@ User_model.prototype.briefByIds = async function (ids) {
 
   const col = await this.collection();
   const docs = await col
-    .find({ _id: { $in: validos } }, { projection: { name: 1, avatarAt: 1 } })
+    .find({ _id: { $in: validos } }, { projection: { name: 1, avatarAt: 1, bio: 1 } })
     .toArray();
 
   return Object.fromEntries(
-    docs.map((d) => [String(d._id), { name: d.name, avatarAt: d.avatarAt || null }])
+    docs.map((d) => [
+      String(d._id),
+      { name: d.name, avatarAt: d.avatarAt || null, bio: d.bio || "" },
+    ])
   );
 };
 
@@ -228,11 +231,16 @@ User_model.prototype.professionals = async function () {
   const col = await this.collection();
 
   const docs = await col
-    .find({ type: "trainer" }, { projection: { name: 1, avatarAt: 1 } })
+    .find({ type: "trainer" }, { projection: { name: 1, avatarAt: 1, bio: 1 } })
     .sort({ name: 1 })
     .toArray();
 
-  return docs.map((d) => ({ _id: d._id, name: d.name, avatarAt: d.avatarAt || null }));
+  return docs.map((d) => ({
+    _id: d._id,
+    name: d.name,
+    avatarAt: d.avatarAt || null,
+    bio: d.bio || "",
+  }));
 };
 
 User_model.prototype.professionalIds = async function () {
@@ -369,6 +377,14 @@ User_model.prototype.updateTrainer = async function (id, obj) {
 
   if (obj.name !== undefined) set.name = String(obj.name).trim();
   if (obj.phone !== undefined) set.phone = String(obj.phone).trim();
+
+  // A APRESENTAÇÃO do profissional, para a página pública de agendamento.
+  //
+  // Fica na conta e não na página porque é sobre a PESSOA: quem escreve "Personal
+  // trainer, 12 anos de CrossFit" não quer reescrever isso em cada página que
+  // criar. Qual página mostra — ou se alguma mostra — é decisão da página.
+  if (obj.bio !== undefined) set.bio = String(obj.bio).trim().slice(0, 600);
+
   if (obj.active !== undefined) set.active = Number(obj.active) ? 1 : 0;
   if (obj.role !== undefined && ObjectId.isValid(obj.role)) set.role = new ObjectId(obj.role);
   if (obj.admin !== undefined) set.admin = obj.admin === true || obj.admin === 1;
@@ -832,6 +848,13 @@ User_model.prototype.updateSelf = async function (id, obj) {
 
   if (obj.name !== undefined) set.name = String(obj.name).trim();
 
+  // A APRESENTAÇÃO do profissional, para a página pública de agendamento.
+  //
+  // Fica na conta e não na página porque é sobre a PESSOA: quem escreve "Personal
+  // trainer, 12 anos de CrossFit" não quer reescrever isso em cada página que
+  // criar. Qual página mostra — ou se alguma mostra — é decisão da página.
+  if (obj.bio !== undefined) set.bio = String(obj.bio).trim().slice(0, 600);
+
   // O idioma escolhido na tela, guardado na conta.
   //
   // Não é para responder às requisições dela — para isso vem o Accept-Language,
@@ -975,6 +998,14 @@ User_model.prototype.updateAny = async function (id, obj) {
 
   if (obj.name !== undefined) set.name = String(obj.name).trim();
   if (obj.phone !== undefined) set.phone = String(obj.phone).trim();
+
+  // A APRESENTAÇÃO do profissional, para a página pública de agendamento.
+  //
+  // Fica na conta e não na página porque é sobre a PESSOA: quem escreve "Personal
+  // trainer, 12 anos de CrossFit" não quer reescrever isso em cada página que
+  // criar. Qual página mostra — ou se alguma mostra — é decisão da página.
+  if (obj.bio !== undefined) set.bio = String(obj.bio).trim().slice(0, 600);
+
   if (obj.active !== undefined) set.active = Number(obj.active) ? 1 : 0;
   if (obj.role !== undefined && ObjectId.isValid(obj.role)) set.role = new ObjectId(obj.role);
   if (obj.admin !== undefined) set.admin = obj.admin === true || obj.admin === 1;

@@ -95,11 +95,24 @@ module.exports = function (app) {
   //
   // Sem horário próprio, quem tem grade ligada: o `/g` de sempre.
   async function quemAtende(pagina) {
+    // O rosto e a apresentação só saem daqui quando a PÁGINA pediu.
+    //
+    // O nome sempre sai — sem ele não há o que escolher. Foto e texto são outra
+    // coisa: publicar o rosto de alguém numa página aberta é decisão de quem
+    // publica, e ela mora no interruptor da página. Filtrar aqui, e não na
+    // tela, é o que impede o dado de sair na resposta e alguém lê-lo no console
+    // com a página "escondendo" na aparência.
+    const mostrar = pagina?.showProfessional === true;
+    const publico = (dados) =>
+      mostrar
+        ? { _id: dados._id, name: dados.name, avatarAt: dados.avatarAt || null, bio: dados.bio || "" }
+        : { _id: dados._id, name: dados.name };
+
     if (slots.temHorario(pagina?.hours)) {
       const todos = await app.api.user.professionals();
       return todos
         .filter((p) => app.api.bookingPage.ofereceProfissional(pagina, p._id))
-        .map((p) => ({ _id: p._id, name: p.name }));
+        .map(publico);
     }
 
     const grades = await app.api.availability.listActive();
@@ -110,7 +123,7 @@ module.exports = function (app) {
     return grades
       .filter((g) => nomes[String(g.professional)])
       .filter((g) => app.api.bookingPage.ofereceProfissional(pagina, g.professional))
-      .map((g) => ({ _id: g.professional, name: nomes[String(g.professional)].name }));
+      .map((g) => publico({ ...nomes[String(g.professional)], _id: g.professional }));
   }
 
   // O que a página pública precisa para se desenhar: quem atende e os serviços
@@ -132,8 +145,19 @@ module.exports = function (app) {
       return {
         // O nome e o texto de abertura são da PÁGINA: é o que diz a quem chegou
         // pelo anúncio que ele está no lugar certo.
-        page: pagina ? { slug: pagina.slug, name: pagina.name, intro: pagina.intro } : undefined,
-        // Só nome e id. Nada de e-mail, telefone ou papel: é uma página aberta.
+        // A tela precisa saber em que relógio desenhar as horas: quem marca pode
+        // estar em outro fuso, e o horário oferecido é o do estúdio.
+        timezone: await app.api.tenant.timezoneOfInstance(),
+        page: pagina
+          ? {
+              slug: pagina.slug,
+              name: pagina.name,
+              intro: pagina.intro,
+              showProfessional: pagina.showProfessional === true,
+            }
+          : undefined,
+        // Nome e id sempre; foto e apresentação só com o interruptor da página
+        // ligado. Nada de e-mail, telefone ou papel: é uma página aberta.
         professionals: profissionais,
 
         // O RECORTE de serviços da página. Lista vazia quer dizer tudo.
@@ -163,6 +187,46 @@ module.exports = function (app) {
   });
 
   // Os horários livres de um profissional, para um serviço, num intervalo.
+  // A FOTO de quem atende, para quem não entrou.
+  //
+  // `/avatars/:id` exige sessão, e é o certo lá: é a foto de um usuário
+  // identificado, não um arquivo público. Aqui a foto é publicada de propósito —
+  // mas só o que a página publicou:
+  //
+  //   1. a instância sai do HOST, como em toda rota pública daqui;
+  //   2. a página precisa existir e estar com o interruptor ligado;
+  //   3. o profissional precisa ser um dos que ELA oferece.
+  //
+  // Sem o passo 3, um id de aluno nesta rota devolveria a foto dele — e ids
+  // vazam em URL, em log e em corpo de requisição.
+  app.get("/public/booking/photo/:userId", async function (req, res) {
+    const instancia = await instanciaDoHost(req, res);
+    if (instancia === false) return;
+
+    const foto = await instanceContext.run(instancia, async () => {
+      const pagina = await paginaDoApelido(req.query.slug);
+      if (pagina === false || !pagina?.showProfessional) return null;
+
+      const oferecidos = await quemAtende(pagina);
+      const ehDaPagina = oferecidos.some((p) => String(p._id) === String(req.params.userId));
+      if (!ehDaPagina) return null;
+
+      return app.api.avatar.data(req.params.userId);
+    });
+
+    if (!foto) {
+      res.status(404).send({ msg: "no_photo" });
+      return;
+    }
+
+    // `public` aqui, ao contrário de `/avatars/:id`: esta imagem foi publicada,
+    // então um proxy pode guardá-la. A URL leva a versão (?v=), e é ela que
+    // impede o cache longo de segurar uma foto trocada.
+    res.setHeader("Content-Type", foto.mime);
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.send(foto.data.buffer ? Buffer.from(foto.data.buffer) : foto.data);
+  });
+
   app.get("/public/booking/slots", async function (req, res) {
     const instancia = await instanciaDoHost(req, res);
     if (instancia === false) return;
@@ -208,6 +272,11 @@ module.exports = function (app) {
       // idas ao banco para desenhar uma semana.
       const ocupados = await app.api.appointment.between([professional], inicio, fim);
 
+      // O relógio de quem atende. "08:00" na grade é hora de PAREDE, e o
+      // servidor roda em UTC: sem isto, o cliente via 05:00 onde o estúdio
+      // cadastrou 08:00.
+      const fuso = await app.api.tenant.timezoneOfInstance();
+
       // O MESMO instante para todos os dias: lendo o relógio a cada dia, um
       // pedido que atravessasse o minuto daria respostas diferentes para a
       // mesma pergunta.
@@ -227,6 +296,10 @@ module.exports = function (app) {
           agora,
           antecedenciaHoras: horario.antecedencia,
           horizonteDias: horario.horizonte,
+          fuso,
+          // Os ocupados vêm junto, apagados na tela. O que sai daqui continua
+          // sendo só HORÁRIO — nunca de quem é o compromisso que o tomou.
+          incluirOcupados: true,
         });
 
         if (livres.length) {
@@ -237,6 +310,9 @@ module.exports = function (app) {
             slots: livres.map((l) => ({
               start: l.start.toISOString(),
               seats: servico.capacity > 1 ? l.seats : undefined,
+              // Só quando é verdade: um `taken: false` em cada horário livre
+              // seria a maior parte do corpo da resposta.
+              taken: l.seats === 0 ? true : undefined,
             })),
           });
         }
@@ -316,6 +392,7 @@ module.exports = function (app) {
       const amanha = new Date(dia.getTime() + 86400000);
 
       const ocupados = await app.api.appointment.between([body.professional], dia, amanha);
+      const fuso = await app.api.tenant.timezoneOfInstance();
 
       const livres = slots.livresDoDia({
         dia,
@@ -331,6 +408,7 @@ module.exports = function (app) {
         agora: new Date(),
         antecedenciaHoras: horario.antecedencia,
         horizonteDias: horario.horizonte,
+        fuso,
       });
 
       const ainda = livres.some((l) => l.start.getTime() === inicio.getTime());

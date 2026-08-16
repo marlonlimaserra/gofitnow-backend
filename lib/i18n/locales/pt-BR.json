@@ -74,6 +74,7 @@
     "noCustomDomain": "Nenhum domínio próprio cadastrado.",
     "invalidBrandImage": "Envie uma imagem JPEG, PNG ou WebP de até 4 MB.",
     "tooManyBrandImages": "Você já tem {{max}} imagens guardadas. Salve a aparência para liberar as que não estão em uso.",
+    "brandImagesNotInPlan": "Seu plano não inclui imagens da marca. Você ainda pode usar o endereço de uma imagem hospedada em outro lugar.",
     "noInstance": "Instância não informada. Mande o cabeçalho X-Instance, ou acesse pelo endereço da instância.",
     "unknownInstance": "Domínio não identificado. Este endereço não está ligado a nenhum cliente cadastrado.",
     "usernameInUse": "Este nome de usuário já está em uso.",
@@ -139,7 +140,14 @@
     "bookingPageSlugShort": "O apelido precisa de ao menos duas letras.",
     "bookingPageSlugReserved": "Esse apelido é reservado pelo sistema. Escolha outro.",
     "bookingPageSlugTaken": "Já existe uma página com esse apelido.",
-    "bookingPageNotFound": "Página de agendamento não encontrada."
+    "bookingPageNotFound": "Página de agendamento não encontrada.",
+    "requirePaymentMethodName": "Dê um nome à forma de pagamento.",
+    "paymentMethodExists": "Já existe uma forma de pagamento com esse nome.",
+    "paymentMethodSystem": "As formas originais não podem ser apagadas — desative para tirá-la do seletor.",
+    "paymentMethodInUse": "Há pagamentos registrados nesta forma. Desative para tirá-la do seletor sem mexer no histórico.",
+    "invalidOrder": "Ordem inválida.",
+    "paymentMethodNotFound": "Forma de pagamento não encontrada.",
+    "invalidTimezone": "Fuso horário desconhecido."
   },
   "ok": {
     "passwordChanged": "Senha alterada.",
@@ -166,7 +174,9 @@
     "serviceRemoved": "Serviço removido.",
     "chargeRemoved": "Cobrança removida.",
     "paymentRemoved": "Pagamento removido.",
-    "bookingPageRemoved": "Página de agendamento removida."
+    "bookingPageRemoved": "Página de agendamento removida.",
+    "paymentMethodSaved": "Forma de pagamento salva.",
+    "paymentMethodRemoved": "Forma de pagamento removida."
   },
   "permissions": {
     "groups": {
@@ -414,7 +424,11 @@
     "create_booking_page": "Criou uma página de agendamento",
     "update_booking_page": "Alterou uma página de agendamento",
     "delete_booking_page": "Removeu uma página de agendamento",
-    "mcp_tool": "Assistente usou uma ferramenta"
+    "mcp_tool": "Assistente usou uma ferramenta",
+    "create_payment_method": "Criou forma de pagamento",
+    "update_payment_method": "Alterou forma de pagamento",
+    "delete_payment_method": "Apagou forma de pagamento",
+    "update_timezone": "Alterou o fuso horário"
   },
   "categories": {
     "auth": "Acesso",
@@ -446,7 +460,8 @@
     "charges": "Cobrança",
     "payments": "Pagamento",
     "availability": "Agenda pública",
-    "mcp": "Ferramenta do assistente"
+    "mcp": "Ferramenta do assistente",
+    "payment_methods": "Forma de pagamento"
   },
   "autoFill": {
     "groups": {
@@ -567,12 +582,12 @@
       "updateSession": "Altera o nome ou a posição da sessão.",
       "deleteSession": "Apaga a sessão com os exercícios dela.",
       "setSessionExercises": "Substitui a lista inteira de exercícios da sessão, na ordem enviada.",
-      "listExercises": "O seu catálogo de exercícios, paginado.",
+      "listExercises": "O catálogo de exercícios, paginado: os compartilhados e os desta conta. `mine=1` traz só os desta conta.",
       "exerciseGroups": "Os grupos musculares em uso, com a contagem de cada um.",
       "getExercise": "Um exercício do catálogo.",
-      "createExercise": "Cria um exercício no catálogo.",
-      "updateExercise": "Altera um exercício do catálogo.",
-      "deleteExercise": "Apaga um exercício. Os treinos já montados com ele não mudam.",
+      "createExercise": "Cria um exercício nesta conta. Com `fromCatalog`, guarda de qual exercício compartilhado ele foi copiado.",
+      "updateExercise": "Altera um exercício desta conta. Os compartilhados não são alteráveis.",
+      "deleteExercise": "Apaga um exercício desta conta. Os treinos já montados com ele não mudam.",
       "getMe": "Os dados da conta dona da chave.",
       "duplicateSession": "Copia a sessão com os exercícios e as séries. Sem `workoutId`, a cópia fica no mesmo treino."
     }

@@ -46,7 +46,7 @@ function gradeAbertaEm(quando) {
 // `semGrade` é quem nunca abriu a configuração de agenda: não há documento de
 // disponibilidade nenhum para essa conta. Com a grade por profissional fora da
 // tela, esse passou a ser o caso NORMAL de uma casa nova.
-function monta({ paginas = [], grades = null, servicos = null, semana = {}, semGrade = false } = {}) {
+function monta({ paginas = [], grades = null, servicos = null, semana = {}, semGrade = false, ocupados = [] } = {}) {
   const permissao = permiteTudo(USUARIO);
   const marcados = [];
 
@@ -56,6 +56,14 @@ function monta({ paginas = [], grades = null, servicos = null, semana = {}, semG
       center: {
         async byHost() {
           return { instance: "marlon", active: 1 };
+        },
+      },
+      avatar: {
+        async data(id) {
+          // Todo mundo tem foto neste arreio, inclusive quem não devia ter a
+          // dele publicada: é assim que o teste prova que quem barra é a REGRA,
+          // e não a ausência do dado.
+          return { mime: "image/webp", data: Buffer.from("bytes-de-" + id) };
         },
       },
       bookingPage: {
@@ -88,14 +96,25 @@ function monta({ paginas = [], grades = null, servicos = null, semana = {}, semG
         // própria agenda.
         async professionals() {
           return [
-            { _id: PRO_A, name: "Ana" },
-            { _id: PRO_B, name: "Bruno" },
+            {
+              _id: PRO_A,
+              name: "Ana",
+              avatarAt: new Date("2026-08-01"),
+              bio: "Personal trainer há 12 anos.",
+              email: "ana@x.com",
+              phone: "11999999999",
+            },
+            { _id: PRO_B, name: "Bruno", avatarAt: null, bio: "" },
           ];
         },
         async briefByIds() {
           return {
-            [String(PRO_A)]: { name: "Ana" },
-            [String(PRO_B)]: { name: "Bruno" },
+            [String(PRO_A)]: {
+              name: "Ana",
+              avatarAt: new Date("2026-08-01"),
+              bio: "Personal trainer há 12 anos.",
+            },
+            [String(PRO_B)]: { name: "Bruno", avatarAt: null, bio: "" },
           };
         },
         async dataByEmail() {
@@ -128,10 +147,15 @@ function monta({ paginas = [], grades = null, servicos = null, semana = {}, semG
         async currencyOfInstance() {
           return { currency: "BRL" };
         },
+        // O relógio de quem atende. Fixo no teste porque a hora que sai daqui é
+        // hora de PAREDE, e ela precisa ser a mesma em qualquer máquina.
+        async timezoneOfInstance() {
+          return "America/Sao_Paulo";
+        },
       },
       appointment: {
         async between() {
-          return [];
+          return ocupados;
         },
         async insert(profissional, aluno, dados) {
           marcados.push({ profissional, aluno, ...dados });
@@ -160,6 +184,91 @@ const PAGINA_AVALIACAO = {
 
 const publico = (app, caminho, query) =>
   call(app, "get", caminho, { query: { host: "marlon.gofitnow.fit", ...query } });
+
+// ── A foto e a apresentação de quem atende ───────────────────────────────
+//
+// A página é aberta a qualquer um com o link. Publicar o rosto de alguém é
+// decisão de quem publica — mora num interruptor da página —, e não um efeito
+// colateral de criar a página.
+
+test("sem o interruptor, sai só o nome", async () => {
+  const { app } = monta({ paginas: [PAGINA_AVALIACAO] });
+
+  const r = await publico(app, "/public/booking", { slug: "avaliacao" });
+  const pro = r.body.professionals[0];
+
+  assert.ok(pro.name);
+  assert.equal(pro.bio, undefined);
+  assert.equal(pro.avatarAt, undefined);
+});
+
+test("com o interruptor, a foto e a apresentação vão junto", async () => {
+  const { app } = monta({
+    paginas: [{ ...PAGINA_AVALIACAO, showProfessional: true }],
+  });
+
+  const r = await publico(app, "/public/booking", { slug: "avaliacao" });
+  const pro = r.body.professionals[0];
+
+  assert.equal(pro.bio, "Personal trainer há 12 anos.");
+  assert.ok(pro.avatarAt);
+  assert.equal(r.body.page.showProfessional, true);
+});
+
+test("o interruptor NÃO abre e-mail nem telefone — é uma página aberta", async () => {
+  // O que se publicou foi rosto e apresentação. Contato de quem atende não
+  // entra de carona.
+  const { app } = monta({
+    paginas: [{ ...PAGINA_AVALIACAO, showProfessional: true }],
+  });
+
+  const r = await publico(app, "/public/booking", { slug: "avaliacao" });
+  const corpo = JSON.stringify(r.body.professionals);
+
+  assert.ok(!/@/.test(corpo));
+  assert.ok(!/phone|telefone/i.test(corpo));
+});
+
+test("a foto sai pela rota pública quando a página a publicou", async () => {
+  const { app } = monta({ paginas: [{ ...PAGINA_AVALIACAO, showProfessional: true }] });
+
+  const r = await publico(app, "/public/booking/photo/" + PRO_A, { slug: "avaliacao" });
+
+  assert.equal(r.status, 200);
+  assert.match(String(r.headers["cache-control"] || ""), /public/);
+});
+
+test("sem o interruptor, a foto não sai nem pelo id certo", async () => {
+  // O interruptor é o consentimento. Desligado, a foto do profissional é tão
+  // privada quanto a de qualquer um.
+  const { app } = monta({ paginas: [PAGINA_AVALIACAO] });
+
+  const r = await publico(app, "/public/booking/photo/" + PRO_A, { slug: "avaliacao" });
+
+  assert.equal(r.status, 404);
+});
+
+test("um id que a página NÃO oferece não vira foto", async () => {
+  // O buraco que este caso fecha: com a página aberta, um id de aluno na URL
+  // devolveria a foto dele. Ids vazam em URL, em log e em corpo de requisição.
+  const { app } = monta({
+    paginas: [{ ...PAGINA_AVALIACAO, showProfessional: true, professionals: [PRO_A] }],
+  });
+
+  const r = await publico(app, "/public/booking/photo/" + new ObjectId(), { slug: "avaliacao" });
+
+  assert.equal(r.status, 404);
+});
+
+test("nem o profissional de OUTRA página passa por esta", async () => {
+  const { app } = monta({
+    paginas: [{ ...PAGINA_AVALIACAO, showProfessional: true, professionals: [PRO_A] }],
+  });
+
+  const r = await publico(app, "/public/booking/photo/" + PRO_B, { slug: "avaliacao" });
+
+  assert.equal(r.status, 404);
+});
 
 // ── A listagem ───────────────────────────────────────────────────────────
 
@@ -395,6 +504,115 @@ test("dentro do horário da página, os horários aparecem", async () => {
   });
 
   assert.deepEqual(horas, ["10:00", "10:30", "11:00"]);
+});
+
+test("o horário já marcado APARECE, apagado — é o que explica o buraco", async () => {
+  // O relato: uma terça que pula das 07h para as 09h parece erro de
+  // configuração. Quem olha a página não tem como saber que as 08h existem e
+  // estão tomadas.
+  const quando = daquiUmaSemana();
+  const pagina = {
+    ...PAGINA_AVALIACAO,
+    hours: { [DIAS[quando.getDay()]]: [{ from: "10:00", to: "12:00" }] },
+  };
+
+  const tomado = new Date(quando);
+  tomado.setHours(10, 30, 0, 0);
+
+  const { app } = monta({
+    paginas: [pagina],
+    semana: gradeAbertaEm(quando),
+    ocupados: [{ date: tomado, minutes: 60, service: SERVICO_A, professional: PRO_A }],
+  });
+
+  const r = await publico(app, "/public/booking/slots", {
+    slug: "avaliacao",
+    professional: String(PRO_A),
+    service: String(SERVICO_A),
+    from: quando.toISOString(),
+  });
+
+  const horarios = (r.body.days[0]?.slots || []).map((s) => {
+    const d = new Date(s.start);
+    return `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}${s.taken ? " (ocupado)" : ""}`;
+  });
+
+  // O de 10:00 também some por cruzar com o compromisso das 10:30 — o
+  // profissional é um só.
+  assert.deepEqual(horarios, ["10:00 (ocupado)", "10:30 (ocupado)", "11:00 (ocupado)"]);
+});
+
+test("o ocupado não diz de QUEM é — a página é pública", async () => {
+  // A página é aberta a qualquer um com o link. Mostrar que as 08h estão
+  // tomadas é agenda; mostrar quem as tomou seria entregar o cliente.
+  const quando = daquiUmaSemana();
+  const pagina = {
+    ...PAGINA_AVALIACAO,
+    hours: { [DIAS[quando.getDay()]]: [{ from: "10:00", to: "12:00" }] },
+  };
+
+  const tomado = new Date(quando);
+  tomado.setHours(10, 0, 0, 0);
+
+  const { app } = monta({
+    paginas: [pagina],
+    semana: gradeAbertaEm(quando),
+    ocupados: [
+      {
+        date: tomado,
+        minutes: 60,
+        service: SERVICO_A,
+        professional: PRO_A,
+        student: new ObjectId(),
+        name: "Bruna Sampaio",
+        email: "bruna@x.com",
+      },
+    ],
+  });
+
+  const r = await publico(app, "/public/booking/slots", {
+    slug: "avaliacao",
+    professional: String(PRO_A),
+    service: String(SERVICO_A),
+    from: quando.toISOString(),
+  });
+
+  const corpo = JSON.stringify(r.body);
+  assert.ok(!/Bruna/.test(corpo));
+  assert.ok(!/bruna@x.com/.test(corpo));
+  assert.ok(/"taken":true/.test(corpo), "o horário tomado precisa estar lá");
+});
+
+test("ver o ocupado na lista não deixa MARCAR nele", async () => {
+  // A mesma função monta a lista e decide se a marcação pode ser gravada. Se o
+  // ocupado entrasse nos dois lugares, a última vaga seria vendida duas vezes —
+  // e o profissional descobriria com duas pessoas na porta.
+  const quando = daquiUmaSemana();
+  const pagina = {
+    ...PAGINA_AVALIACAO,
+    hours: { [DIAS[quando.getDay()]]: [{ from: "10:00", to: "12:00" }] },
+  };
+
+  const tomado = new Date(quando);
+  tomado.setHours(10, 0, 0, 0);
+
+  const { app, marcados } = monta({
+    paginas: [pagina],
+    semana: gradeAbertaEm(quando),
+    ocupados: [{ date: tomado, minutes: 60, service: SERVICO_A, professional: PRO_A }],
+  });
+
+  const r = await marcar(app, {
+    slug: "avaliacao",
+    professional: String(PRO_A),
+    service: String(SERVICO_A),
+    date: tomado.toISOString(),
+    name: "Quem chegou depois",
+    email: "depois@x.com",
+  });
+
+  assert.equal(r.body.erro || r.body.msg, "taken");
+  assert.equal(marcados.length, 0);
 });
 
 test("MARCAR fora do horário da página é recusado", async () => {

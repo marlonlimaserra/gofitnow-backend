@@ -119,6 +119,16 @@ function limpar(obj) {
     // para sua avaliação" sem precisar de uma tela de edição de conteúdo.
     intro: String(obj.intro || "").trim().slice(0, 500),
     active: obj.active === undefined ? 1 : Number(obj.active) ? 1 : 0,
+
+    // Mostrar a FOTO e a APRESENTAÇÃO de quem atende.
+    //
+    // Desligado por padrão, e não por timidez: a página é aberta a qualquer um
+    // com o link, e publicar o rosto de alguém é decisão de quem publica, não
+    // um efeito colateral de criar uma página. Numa página de campanha, onde a
+    // pessoa escolhe entre três profissionais, ver a cara e ler duas linhas
+    // sobre cada um é o que faz escolher — numa página de um serviço só, é
+    // ruído.
+    showProfessional: obj.showProfessional === true || Number(obj.showProfessional) === 1,
     services: idsValidos(obj.services),
     professionals: idsValidos(obj.professionals),
     hours: horarioLimpo(obj.hours),

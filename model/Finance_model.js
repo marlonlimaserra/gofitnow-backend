@@ -17,6 +17,24 @@ const { parseDataUri } = require("../lib/imageDataUri.js");
 // quitou e não deixou de pagar — e o pagamento avulso, sem cobrança nenhuma:
 // alguém que paga adiantado, ou uma venda que nunca virou cobrança.
 //
+// POR QUE NÃO um array de pagamentos dentro da cobrança, que leria melhor
+// (15/08/2026 — a pergunta foi feita, e a resposta é esta):
+//
+//   • o pagamento AVULSO não teria onde morar, e precisaria de uma segunda
+//     collection assim mesmo — pagamento em duas formas é pior que duas
+//     collections;
+//   • um pagamento que quita VÁRIAS cobranças ("paguei os três meses, R$ 750
+//     no Pix") viraria três pedaços, e o comprovante, que é um arquivo só,
+//     ficaria preso em um deles;
+//   • "quanto entrou no mês" — o relatório mais pedido — é hoje uma consulta
+//     direta em `payments`; com o array, viraria desmontar o array de todas as
+//     cobranças e ainda somar com os avulsos.
+//
+// O preço de manter separado é UMA consulta a mais por pessoa (`paidByCharge`)
+// para saber o que está quitado. Não cresce com o número de cobranças, e é o
+// que garante que o "Quitada" da tela nunca discorde dos lançamentos: não há
+// campo para discordar.
+//
 // TUDO em CENTAVOS, inteiro. `1.1 + 2.2` em ponto flutuante dá
 // 3.3000000000000003, e dinheiro somado assim erra o centavo — que é
 // exatamente o que ninguém perdoa num relatório financeiro.
@@ -24,8 +42,21 @@ function Finance_model(app) {
   this.app = app;
 }
 
-// Como o dinheiro entrou. Lista fechada porque ela vira coluna de relatório: com
-// texto livre, "pix", "PIX" e "Pix" seriam três formas de pagamento diferentes.
+// Como o dinheiro entrou.
+//
+// A lista deixou de ser fixa: cada conta manda no próprio catálogo
+// (PaymentMethod_model) — renomeia, desativa o que não usa, cria "Cheque". O que
+// NÃO mudou é o motivo de existir um catálogo: `method` vira coluna de
+// relatório, e com texto livre "pix", "PIX" e "Pix" seriam três formas
+// diferentes.
+//
+// O que se guarda aqui é a CHAVE, e o formato dela é o que este arquivo cobra:
+// minúsculas, números e hífen. Quem decide quais chaves existem é o catálogo; o
+// que este teste de formato impede é uma frase inteira virar forma de pagamento
+// por um pedido malformado.
+const FORMATO_DA_FORMA = /^[a-z0-9][a-z0-9-]{0,29}$/;
+
+// As sete originais, que toda conta ganha ao abrir o catálogo pela primeira vez.
 const FORMAS = ["pix", "cash", "credit", "debit", "transfer", "billet", "other"];
 
 // A cobrança está aberta, foi paga, ou foi cancelada.
@@ -100,7 +131,7 @@ function limparPagamento(obj) {
   return {
     amount: centavos(obj.amount),
     date: dataOuHoje(obj.date),
-    method: FORMAS.includes(obj.method) ? obj.method : "other",
+    method: FORMATO_DA_FORMA.test(String(obj.method || "")) ? String(obj.method) : "other",
     // Status desconhecido vira `paid` em vez de recusar o lançamento: o valor
     // vem de uma lista fechada na tela, e um erro aqui é mais provável ser
     // versão velha do navegador que má-fé.

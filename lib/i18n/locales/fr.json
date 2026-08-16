@@ -74,6 +74,7 @@
     "noCustomDomain": "Aucun domaine personnel n’est configuré.",
     "invalidBrandImage": "Envoyez une image JPEG, PNG ou WebP de 4 Mo maximum.",
     "tooManyBrandImages": "Vous avez déjà {{max}} images enregistrées. Enregistrez l’apparence pour libérer celles qui ne servent plus.",
+    "brandImagesNotInPlan": "Votre forfait n’inclut pas les images de marque. Vous pouvez toujours utiliser l’adresse d’une image hébergée ailleurs.",
     "noInstance": "Instance non fournie. Envoyez l’en-tête X-Instance, ou passez par l’adresse de l’instance.",
     "unknownInstance": "Adresse non reconnue. Cette adresse n’est liée à aucun client enregistré.",
     "usernameInUse": "Ce nom d’utilisateur est déjà pris.",
@@ -139,7 +140,14 @@
     "bookingPageSlugShort": "L'alias doit avoir au moins deux lettres.",
     "bookingPageSlugReserved": "Cet alias est réservé par le système. Choisissez-en un autre.",
     "bookingPageSlugTaken": "Une page avec cet alias existe déjà.",
-    "bookingPageNotFound": "Page de réservation introuvable."
+    "bookingPageNotFound": "Page de réservation introuvable.",
+    "requirePaymentMethodName": "Donnez un nom au moyen de paiement.",
+    "paymentMethodExists": "Un moyen de paiement portant ce nom existe déjà.",
+    "paymentMethodSystem": "Les moyens d'origine ne peuvent pas être supprimés — désactivez-le pour le retirer du sélecteur.",
+    "paymentMethodInUse": "Des paiements sont enregistrés avec ce moyen. Désactivez-le pour le retirer du sélecteur sans toucher à l'historique.",
+    "invalidOrder": "Ordre invalide.",
+    "paymentMethodNotFound": "Moyen de paiement introuvable.",
+    "invalidTimezone": "Fuseau horaire inconnu."
   },
   "ok": {
     "passwordChanged": "Mot de passe modifié.",
@@ -166,7 +174,9 @@
     "serviceRemoved": "Service supprimé.",
     "chargeRemoved": "Facture supprimée.",
     "paymentRemoved": "Paiement supprimé.",
-    "bookingPageRemoved": "Page de réservation supprimée."
+    "bookingPageRemoved": "Page de réservation supprimée.",
+    "paymentMethodSaved": "Moyen de paiement enregistré.",
+    "paymentMethodRemoved": "Moyen de paiement supprimé."
   },
   "permissions": {
     "groups": {
@@ -414,7 +424,11 @@
     "create_booking_page": "A créé une page de réservation",
     "update_booking_page": "A modifié une page de réservation",
     "delete_booking_page": "A supprimé une page de réservation",
-    "mcp_tool": "L'assistant a utilisé un outil"
+    "mcp_tool": "L'assistant a utilisé un outil",
+    "create_payment_method": "A créé un moyen de paiement",
+    "update_payment_method": "A modifié un moyen de paiement",
+    "delete_payment_method": "A supprimé un moyen de paiement",
+    "update_timezone": "A changé le fuseau horaire"
   },
   "categories": {
     "auth": "Accès",
@@ -446,7 +460,8 @@
     "charges": "Facture",
     "payments": "Paiement",
     "availability": "Agenda public",
-    "mcp": "Outil de l'assistant"
+    "mcp": "Outil de l'assistant",
+    "payment_methods": "Moyen de paiement"
   },
   "autoFill": {
     "groups": {
@@ -567,12 +582,12 @@
       "updateSession": "Modifie le nom ou la position de la séance.",
       "deleteSession": "Supprime la séance avec ses exercices.",
       "setSessionExercises": "Remplace toute la liste d’exercices de la séance, dans l’ordre envoyé.",
-      "listExercises": "Votre catalogue d’exercices, paginé.",
+      "listExercises": "Le catalogue d'exercices, paginé : les partagés et ceux de ce compte. `mine=1` ne renvoie que ceux de ce compte.",
       "exerciseGroups": "Les groupes musculaires utilisés, avec le compte de chacun.",
       "getExercise": "Un exercice du catalogue.",
-      "createExercise": "Crée un exercice dans le catalogue.",
-      "updateExercise": "Modifie un exercice du catalogue.",
-      "deleteExercise": "Supprime un exercice. Les entraînements déjà montés avec lui ne changent pas.",
+      "createExercise": "Crée un exercice dans ce compte. Avec `fromCatalog`, garde de quel exercice partagé il a été copié.",
+      "updateExercise": "Modifie un exercice de ce compte. Les partagés ne sont pas modifiables.",
+      "deleteExercise": "Supprime un exercice de ce compte. Les entraînements déjà montés avec lui ne changent pas.",
       "getMe": "Les données du compte propriétaire de la clé.",
       "duplicateSession": "Copie la séance avec ses exercices et ses séries. Sans `workoutId`, la copie reste dans le même entraînement."
     }

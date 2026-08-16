@@ -141,7 +141,11 @@ module.exports = function (app) {
     // precisa numa requisição só.
     res.send({
       ...workout,
-      student: student ? { _id: student._id, name: student.name } : null,
+      // `avatarAt` junto: a barra de cima mostra a FOTO de quem é o treino, e
+      // sem a versão da imagem ela só teria a inicial do nome.
+      student: student
+        ? { _id: student._id, name: student.name, avatarAt: student.avatarAt || null }
+        : null,
     });
   });
 

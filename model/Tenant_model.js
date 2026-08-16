@@ -1,5 +1,6 @@
 const { ObjectId } = require("mongodb");
 const currencies = require("../lib/currencies.js");
+const tempo = require("../lib/tempo.js");
 
 const theme = require("../lib/theme.js");
 const domainLib = require("../lib/domain.js");
@@ -221,6 +222,36 @@ Tenant_model.prototype.saveCurrency = async function (userId, code, lista) {
 
 // As moedas da INSTÂNCIA, não as de um usuário: o financeiro é do cliente
 // inteiro, e todo mundo que abre a tela tem de ver as mesmas opções.
+// O FUSO da conta, e por que ele é uma configuração.
+//
+// O servidor roda em UTC de propósito — assim ele muda de máquina sem reescrever
+// a agenda de ninguém. Só que "08:00" na grade da semana é hora de PAREDE, do
+// relógio de quem atende, e alguém precisa dizer de qual relógio se trata.
+//
+// Sem isto, a hora de parede era lida no fuso do PROCESSO: o estúdio digitava 8
+// e o cliente via 5, com o servidor em UTC e o navegador em Brasília.
+Tenant_model.prototype.timezoneOfInstance = async function () {
+  const doc = await this.dataOfInstance();
+  return tempo.normalizar(doc?.timezone);
+};
+
+Tenant_model.prototype.saveTimezone = async function (userId, fuso) {
+  if (!tempo.valido(fuso)) return null;
+
+  const col = await this.collection();
+
+  await col.updateOne(
+    { user: new ObjectId(userId) },
+    {
+      $set: { timezone: fuso, updatedAt: new Date() },
+      $setOnInsert: { user: new ObjectId(userId), status: "none", createdAt: new Date() },
+    },
+    { upsert: true }
+  );
+
+  return fuso;
+};
+
 Tenant_model.prototype.currencyOfInstance = async function () {
   const doc = await this.dataOfInstance();
 
