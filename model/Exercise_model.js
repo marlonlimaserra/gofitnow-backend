@@ -181,10 +181,46 @@ Exercise_model.prototype.list = async function (filter = {}) {
     .limit(limit)
     .toArray();
 
-  const rows = encontrados.map(publico);
+  const rows = await comVersaoDoClipe(this.app, encontrados.map(publico));
 
   return { rows, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
 };
+
+// QUANDO CADA CLIPE FOI GRAVADO — e por que isso precisa viajar junto.
+//
+// O clipe é servido com `Cache-Control: immutable` por um ano. `immutable` é uma
+// promessa ao navegador: "este endereço nunca muda de conteúdo". Só que o
+// endereço é o nome do MOVIMENTO, e regravar mantém o nome — a promessa era
+// mentira.
+//
+// O preço apareceu inteiro: o catálogo foi regravado com personagens novos,
+// subiu, foi conferido byte a byte contra o servidor, e a tela mostrou os
+// antigos. O navegador nem perguntou, porque foi exatamente isso que a gente
+// mandou ele fazer.
+//
+// Aqui vai a data de gravação de cada movimento, que a tela põe no endereço como
+// `?v=`. Cada versão passa a ter endereço próprio: o cache de um ano continua
+// valendo — de verdade agora — e a regravação chega na hora.
+//
+// UMA consulta por página, e não uma por linha: a página tem 60 exercícios e
+// eles se repetem em poucas dezenas de movimentos.
+async function comVersaoDoClipe(app, linhas) {
+  const chaves = [...new Set(linhas.map((l) => l.clipSlug).filter(Boolean))];
+  if (!chaves.length) return linhas;
+
+  const db = await app.mongodb.centralDb();
+  const clipes = await db
+    .collection("exercise_clips")
+    // Sem o binário: são 70 KB por clipe, e o que se quer aqui é uma data.
+    .find({ _id: { $in: chaves } }, { projection: { updatedAt: 1 } })
+    .toArray();
+
+  const quando = Object.fromEntries(clipes.map((c) => [c._id, c.updatedAt]));
+
+  return linhas.map((l) =>
+    l.clipSlug && quando[l.clipSlug] ? { ...l, clipV: new Date(quando[l.clipSlug]).getTime() } : l
+  );
+}
 
 // Um exercício pelo id, INCLUSIVE o aposentado.
 //

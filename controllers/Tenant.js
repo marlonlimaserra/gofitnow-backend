@@ -9,6 +9,18 @@ const instanceContext = require("../lib/instance.js");
 //
 // Uma das rotas é PÚBLICA por necessidade: a tela de login precisa do tema
 // antes de existir sessão, e o host é a única coisa que diz de quem ela é.
+// Os endereços que são a NOSSA porta de entrada, e não a de um cliente.
+//
+// Lido a cada chamada em vez de uma vez no boot, para o teste poder mexer no
+// ambiente sem recarregar o módulo. São duas comparações de string.
+function portais() {
+  const bruto = process.env.PORTAL_HOSTS || "app.gofitnow.fit";
+  return bruto
+    .split(",")
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 module.exports = function (app) {
   // As duas integrações que saem da máquina ficam num ponto só, para o teste
   // poder trocá-las por dublês. Em produção são os módulos de verdade.
@@ -46,6 +58,21 @@ module.exports = function (app) {
     // qual domínio próprio pertence a qual cliente nosso. Quem precisa saber a
     // instância é o servidor, e ele descobre sozinho pelo endereço da tela
     // (cabeçalho X-Instance-Host, ver app.js).
+    // O PORTAL é um "desconhecido" que a tela precisa saber distinguir.
+    //
+    // `app.gofitnow.fit` não é o endereço de nenhum cliente, e isso é de
+    // propósito. Mas ele também não é um subdomínio aleatório apontado para nós:
+    // é a nossa porta de entrada genérica. Os dois casos chegam aqui como
+    // `known: false`, e sem esta linha a tela trata os dois igual — foi por isso
+    // que o portal mostrava "domínio não identificado".
+    //
+    // Quem decide é a configuração do servidor, não a tela: o portal é uma
+    // propriedade da NOSSA instalação, e uma constante compilada no frontend
+    // ficaria errada em homologação e em desenvolvimento.
+    if (portais().includes(String(host).trim().toLowerCase().split(":")[0])) {
+      return res.send({ ...padrao, custom: false, known: false, portal: true });
+    }
+
     if (!registro || registro.active === false || registro.active === 0) {
       return res.send({ ...padrao, custom: false, known: false });
     }

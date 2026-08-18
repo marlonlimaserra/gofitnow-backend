@@ -164,4 +164,14 @@ module.exports = function (app) {
       brandImages: await conta("brand_images"),
     });
   });
+
+  // As categorias que os clientes criaram, varridas por todas as instâncias.
+  //
+  // Interna porque a varredura abre o banco de TODO cliente — é a operação mais
+  // ampla desta API, e ela existe para uma tela só do painel.
+  app.get("/internal/recipe-categories/clientes", async function (req, res) {
+    if (!autorizado(req, res)) return;
+
+    res.send(await app.api.recipeCategory.dosClientes());
+  });
 };

@@ -77,6 +77,10 @@
     "brandImagesNotInPlan": "Seu plano não inclui imagens da marca. Você ainda pode usar o endereço de uma imagem hospedada em outro lugar.",
     "noInstance": "Instância não informada. Mande o cabeçalho X-Instance, ou acesse pelo endereço da instância.",
     "unknownInstance": "Domínio não identificado. Este endereço não está ligado a nenhum cliente cadastrado.",
+    "invalidName": "Informe seu nome.",
+    "invalidWords": "Escolha como você chama as pessoas que atende.",
+    "signupRateLimited": "Muitos cadastros deste computador. Tente novamente em uma hora.",
+    "emailAlreadyHasAccess": "Este e-mail já tem acesso ao GoFitNow. Entre em vez de criar uma conta nova.",
     "usernameInUse": "Este nome de usuário já está em uso.",
     "username": {
       "at": "Nome de usuário não leva arroba — isso é e-mail.",
@@ -147,7 +151,10 @@
     "paymentMethodInUse": "Há pagamentos registrados nesta forma. Desative para tirá-la do seletor sem mexer no histórico.",
     "invalidOrder": "Ordem inválida.",
     "paymentMethodNotFound": "Forma de pagamento não encontrada.",
-    "invalidTimezone": "Fuso horário desconhecido."
+    "invalidTimezone": "Fuso horário desconhecido.",
+    "notFound": "Não encontrado.",
+    "categoryReserved": "Esse nome é de uma categoria do sistema. Escolha outro.",
+    "categoryDuplicated": "Você já tem uma categoria com esse nome."
   },
   "ok": {
     "passwordChanged": "Senha alterada.",

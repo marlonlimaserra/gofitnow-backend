@@ -1,4 +1,30 @@
 module.exports = function (app) {
+  // A FOTO do alimento.
+  //
+  // PÚBLICA, sem sessão, pelos mesmos dois motivos da imagem da marca: a tag
+  // `<img>` não manda cabeçalho de autorização, e não há o que proteger — é uma
+  // foto de arroz, igual para todos os clientes, sem nome nem dado de ninguém.
+  //
+  // Fica ANTES de `/foods/:id` para o `:id` nunca engolir esta rota.
+  app.get("/public/food-images/:key", async function (req, res) {
+    const img = await app.api.foodImage.byKey(req.params.key);
+    if (!img) return res.status(404).end();
+
+    const etag = '"' + new Date(img.updatedAt).getTime() + '"';
+
+    res.setHeader("Content-Type", img.mime);
+    // Uma semana, e não `immutable`: a chave NÃO muda quando a foto é trocada
+    // no painel — o nome do alimento continua o mesmo. Quem garante a
+    // atualização na hora é o `?v=` que a tela põe na URL; o ETag cobre quem
+    // chegar sem ele.
+    res.setHeader("Cache-Control", "public, max-age=604800");
+    res.setHeader("ETag", etag);
+
+    if (req.headers["if-none-match"] === etag) return res.status(304).end();
+
+    res.send(img.data.buffer ? Buffer.from(img.data.buffer) : img.data);
+  });
+
   // O catálogo de alimentos. Mesma forma do de exercícios — inclusive o aviso
   // que vale para os dois: quem gerencia mexe no catálogo de TODAS as contas,
   // porque a tabela é única e central.

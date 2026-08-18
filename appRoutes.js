@@ -23,6 +23,9 @@ routes.AutoFill = require("./controllers/AutoFill.js");
 routes.Avatar = require("./controllers/Avatar.js");
 routes.ApiKey = require("./controllers/ApiKey.js");
 routes.Tenant = require("./controllers/Tenant.js");
+routes.Portal = require("./controllers/Portal.js");
+routes.ClientError = require("./controllers/ClientError.js");
+routes.RecipeCategory = require("./controllers/RecipeCategory.js");
 routes.Ai = require("./controllers/Ai.js");
 routes.Brand = require("./controllers/Brand.js");
 // Chamadas por outro serviço nosso (o painel do center), não por navegador.

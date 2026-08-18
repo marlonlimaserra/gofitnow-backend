@@ -39,10 +39,23 @@ Food_model.prototype.collection = async function () {
 
 // As categorias em uso, para o filtro da tela.
 // As tabelas presentes no catálogo, para os botões de filtro.
+//
+// A NOSSA entra na lista, e antes não entrava. Os 63 alimentos escritos à mão
+// neste projeto nascem SEM o campo `source` — é assim que a importação os
+// reconhece para não sobrescrevê-los, porque só eles têm medida caseira. O
+// `distinct` os pulava, e a única tabela 100% fotografada era a que não dava
+// para filtrar.
+//
+// "gofitnow" existe só na conversa entre a tela e a consulta; no banco o campo
+// continua ausente. Mudá-lo lá quebraria a importação.
 Food_model.prototype.sources = async function () {
   const col = await this.collection();
-  const nomes = await col.distinct("source", { source: { $nin: [null, ""] } });
-  return nomes.sort();
+
+  const docs = await col
+    .aggregate([{ $group: { _id: "$source", total: { $sum: 1 } } }, { $sort: { total: -1 } }])
+    .toArray();
+
+  return docs.map((d) => ({ name: d._id || "gofitnow", total: d.total }));
 };
 
 Food_model.prototype.categories = async function () {
@@ -61,7 +74,10 @@ Food_model.prototype.list = async function (filter = {}) {
   }
 
   if (filter.category) query.category = String(filter.category);
-  if (filter.source) query.source = String(filter.source);
+
+  // Ver `sources()`: a nossa tabela é a que NÃO tem o campo.
+  if (filter.source === "gofitnow") query.source = { $in: [null, ""] };
+  else if (filter.source) query.source = String(filter.source);
 
   const page = Math.max(1, Number(filter.page) || 1);
   const limit = Math.min(100, Math.max(1, Number(filter.limit) || 20));

@@ -95,7 +95,28 @@ function monta(docs = TODOS) {
     },
   };
 
-  const app = { mongodb: { async centralDb() { return { collection: () => col } } } };
+  // A collection dos CLIPES é outra, e o dublê precisa saber: a lista vai lá
+  // buscar a data de gravação de cada movimento, que vira o `?v=` do endereço
+  // da imagem. Com uma collection só, ela receberia exercícios e o teste da
+  // versão passaria por acidente.
+  const clipes = {
+    find(query) {
+      const chaves = query?._id?.$in || [];
+      return {
+        async toArray() {
+          return chaves.map((k) => ({ _id: k, updatedAt: new Date("2026-08-16T19:27:00Z") }));
+        },
+      };
+    },
+  };
+
+  const app = {
+    mongodb: {
+      async centralDb() {
+        return { collection: (nome) => (nome === "exercise_clips" ? clipes : col) };
+      },
+    },
+  };
   return { modelo: new Exercise_model(app), escritas, ordens };
 }
 
@@ -473,4 +494,63 @@ test("o binário do clipe não viaja na listagem de exercícios", async () => {
 
   assert.equal(linha.clipSlug, "rosca-direta");
   assert.ok(!("webp" in linha));
+});
+
+// ── A VERSÃO DO CLIPE VIAJA COM O EXERCÍCIO ──────────────────────────────
+//
+// O clipe é servido com `Cache-Control: immutable` por um ano, e `immutable` é
+// uma promessa: "este endereço nunca muda de conteúdo". O endereço é o nome do
+// MOVIMENTO, e regravar mantém o nome — então a promessa só se cumpre se a
+// versão entrar na URL.
+//
+// O preço de não cumprir foi cobrado inteiro: o catálogo regravado com
+// personagens novos, no ar, conferido byte a byte contra o servidor, e a tela
+// mostrando os antigos. O navegador nem perguntou, porque foi isso que a gente
+// mandou ele fazer.
+
+test("a lista manda QUANDO cada clipe foi gravado", async () => {
+  const { modelo } = monta([
+    { _id: new ObjectId(), name: "Agachamento", instance: null, clipSlug: "agachamento-livre" },
+  ]);
+
+  const r = await comoMarlon(() => modelo.list({ page: 1, limit: 20 }));
+
+  // Em milissegundos, que é o que a tela cola no `?v=` sem formatar nada.
+  assert.equal(r.rows[0].clipV, new Date("2026-08-16T19:27:00Z").getTime());
+});
+
+test("exercício sem clipe não ganha versão", async () => {
+  // Um `?v=undefined` grudado na URL seria pedido de imagem que não existe.
+  const { modelo } = monta([{ _id: new ObjectId(), name: "Sem demonstração", instance: null }]);
+
+  const r = await comoMarlon(() => modelo.list({ page: 1, limit: 20 }));
+
+  assert.equal(r.rows[0].clipV, undefined);
+});
+
+test("uma consulta só de clipes por página, e não uma por linha", async () => {
+  // A página tem 60 exercícios e eles se repetem em poucas dezenas de
+  // movimentos. Uma ida ao banco por linha seria 60 consultas para responder o
+  // que uma responde.
+  let idas = 0;
+  const { modelo } = monta([
+    { _id: new ObjectId(), name: "Agachamento", instance: null, clipSlug: "agachamento-livre" },
+    { _id: new ObjectId(), name: "Agachamento livre", instance: null, clipSlug: "agachamento-livre" },
+    { _id: new ObjectId(), name: "Prancha", instance: null, clipSlug: "prancha" },
+  ]);
+
+  const original = modelo.app.mongodb.centralDb;
+  modelo.app.mongodb.centralDb = async function () {
+    const db = await original.call(this);
+    return {
+      collection: (nome) => {
+        if (nome === "exercise_clips") idas++;
+        return db.collection(nome);
+      },
+    };
+  };
+
+  await comoMarlon(() => modelo.list({ page: 1, limit: 20 }));
+
+  assert.equal(idas, 1);
 });

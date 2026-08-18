@@ -69,9 +69,13 @@ module.exports = function (app) {
   // pública sem susto: é um boneco fazendo agachamento, igual para todos os
   // clientes, sem nome, foto ou dado de ninguém dentro.
   //
-  // O cache é de um ano e `immutable`: o endereço leva a versão (`?v=`), então
-  // trocar a animação troca a URL, e nunca há um clipe velho preso no
-  // navegador de alguém.
+  // Um ano e `immutable`, e a tela põe a data da gravação no endereço (`?v=`).
+    //
+    // As duas coisas andam juntas: `immutable` é a promessa de que o endereço
+    // nunca muda de conteúdo, e o endereço é o nome do MOVIMENTO, que regravar
+    // mantém. Sem o `?v=` a promessa é mentira — e o preço foi cobrado: o
+    // catálogo inteiro regravado, no ar, conferido byte a byte, e a tela
+    // mostrando os clipes antigos porque o navegador nem perguntou.
   app.get("/public/clips/:slug.webp", async function (req, res) {
     const clipe = await app.api.exercise.clip(req.params.slug);
 

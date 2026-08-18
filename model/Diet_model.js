@@ -66,6 +66,22 @@ function limparAlimento(a, i) {
     name: String(a.name || "").trim(),
     quantity: numeroOuNulo(a.quantity),
     unit: String(a.unit || "g").trim().slice(0, 12),
+    // A CHAVE DA FOTO, copiada do catálogo no momento em que o alimento entrou.
+    //
+    // Copiada, e não buscada na hora de mostrar: a lista de uma refeição tem
+    // dez linhas e a dieta tem seis refeições — sessenta consultas ao catálogo
+    // para desenhar uma tela que já tem tudo o que precisa.
+    //
+    // Ela também não se deduz do nome. "Abacate cru" usa a foto de chave
+    // `abacate`, herdada pelo casamento automático; derivar o slug daria
+    // `abacate-cru`, que não existe.
+    //
+    // Só o slug: é o que vai numa URL pública, e o que vier fora do formato não
+    // aponta para foto nenhuma.
+    imageKey: String(a.imageKey || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "")
+      .slice(0, 80),
     kcal: numeroOuNulo(a.kcal),
     protein: numeroOuNulo(a.protein),
     carbs: numeroOuNulo(a.carbs),

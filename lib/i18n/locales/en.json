@@ -77,6 +77,10 @@
     "brandImagesNotInPlan": "Your plan does not include brand images. You can still point to an image hosted somewhere else.",
     "noInstance": "Instance not provided. Send the X-Instance header, or use the instance's own address.",
     "unknownInstance": "Unrecognised address. This address is not linked to any registered client.",
+    "invalidName": "Please enter your name.",
+    "invalidWords": "Choose what you call the people you look after.",
+    "signupRateLimited": "Too many sign-ups from this computer. Please try again in an hour.",
+    "emailAlreadyHasAccess": "This e-mail already has access to GoFitNow. Sign in instead of creating a new account.",
     "usernameInUse": "This username is already taken.",
     "username": {
       "at": "A username has no @ — that is an e-mail.",
@@ -147,7 +151,10 @@
     "paymentMethodInUse": "There are payments recorded with this method. Disable it to take it out of the picker without touching history.",
     "invalidOrder": "Invalid order.",
     "paymentMethodNotFound": "Payment method not found.",
-    "invalidTimezone": "Unknown time zone."
+    "invalidTimezone": "Unknown time zone.",
+    "notFound": "Not found.",
+    "categoryReserved": "That name belongs to a system category. Please choose another.",
+    "categoryDuplicated": "You already have a category with that name."
   },
   "ok": {
     "passwordChanged": "Password changed.",
