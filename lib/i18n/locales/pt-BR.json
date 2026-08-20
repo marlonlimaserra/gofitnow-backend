@@ -78,7 +78,7 @@
     "noInstance": "Instância não informada. Mande o cabeçalho X-Instance, ou acesse pelo endereço da instância.",
     "unknownInstance": "Domínio não identificado. Este endereço não está ligado a nenhum cliente cadastrado.",
     "invalidName": "Informe seu nome.",
-    "invalidWords": "Escolha como você chama as pessoas que atende.",
+    "invalidWords": "Escreva as duas palavras: o singular e o plural.",
     "signupRateLimited": "Muitos cadastros deste computador. Tente novamente em uma hora.",
     "emailAlreadyHasAccess": "Este e-mail já tem acesso ao GoFitNow. Entre em vez de criar uma conta nova.",
     "usernameInUse": "Este nome de usuário já está em uso.",
@@ -154,7 +154,9 @@
     "invalidTimezone": "Fuso horário desconhecido.",
     "notFound": "Não encontrado.",
     "categoryReserved": "Esse nome é de uma categoria do sistema. Escolha outro.",
-    "categoryDuplicated": "Você já tem uma categoria com esse nome."
+    "categoryDuplicated": "Você já tem uma categoria com esse nome.",
+    "invalidLanguage": "Idioma não reconhecido.",
+    "invalidCategory": "Essa categoria não está na lista. Recarregue a página e escolha de novo."
   },
   "ok": {
     "passwordChanged": "Senha alterada.",

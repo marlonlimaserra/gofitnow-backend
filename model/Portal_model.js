@@ -55,9 +55,17 @@ function lido(email) {
   return item.valor;
 }
 
-function guardar(email, valor) {
-  const prazo = valor.length ? ACHOU_MS : NAO_ACHOU_MS;
-  cache.set(email, { valor, vence: Date.now() + prazo });
+// O PRAZO vem de quem chama, e não da lista estar vazia.
+//
+// Era `valor.length ? ACHOU_MS : NAO_ACHOU_MS`, e a regra parecia certa: achou,
+// guarda dez minutos. Só que "achou" e "serve" são coisas diferentes — um registro
+// sem endereço casa com o e-mail e não leva a pessoa a lugar nenhum. Ver o
+// comentário no fim de `instancesForEmail`.
+//
+// O padrão continua sendo o antigo, para quem chamar sem dizer nada.
+function guardar(email, valor, prazo) {
+  const usar = prazo ?? (valor.length ? ACHOU_MS : NAO_ACHOU_MS);
+  cache.set(email, { valor, vence: Date.now() + usar });
   return valor;
 }
 
@@ -112,7 +120,24 @@ Portal_model.prototype.instancesForEmail = async function (email) {
     }
   }
 
-  return guardar(limpo, achadas);
+  // ── QUANTO TEMPO GUARDAR: depende de a resposta ser USÁVEL ──────────────
+  //
+  // Achar a instância não é o mesmo que poder mandar alguém para ela. Um registro
+  // com `hosts: []` existe, casa com o e-mail, e não serve para nada: quem lê o
+  // resultado (`destinosParaEmail`) filtra por host e devolve "não achei".
+  //
+  // Guardar isso por dez minutos foi o que aconteceu ao criar o cliente `will`: o
+  // registro nasceu, o e-mail casou, o host entrou trinta segundos depois — e o
+  // portal continuou dizendo "não existe conta com esse e-mail" por dez minutos,
+  // com a conta pronta e funcionando.
+  //
+  // O prazo curto do "não achei" existia justamente para esse caso ("alguém que
+  // acabou de ser cadastrado tenta entrar em seguida") e não cobria este, porque
+  // aqui a busca ACHOU. Então a regra passa a ser sobre a utilidade da resposta,
+  // e não sobre ela estar vazia.
+  const usavel = achadas.some((r) => Array.isArray(r.hosts) && r.hosts.length);
+
+  return guardar(limpo, achadas, usavel ? ACHOU_MS : NAO_ACHOU_MS);
 };
 
 // O que a TELA recebe: só endereço e nome, nunca o nome da instância.

@@ -171,6 +171,92 @@ test("a documentação sai com base, limite, grupos e o que a conta pode", async
   assert.deepEqual(r.body.permissions, ["people.view"]);
 });
 
+// ── A documentação PÚBLICA, que o site consome ────────────────────────────
+//
+// Mesma lista, sem sessão. Ela existe para a página /api do site, e o que ela não
+// pode fazer é vazar o que é da conta de quem está olhando.
+test("a documentação pública não pede sessão", async () => {
+  // App próprio, com um `verify` que EXPLODE se for chamado.
+  //
+  // Contar chamadas seria mais frouxo: um `verify` que roda e devolve usuário
+  // deixaria o teste passar, e a rota continuaria exigindo sessão em produção
+  // para quem não tem nenhuma.
+  let pediuSessao = false;
+
+  const app = fakeApp({
+    helpers: {
+      ReqProtected: {
+        async verify() {
+          pediuSessao = true;
+          throw new Error("a rota pública não pode pedir sessão");
+        },
+      },
+    },
+    api: {},
+  });
+
+  ApiKeyController(app);
+
+  const r = await call(app, "get", "/public/api-docs");
+
+  assert.equal(pediuSessao, false);
+  assert.equal(r.status, 200);
+  assert.ok(r.body.groups.length > 0);
+});
+
+test("a pública NÃO diz o que a conta alcança", async () => {
+  const { app } = monta();
+
+  const r = await call(app, "get", "/public/api-docs");
+
+  // `permissions` é o que a conta de quem está logado realmente pode — dado de
+  // conta, e não de catálogo. Na rota pública não existe conta nenhuma, e mandar
+  // uma lista qualquer seria pior que não mandar: quem integra a leria como "o
+  // que a MINHA chave pode".
+  assert.equal(r.body.permissions, undefined);
+});
+
+test("a pública traz base e limite, que é o que quem integra precisa antes de tudo", async () => {
+  const { app } = monta();
+
+  const r = await call(app, "get", "/public/api-docs");
+
+  assert.ok(r.body.baseUrl.startsWith("http"));
+  assert.equal(r.body.rateLimit, 60);
+});
+
+test("a pública leva cache de CDN", async () => {
+  const { app } = monta();
+
+  const r = await call(app, "get", "/public/api-docs");
+
+  // A lista muda com deploy, não com o minuto — e é a página mais lida por quem
+  // não está logado.
+  assert.match(r.headers["cache-control"], /s-maxage=300/);
+});
+
+test("a pública sai traduzida pelo Accept-Language, como a outra", async () => {
+  const { app } = monta();
+
+  const pt = await call(app, "get", "/public/api-docs");
+  const en = await call(app, "get", "/public/api-docs", { headers: { "accept-language": "en" } });
+
+  assert.equal(pt.body.groups[0].title, "Pessoas");
+  assert.equal(en.body.groups[0].title, "People");
+});
+
+test("as duas portas mostram as MESMAS rotas", async () => {
+  const { app } = monta();
+
+  const publica = await call(app, "get", "/public/api-docs");
+  const privada = await call(app, "get", "/api-docs");
+
+  const caminhos = (r) => r.body.groups.flatMap((g) => g.items.map((i) => i.method + " " + i.path));
+
+  // Se divergirem, uma das duas está mentindo — e a que o cliente lê é a pública.
+  assert.deepEqual(caminhos(publica), caminhos(privada));
+});
+
 test("a documentação sai traduzida", async () => {
   const { app } = monta();
   const pt = await call(app, "get", "/api-docs");

@@ -103,6 +103,37 @@ module.exports = function (app) {
 
   // ── A documentação ──────────────────────────────────────────────────────
 
+  // A MESMA documentação, sem sessão — para a página pública do site.
+  //
+  // ── Por que pode ser pública ──────────────────────────────────────────
+  //
+  // Porque não há segredo nela: são caminhos de rota e nomes de permissão. Quem
+  // lê sem chave não consegue chamar nada, e quem tem chave já podia ver tudo
+  // isto pela tela de Configuração.
+  //
+  // O que ela NÃO traz é a lista `permissions` da rota com sessão: aquilo é o
+  // que a conta de quem está olhando realmente alcança, e é dado de conta.
+  //
+  // ── Por que uma rota, e não texto escrito no site ─────────────────────
+  //
+  // Porque a lista de rotas e a permissão de cada uma vivem em `lib/apiDocs.js`,
+  // ao lado do código que as implementa. Uma cópia escrita à mão no site
+  // envelheceria em silêncio — e documentação de API errada é pior que ausente:
+  // quem integra confia nela e passa a tarde procurando o próprio erro.
+  //
+  // Fica ANTES de `/api-docs` para deixar claro que são a mesma coisa vista por
+  // duas portas.
+  app.get("/public/api-docs", async function (req, res) {
+    // Cinco minutos no CDN: a lista muda com deploy, não com o minuto.
+    res.setHeader("Cache-Control", "public, max-age=60, s-maxage=300");
+
+    res.send({
+      baseUrl: process.env.PUBLIC_API_URL || "https://backend.gofitnow.fit",
+      rateLimit: rateLimit.LIMITE_PADRAO,
+      groups: apiDocs.localized(req.t),
+    });
+  });
+
   app.get("/api-docs", async function (req, res) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;

@@ -176,6 +176,60 @@ test("instância sem endereço não vira destino", async () => {
   assert.deepEqual(await portal.destinosParaEmail("aluno@exemplo.com"), []);
 });
 
+// ── QUANTO TEMPO a resposta fica guardada ─────────────────────────────────
+//
+// Este caso nasceu de um defeito real. Ao criar o cliente `will`, a sequência foi:
+// registro criado → e-mail casou → host ligado trinta segundos depois. No meio
+// dela alguém pediu o lookup, e o portal guardou por DEZ MINUTOS um registro sem
+// endereço — que `destinosParaEmail` filtra fora. Resultado: "não existe conta com
+// esse e-mail" por dez minutos, com a conta pronta e funcionando.
+//
+// O prazo curto do "não achei" existia justamente para o recém-cadastrado, e não
+// cobria este caso porque aqui a busca ACHOU. A regra passou a ser sobre a
+// resposta ser USÁVEL.
+test("registro achado mas SEM endereço é guardado por pouco tempo", async () => {
+  const { portal, visitadas } = monta({
+    registros: [{ ...MARLON, hosts: [] }],
+    usuarios: { marlon: ["aluno@exemplo.com"] },
+  });
+
+  await portal.instancesForEmail("aluno@exemplo.com");
+  const antes = visitadas.length;
+
+  // Trinta segundos e um tico depois — o prazo do "não achei".
+  const relogio = Date.now;
+  Date.now = () => relogio() + 31_000;
+  try {
+    await portal.instancesForEmail("aluno@exemplo.com");
+  } finally {
+    Date.now = relogio;
+  }
+
+  assert.ok(
+    visitadas.length > antes,
+    "devia ter varrido de novo: a resposta guardada não levava a endereço nenhum"
+  );
+});
+
+test("registro COM endereço é guardado pelos dez minutos", async () => {
+  const { portal, visitadas } = monta({ usuarios: { marlon: ["aluno@exemplo.com"] } });
+
+  await portal.instancesForEmail("aluno@exemplo.com");
+  const antes = visitadas.length;
+
+  const relogio = Date.now;
+  Date.now = () => relogio() + 31_000;
+  try {
+    await portal.instancesForEmail("aluno@exemplo.com");
+  } finally {
+    Date.now = relogio;
+  }
+
+  // Passados os 30 s do prazo curto, esta resposta continua valendo: ela é usável,
+  // e a pessoa não troca de clínica no meio da tarde.
+  assert.equal(visitadas.length, antes, "varreu de novo uma resposta que servia");
+});
+
 test("o destino leva endereço e nome, e não a instância", async () => {
   const { portal } = monta({ usuarios: { bruna: ["paciente@exemplo.com"] } });
 

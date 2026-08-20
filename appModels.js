@@ -4,6 +4,7 @@ const models = {};
 // O registro das instâncias. Mora no banco CENTRAL — é a única coisa que sabe
 // que existe mais de um cliente.
 models.center = require("./model/Center_model.js");
+models.affiliate = require("./model/Affiliate_model.js");
 
 models.user = require("./model/User_model.js");
 models.auth = require("./model/Auth_model.js");
@@ -26,6 +27,7 @@ models.passwordReset = require("./model/PasswordReset_model.js");
 models.portal = require("./model/Portal_model.js");
 models.clientError = require("./model/ClientError_model.js");
 models.recipeCategory = require("./model/RecipeCategory_model.js");
+models.userCategory = require("./model/UserCategory_model.js");
 models.role = require("./model/Role_model.js");
 models.link = require("./model/Link_model.js");
 models.actionHistory = require("./model/ActionHistory_model.js");

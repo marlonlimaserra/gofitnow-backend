@@ -9,6 +9,40 @@ module.exports = function (app) {
 
     const payload = { ...user };
 
+    // ── VOCABULÁRIO e IDIOMA vêm da CONTA, e entram no payload como se fossem
+    //    do usuário ────────────────────────────────────────────────────────
+    //
+    // Isto é de propósito, e é o que evita mexer em quarenta telas.
+    //
+    // O vocabulário morava em `user.peopleSingular`, e toda a interface lê dali
+    // (`peopleWords(user)` no menuConfig). Ao mudar a fonte para a conta, a opção
+    // barata seria trocar o leitor em cada tela; a certa é trocar a FONTE e manter
+    // a forma. Quem lê continua lendo `user.peopleSingular` e passa a receber a
+    // palavra da conta sem saber que ela mudou de lugar.
+    //
+    // O idioma é diferente do vocabulário: a conta define o PADRÃO e cada pessoa
+    // pode ter o dela. Então aqui o pessoal GANHA do padrão, e o padrão só aparece
+    // para quem nunca escolheu — a pessoa nova da equipe.
+    try {
+      const [palavras, idiomaDaConta] = await Promise.all([
+        app.api.tenant.wordsOfInstance(),
+        app.api.tenant.languageOfInstance(),
+      ]);
+
+      payload.peopleSingular = palavras.singular;
+      payload.peoplePlural = palavras.plural;
+
+      // O padrão da conta viaja separado para a tela de Preferências poder mostrar
+      // "o padrão daqui é português" ao lado da escolha pessoal.
+      payload.accountLanguage = idiomaDaConta || null;
+      payload.lang = user.lang || idiomaDaConta || undefined;
+    } catch (error) {
+      // Falhar aqui não pode derrubar o `/me`: sem ele a pessoa não entra em nada.
+      // Sem as palavras, a interface cai no padrão "pessoa/pessoas", que é feio e
+      // funciona.
+      console.error("[me] não consegui ler a configuração da conta:", error.message);
+    }
+
     if (user.type === "student" && user.trainer) {
       const trainer = await app.api.user.data(user.trainer);
       if (trainer) {

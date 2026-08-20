@@ -252,6 +252,155 @@ Tenant_model.prototype.saveTimezone = async function (userId, fuso) {
   return fuso;
 };
 
+// ── O DONO da instância ────────────────────────────────────────────────────
+//
+// Quem grava configuração DA CONTA precisa gravar no documento do dono, e não no
+// de quem clicou.
+//
+// Isto conserta uma armadilha que já existe aqui: `saveTimezone`, `saveCurrency` e
+// `saveTheme` recebem `userId` e gravam em `{ user: userId }`, mas os leitores
+// (`timezoneOfInstance`, `currencyOfInstance`, `dataOfInstance`) leem o documento
+// do profissional MAIS ANTIGO. Numa conta com uma pessoa só os dois são o mesmo
+// documento e nada aparece. Numa equipe, um profissional com permissão salva o
+// fuso, a resposta diz que salvou, e o fuso da conta não muda — porque a escrita
+// foi para outro documento.
+//
+// As funções novas abaixo passam por aqui de propósito, para não repetir isso.
+Tenant_model.prototype.ownerId = async function () {
+  const users = await this.app.api.user.collection();
+
+  // A mesma regra de `dataOfInstance`: o trainer mais antigo é a conta criada no
+  // provisionamento, o dono do negócio. `createdAt` e não `_id`, para não depender
+  // de um detalhe do driver.
+  const dono = await users.findOne({ type: "trainer" }, { sort: { createdAt: 1 } });
+  return dono?._id;
+};
+
+// ── O VOCABULÁRIO: aluno, paciente, cliente ────────────────────────────────
+//
+// Da CONTA, e não de cada pessoa.
+//
+// Ele morava no documento do usuário, e o efeito prático era ruim: quem entrava
+// na equipe depois não herdava a palavra — caía em "pessoa/pessoas". O dono dizia
+// "cadastra o cliente" e a tela da recepção dizia "Pessoas".
+//
+// Existe um argumento para ser por pessoa (clínica com nutricionista e personal
+// falando "paciente" e "aluno" sobre as mesmas pessoas), e ele foi considerado e
+// recusado: uma conta é um negócio, e um negócio fala de um jeito.
+const PALAVRAS_PADRAO = { singular: "pessoa", plural: "pessoas" };
+
+function limparPalavra(v) {
+  // Minúscula porque as telas capitalizam onde precisam — "Aluno" digitado aqui
+  // viraria "ALunos" no meio de uma frase.
+  return String(v || "").trim().toLowerCase().slice(0, 30);
+}
+
+// A leitura tem TRÊS degraus, e o do meio é o que faz a mudança de lugar não
+// quebrar nada:
+//
+//   1. o documento da conta (`tenants`) — onde a palavra passou a morar
+//   2. o documento do DONO (`users.peopleSingular`) — onde ela morava antes
+//   3. "pessoa / pessoas"
+//
+// Sem o degrau 2, o instante entre subir este código e rodar a migração seria uma
+// conta inteira falando "pessoa" — e quem estivesse com a tela aberta veria o
+// vocabulário desaparecer sem ter mexido em nada.
+//
+// O degrau 2 sai depois de a migração rodar em todas as instâncias. Enquanto
+// estiver aqui, ele não custa consulta nenhuma: `dataOfInstance` já buscou o dono.
+Tenant_model.prototype.wordsOfInstance = async function () {
+  const doc = await this.dataOfInstance();
+
+  if (limparPalavra(doc?.peopleSingular) && limparPalavra(doc?.peoplePlural)) {
+    return {
+      singular: limparPalavra(doc.peopleSingular),
+      plural: limparPalavra(doc.peoplePlural),
+    };
+  }
+
+  const dono = await this.ownerId();
+  const antigo = dono ? await this.app.api.user.data(dono) : undefined;
+
+  return {
+    singular:
+      limparPalavra(doc?.peopleSingular) ||
+      limparPalavra(antigo?.peopleSingular) ||
+      PALAVRAS_PADRAO.singular,
+    plural:
+      limparPalavra(doc?.peoplePlural) ||
+      limparPalavra(antigo?.peoplePlural) ||
+      PALAVRAS_PADRAO.plural,
+  };
+};
+
+// Grava no documento do DONO, venha de quem vier. Ver `ownerId` acima.
+Tenant_model.prototype.saveWords = async function (entrada) {
+  const singular = limparPalavra(entrada?.peopleSingular);
+  const plural = limparPalavra(entrada?.peoplePlural);
+
+  // As duas juntas ou nenhuma: gravar só o singular deixaria a conta dizendo
+  // "cliente" no singular e "pessoas" no plural, na mesma tela.
+  if (!singular || !plural) return null;
+
+  const dono = await this.ownerId();
+  if (!dono) return null;
+
+  const col = await this.collection();
+
+  await col.updateOne(
+    { user: new ObjectId(dono) },
+    {
+      $set: { peopleSingular: singular, peoplePlural: plural, updatedAt: new Date() },
+      $setOnInsert: { user: new ObjectId(dono), status: "none", createdAt: new Date() },
+    },
+    { upsert: true }
+  );
+
+  return { singular, plural };
+};
+
+// ── O IDIOMA PADRÃO da conta ───────────────────────────────────────────────
+//
+// Diferente do vocabulário: aqui a conta define o PADRÃO e cada pessoa pode
+// escolher o dela. É a divisão certa porque as duas coisas respondem perguntas
+// diferentes — a palavra é do negócio, a língua é de quem lê.
+//
+// O padrão da conta serve para quem nunca escolheu: a pessoa nova da equipe, e a
+// tela de entrar, que ainda não sabe quem está chegando.
+Tenant_model.prototype.languageOfInstance = async function () {
+  const { normalizeLanguage } = require("../lib/i18n");
+  const doc = await this.dataOfInstance();
+  return doc?.language ? normalizeLanguage(doc.language) : undefined;
+};
+
+Tenant_model.prototype.saveLanguage = async function (idioma) {
+  const { LANGUAGES } = require("../lib/i18n");
+
+  // Conferido contra a lista CRUA, e não passando por `normalizeLanguage`.
+  //
+  // Normalizar é certo para LER (qualquer coisa estranha cai no padrão) e errado
+  // para GRAVAR: um idioma digitado errado viraria "pt-BR" gravado como se
+  // alguém tivesse escolhido português.
+  const alvo = String(idioma || "").trim();
+  if (!LANGUAGES.includes(alvo)) return null;
+
+  const dono = await this.ownerId();
+  if (!dono) return null;
+
+  const col = await this.collection();
+
+  await col.updateOne(
+    { user: new ObjectId(dono) },
+    {
+      $set: { language: alvo, updatedAt: new Date() },
+      $setOnInsert: { user: new ObjectId(dono), status: "none", createdAt: new Date() },
+    },
+    { upsert: true }
+  );
+
+  return alvo;
+};
+
 Tenant_model.prototype.currencyOfInstance = async function () {
   const doc = await this.dataOfInstance();
 

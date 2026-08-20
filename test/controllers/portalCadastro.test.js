@@ -27,8 +27,11 @@ function monta({
   ensureErro = "",
   insertErro = null,
   mailErro = null,
+  // O afiliado que existe no central, para o campo de indicação ter no que casar.
+  afiliados = [{ alias: "wil", instance: "will", name: "Willian Costa", active: true }],
+  indicacaoErro = null,
 } = {}) {
-  const feito = { dns: [], ensure: [], schema: [], hosts: [], trainers: [], vocab: [], mails: [] };
+  const feito = { dns: [], ensure: [], schema: [], hosts: [], trainers: [], vocab: [], mails: [], indicacoes: [] };
 
   const app = fakeApp({
     crypto: require("crypto"),
@@ -76,6 +79,16 @@ function monta({
           return { ok: true };
         },
         forget() {},
+        async porAlias(valor) {
+          return afiliados.find((a) => a.alias === String(valor || "").trim().toLowerCase());
+        },
+        async registrarIndicacao(instancia, codigo) {
+          feito.indicacoes.push({ instancia, codigo });
+          if (indicacaoErro) return { ok: false, erro: indicacaoErro };
+          const achado = afiliados.find((a) => a.alias === codigo);
+          if (!achado) return { ok: false, erro: "codigo_invalido" };
+          return { ok: true, indicadoPor: achado.alias };
+        },
       },
       user: {
         async insertTrainer(dados) {
@@ -351,4 +364,115 @@ test("sem host, o ready é 400", async () => {
   const { app } = monta();
   const r = await call(app, "get", "/public/portal/ready", { query: {} });
   assert.equal(r.status, 400);
+});
+
+// ── A INDICAÇÃO ───────────────────────────────────────────────────────────
+//
+// O código de quem indicou é gravado AQUI ou nunca: depois do cadastro ninguém
+// lembra quem mandou o link. E a indicação é escrita uma vez só — então um erro neste
+// ponto não se conserta sem tirar comissão de um afiliado para dar a outro.
+
+test("o código de indicação é registrado no cadastro", async () => {
+  const { app, feito } = monta();
+
+  const r = await cadastrar(app, { ...CORPO, indicacao: "wil" });
+
+  assert.equal(r.status, 201);
+  assert.equal(r.body.referral, "wil");
+  assert.deepEqual(feito.indicacoes, [{ instancia: "bruna-sampaio", codigo: "wil" }]);
+});
+
+test("código inválido NÃO derruba o cadastro — mas aparece na resposta", async () => {
+  // Desfazer neste ponto significaria apagar banco, DNS e usuário por causa de um
+  // campo opcional. Calar significaria um afiliado cobrando por uma indicação que
+  // ninguém gravou.
+  const { app, feito } = monta();
+
+  const r = await cadastrar(app, { ...CORPO, indicacao: "naoexiste" });
+
+  assert.equal(r.status, 201, "o cadastro tem de acontecer");
+  assert.equal(r.body.referral, false, "false = pôs código e não valeu");
+  assert.equal(feito.trainers.length, 1);
+  assert.equal(feito.mails.length, 1);
+});
+
+test("sem código, `referral` é null — e nada é chamado", async () => {
+  // `null` (ninguém pôs código) é diferente de `false` (pôs e não valeu). A tela usa
+  // os dois para dizer coisas diferentes.
+  const { app, feito } = monta();
+
+  const r = await cadastrar(app, CORPO);
+
+  assert.equal(r.body.referral, null);
+  assert.equal(feito.indicacoes.length, 0);
+});
+
+test("a indicação é gravada DEPOIS de a conta existir", async () => {
+  // Antes do registro não há o que indicar, e a ordem errada gravaria a indicação
+  // numa instância que ainda não está no central — perdendo-a em silêncio.
+  const ordem = [];
+  const { app } = monta();
+
+  const centro = app.api.center;
+  const ensureOriginal = centro.ensure;
+  centro.ensure = async (d) => (ordem.push("ensure"), ensureOriginal(d));
+  const indicarOriginal = centro.registrarIndicacao;
+  centro.registrarIndicacao = async (i, c) => (ordem.push("indicacao"), indicarOriginal(i, c));
+
+  await cadastrar(app, { ...CORPO, indicacao: "wil" });
+
+  assert.deepEqual(ordem, ["ensure", "indicacao"]);
+});
+
+test("conferir o código responde o NOME, e não só que existe", async () => {
+  // "Código válido" não deixa perceber que se digitou o código de outro afiliado.
+  const { app } = monta();
+
+  const r = await call(app, "get", "/public/affiliate/wil");
+  assert.equal(r.body.ok, true);
+  assert.equal(r.body.name, "Willian Costa");
+});
+
+test("a conferência não conta nada além do nome", async () => {
+  // Rota aberta. Devolver e-mail ou o nome do banco viraria um jeito de mapear a
+  // base chutando códigos.
+  const { app } = monta({
+    afiliados: [{ alias: "wil", instance: "will", name: "Willian Costa", email: "w@x.com", plan: "pro" }],
+  });
+
+  const r = await call(app, "get", "/public/affiliate/wil");
+  assert.deepEqual(Object.keys(r.body).sort(), ["alias", "name", "ok"]);
+});
+
+test("código curto não vai ao banco", async () => {
+  // O formulário chama a cada tecla. Com "w" e "wi" indo ao Mongo, a rota vira uma
+  // consulta por caractere digitado.
+  const { app } = monta();
+  let bateu = false;
+  app.api.center.porAlias = async () => {
+    bateu = true;
+    return undefined;
+  };
+
+  const r = await call(app, "get", "/public/affiliate/wi");
+  assert.equal(r.body.code, "curto");
+  assert.equal(bateu, false);
+});
+
+test("conta desligada não indica", async () => {
+  const { app } = monta({
+    afiliados: [{ alias: "velho", instance: "antigo", name: "Antigo", active: false }],
+  });
+
+  const r = await call(app, "get", "/public/affiliate/velho");
+  assert.equal(r.body.ok, false);
+  assert.equal(r.body.code, "inativo");
+});
+
+test("conferir o código NÃO pede sessão nem instância", async () => {
+  // O cadastro roda antes de existir conta e antes de existir instância. Qualquer
+  // exigência aqui deixaria o campo sempre dizendo "código inválido".
+  const { app } = monta();
+  const r = await call(app, "get", "/public/affiliate/wil", { headers: {} });
+  assert.equal(r.body.ok, true);
 });

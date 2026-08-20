@@ -208,8 +208,49 @@ test("o tema público NÃO entrega de quem é o domínio", async () => {
 
   const texto = JSON.stringify(r.body);
   assert.ok(!texto.includes("u1"), "vazou o id do dono");
-  assert.deepEqual(Object.keys(r.body).sort(), ["custom", "known", "scale", "theme"]);
+
+  // A lista de chaves é FECHADA de propósito, e é o que faz este caso valer: campo
+  // novo nesta rota quebra o teste e obriga a justificar. Aconteceu com `language`,
+  // que entrou depois — e passou porque idioma padrão da conta é um de quatro
+  // valores, não identifica ninguém, e a tela de entrar precisa dele para não abrir
+  // em inglês para o cliente de um profissional brasileiro.
+  //
+  // O que NÃO pode entrar aqui: nome da instância, id de usuário, e-mail, endereços
+  // cadastrados. Numa rota sem autenticação, qualquer um deles vira o mapa de qual
+  // domínio pertence a qual cliente nosso.
+  assert.deepEqual(Object.keys(r.body).sort(), ["custom", "known", "language", "scale", "theme"]);
   assert.equal(r.body.known, true);
+
+  // `language` sem valor é `null`, e não o objeto do tenant inteiro por descuido.
+  assert.ok(r.body.language === null || typeof r.body.language === "string");
+});
+
+// O idioma padrão da conta chega à tela de ENTRAR, que é o caso que importa.
+//
+// Ela acontece antes de qualquer sessão e por isso não sabe de padrão nenhum: cai
+// no idioma do navegador de quem chegou. Um Playwright com navegador em inglês
+// abriu a tela do primeiro cliente em inglês, com "pt-BR" gravado como padrão da
+// conta — o campo existia e não chegava a quem precisava dele.
+test("o idioma padrão da conta chega na tela de entrar", async () => {
+  const { app } = monta({
+    tenant: { subdomain: "marlon", user: "u1", language: "pt-BR", theme: { brand: "#2563eb" } },
+  });
+
+  const r = await call(app, "get", "/public/theme", { query: { host: "marlon.gofitnow.fit" } });
+
+  assert.equal(r.body.language, "pt-BR");
+});
+
+test("conta sem idioma padrão manda null, e a tela decide", async () => {
+  const { app } = monta({
+    tenant: { subdomain: "marlon", user: "u1", theme: { brand: "#2563eb" } },
+  });
+
+  const r = await call(app, "get", "/public/theme", { query: { host: "marlon.gofitnow.fit" } });
+
+  // `null` e não ausente: a tela distingue "a conta não escolheu" de "servidor
+  // antigo que não manda o campo", e no segundo caso não pode mexer no idioma.
+  assert.equal(r.body.language, null);
 });
 
 test("host desconhecido responde 200 e diz que não conhece", async () => {

@@ -1,4 +1,5 @@
 const instanceContext = require("../lib/instance.js");
+const alias = require("../lib/alias.js");
 
 // A collection `instances`, no banco do PAINEL (`gofitnow_center`) — o registro
 // dos clientes.
@@ -297,7 +298,117 @@ Center_model.prototype.ensure = async function ({ instance, email, name }) {
     throw error;
   }
 
+  // O ALIAS DE AFILIADO nasce COM a conta, aqui.
+  //
+  // ── Por que isto tem de estar neste arquivo ──
+  //
+  // Porque o cadastro pelo portal não passa pelo painel: ele chama `ensure` e cria o
+  // registro direto. Sem esta linha, toda conta criada por auto-cadastro nasceria sem
+  // código de indicação — e cada uma dessas é um afiliado que ninguém consegue
+  // identificar depois. Não é um dado que se recupera: dá para reservar um alias
+  // atrasado, mas não dá para saber quem aquela pessoa indicaria.
+  //
+  // Fora do `updateOne` acima de propósito: se a reserva falhar, a conta já existe e
+  // dá para reservar depois. O contrário — perder o cadastro por causa do alias —
+  // seria trocar o essencial pelo acessório.
+  await this.reservarAlias(nome, { name, instance: nome });
+
   return { ok: true, instance: nome };
+};
+
+// ── O ALIAS DE AFILIADO ───────────────────────────────────────────────────
+//
+// Reserva o primeiro alias livre. GÊMEO de `Instance_model.reservarAlias` no painel
+// — ver o comentário em `lib/alias.js` sobre por que há duas cópias.
+//
+// Quem garante unicidade é o ÍNDICE, não uma consulta antes: entre o "está livre?" e
+// o "grava" cabe outro cadastro, e dois profissionais se inscrevendo no mesmo segundo
+// levariam o mesmo código.
+Center_model.prototype.reservarAlias = async function (instance, pistas) {
+  const nome = instanceContext.normalize(instance);
+  if (!nome) return { ok: false, erro: "invalid_instance" };
+
+  const base = alias.sugerir(pistas || {}) || nome;
+  const col = await this.collection();
+
+  await col.createIndex({ alias: 1 }, { unique: true, sparse: true, name: "por_alias" });
+
+  for (let i = 1; i <= 20; i++) {
+    const candidato = i === 1 ? base : alias.proxima(base, i);
+
+    try {
+      const r = await col.updateOne(
+        // `$exists: false`: reservar é operação de UMA vez. Sem isto, um segundo
+        // cadastro do mesmo nome trocaria o alias de quem já tem — e quebraria todo
+        // link de indicação já divulgado.
+        { instance: nome, alias: { $exists: false } },
+        { $set: { alias: candidato, aliasEm: new Date() } }
+      );
+
+      if (r.matchedCount === 0) {
+        const doc = await col.findOne({ instance: nome }, { projection: { alias: 1 } });
+        return { ok: true, alias: doc?.alias || "", jaTinha: true };
+      }
+
+      return { ok: true, alias: candidato };
+    } catch (error) {
+      // 11000 = alias tomado por outra conta. Próximo.
+      if (error?.code !== 11000) throw error;
+    }
+  }
+
+  return { ok: false, erro: "sem_alias_livre" };
+};
+
+// Quem é o dono deste código. É o que o formulário de cadastro chama para conferir o
+// código de indicação que alguém digitou.
+Center_model.prototype.porAlias = async function (valor) {
+  const conferido = alias.conferir(valor);
+  if (!conferido.ok) return undefined;
+
+  const col = await this.collection();
+  return (await col.findOne({ alias: conferido.valor })) || undefined;
+};
+
+// ── A INDICAÇÃO ───────────────────────────────────────────────────────────
+//
+// Grava QUEM indicou esta conta. É a origem de toda comissão, e tem três regras que
+// valem dinheiro — as mesmas do painel:
+//
+//   1. UMA VEZ SÓ. Reatribuir é tirar comissão de um afiliado e dar a outro.
+//   2. NÃO SE INDICA. Senão a pessoa põe o próprio código e ganha sobre o que ela
+//      mesma paga.
+//   3. GUARDA O CÓDIGO E A INSTÂNCIA. O código pode ser trocado à mão; a instância
+//      não muda nunca, e é por ela que a comissão é somada.
+Center_model.prototype.registrarIndicacao = async function (instance, codigo) {
+  const nome = instanceContext.normalize(instance);
+  if (!nome) return { ok: false, erro: "invalid_instance" };
+
+  const indicador = await this.porAlias(codigo);
+  if (!indicador) return { ok: false, erro: "codigo_invalido" };
+  if (indicador.instance === nome) return { ok: false, erro: "auto_indicacao" };
+  // Conta desligada não indica: geraria comissão para quem já saiu da base.
+  if (indicador.active === false) return { ok: false, erro: "indicador_inativo" };
+
+  const col = await this.collection();
+  const r = await col.updateOne(
+    { instance: nome, indicadoPor: { $exists: false } },
+    {
+      $set: {
+        indicadoPor: indicador.alias,
+        indicadoPorInstance: indicador.instance,
+        indicadoEm: new Date(),
+      },
+    }
+  );
+
+  if (r.matchedCount === 0) {
+    const doc = await col.findOne({ instance: nome }, { projection: { indicadoPor: 1 } });
+    if (!doc) return { ok: false, erro: "not_found" };
+    return { ok: true, indicadoPor: doc.indicadoPor, jaTinha: true };
+  }
+
+  return { ok: true, indicadoPor: indicador.alias };
 };
 
 // Registra um endereço numa instância. Falha quando o endereço já é de outra —

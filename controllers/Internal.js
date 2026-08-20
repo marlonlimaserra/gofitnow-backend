@@ -174,4 +174,15 @@ module.exports = function (app) {
 
     res.send(await app.api.recipeCategory.dosClientes());
   });
+
+  // Quantos usuários há em cada CATEGORIA, somando todas as instâncias.
+  //
+  // Interna pela mesma razão da rota acima: a varredura abre o banco de todo
+  // cliente. O painel guarda o catálogo e pergunta os números aqui — ele não tem
+  // os usuários, só um e-mail por instância.
+  app.get("/internal/user-categories/counts", async function (req, res) {
+    if (!autorizado(req, res)) return;
+
+    res.send(await app.api.userCategory.contagens());
+  });
 };

@@ -96,7 +96,24 @@ module.exports = function (app) {
     // padrão. São coisas diferentes e a resposta diz as duas.
     if (!tenant) return res.send({ ...padrao, custom: false, ...conhecido });
 
-    res.send({ ...app.api.tenant.publicTheme(tenant), custom: true, ...conhecido });
+    // O IDIOMA PADRÃO da conta viaja junto.
+    //
+    // Sem ele o campo novo não cobre o caso mais visível: a tela de ENTRAR acontece
+    // antes de qualquer sessão, e por isso não tem como saber de padrão nenhum — cai
+    // no idioma do navegador de quem chegou.
+    //
+    // Um Playwright com navegador em inglês abriu a tela do primeiro cliente em
+    // inglês, com "pt-BR" gravado como padrão da conta. O campo existia e não
+    // chegava a quem precisava dele.
+    //
+    // Fora do objeto `theme` de propósito: `theme` é aparência, validada por
+    // `theme.sanitize`, e idioma não é aparência.
+    res.send({
+      ...app.api.tenant.publicTheme(tenant),
+      language: tenant.language || null,
+      custom: true,
+      ...conhecido,
+    });
   });
 
   // ── Do profissional ─────────────────────────────────────────────────────
@@ -450,6 +467,78 @@ module.exports = function (app) {
     });
 
     res.send(salvas);
+  });
+
+  // ── AS PREFERÊNCIAS: vocabulário e idioma ───────────────────────────────
+  //
+  // Duas coisas com ESCOPOS diferentes, e a diferença é o desenho:
+  //
+  //   vocabulário  DA CONTA. Uma conta é um negócio, e um negócio fala de um
+  //                jeito. Trocar aqui troca para toda a equipe.
+  //   idioma       a conta define o PADRÃO, cada pessoa escolhe o dela. A palavra
+  //                é do negócio; a língua é de quem lê.
+  //
+  // Por isso são rotas separadas com exigências diferentes: o idioma pessoal passa
+  // pelo `PUT /me` de sempre, e estas duas mexem na conta.
+  app.get("/me/preferences/scope", async function (req, res) {
+    const user = await app.helpers.ReqProtected.verify(req, res);
+    if (user === false) return;
+
+    const [palavras, idioma] = await Promise.all([
+      app.api.tenant.wordsOfInstance(),
+      app.api.tenant.languageOfInstance(),
+    ]);
+
+    res.send({
+      words: palavras,
+      accountLanguage: idioma || null,
+      // Se ESTA pessoa pode mexer no que é da conta. A tela usa para mostrar os
+      // campos em leitura em vez de deixar salvar e receber 403.
+      canManage: app.helpers.ReqProtected.has(user, "users.manage"),
+    });
+  });
+
+  app.put("/me/tenant/words", async function (req, res) {
+    // `users.manage` — a permissão de quem administra a equipe.
+    //
+    // Não é preferência, é administração: a palavra muda a tela de todo mundo. É a
+    // mesma razão pela qual trocar a moeda exige `finance.manage`.
+    //
+    // Não criei uma permissão nova para uma tela só: seria mais um item no catálogo
+    // sem ninguém para atribuí-lo, e o catálogo é lido por quem monta perfil.
+    const user = await app.helpers.ReqProtected.can(req, res, "users.manage");
+    if (user === false) return;
+
+    const salvo = await app.api.tenant.saveWords(req.body || {});
+    if (!salvo) {
+      return res.status(400).send({ msg: req.t("errors.invalidWords"), code: "invalid_words" });
+    }
+
+    app.insertUserActionHistory(req, user, "update_words", {
+      category: "admin",
+      local: { target_type: "tenants", target_id: String(user._id) },
+      extra: salvo,
+    });
+
+    res.send({ words: salvo });
+  });
+
+  app.put("/me/tenant/language", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "users.manage");
+    if (user === false) return;
+
+    const salvo = await app.api.tenant.saveLanguage((req.body || {}).language);
+    if (!salvo) {
+      return res.status(400).send({ msg: req.t("errors.invalidLanguage"), code: "invalid_language" });
+    }
+
+    app.insertUserActionHistory(req, user, "update_account_language", {
+      category: "admin",
+      local: { target_type: "tenants", target_id: String(user._id) },
+      extra: { language: salvo },
+    });
+
+    res.send({ accountLanguage: salvo });
   });
 
   app.put("/me/tenant/theme", async function (req, res) {

@@ -3,6 +3,7 @@ const rateLimit = require("../lib/rateLimit.js");
 const ensureSchema = require("../database/schema.js");
 const instanceContext = require("../lib/instance.js");
 const cloudflareLib = require("../lib/cloudflare.js");
+const alias = require("../lib/alias.js");
 const { passwordReset } = require("../lib/emailTemplates.js");
 
 // O PORTAL: a porta de entrada que não é de cliente nenhum.
@@ -133,6 +134,9 @@ module.exports = function (app) {
     const email = String(body.email || "").trim().toLowerCase();
     const singular = String(body.peopleSingular || "").trim().toLowerCase();
     const plural = String(body.peoplePlural || "").trim().toLowerCase();
+    // O código de quem indicou. Opcional, e é AQUI ou nunca: depois do cadastro
+    // ninguém lembra quem mandou o link.
+    const indicacao = String(body.indicacao || "").trim().toLowerCase();
 
     if (nome.length < 2) {
       return res.status(400).send({ msg: req.t("errors.invalidName"), code: "invalid_name" });
@@ -276,7 +280,29 @@ module.exports = function (app) {
         minutes: app.api.passwordReset.validityMinutes,
       });
 
-      const resposta = { ok: true, host, token: criado.token };
+      // A INDICAÇÃO, depois de a conta existir e antes de responder.
+      //
+      // Nunca derruba o cadastro: um código digitado errado não pode custar a conta a
+      // quem acabou de se inscrever — e desfazer neste ponto significaria apagar
+      // banco, DNS e usuário por causa de um campo opcional.
+      //
+      // Mas vai na RESPOSTA. Sem isso, a tela diria "pronto!" para quem digitou um
+      // código inválido, e o afiliado cobraria por uma indicação que ninguém gravou.
+      const indicado = indicacao
+        ? await app.api.center.registrarIndicacao(instancia, indicacao)
+        : null;
+
+      if (indicado && !indicado.ok) {
+        console.error(`[portal] indicação "${indicacao}" não pegou em ${instancia}: ${indicado.erro}`);
+      }
+
+      const resposta = {
+        ok: true,
+        host,
+        token: criado.token,
+        // `null` = ninguém pôs código. Diferente de `false`, que é "pôs e não valeu".
+        referral: indicado ? indicado.indicadoPor || false : null,
+      };
 
       try {
         const enviado = await app.helpers.mailer.send({ to: email, ...mail });
@@ -293,6 +319,38 @@ module.exports = function (app) {
       console.error("[portal] falha no cadastro:", error.message);
       res.status(503).send({ msg: req.t("errors.internal"), code: "signup_failed" });
     }
+  });
+
+  // ── CONFERIR UM CÓDIGO DE INDICAÇÃO ──────────────────────────────────────
+  //
+  // O formulário de cadastro chama isto enquanto a pessoa digita, para mostrar
+  // "indicado por Willian Costa" antes de enviar. Sem a conferência prévia, o único
+  // jeito de descobrir que o código está errado é criar a conta e ver que ninguém
+  // recebeu comissão — e aí já passou, porque a indicação é escrita uma vez só.
+  //
+  // ── O que ela devolve, e o que NÃO ──
+  //
+  // Devolve o nome da conta que indica, porque sem ele a confirmação não confirma
+  // nada: "código válido" não deixa perceber que se digitou o código de outro
+  // afiliado. O nome é o mesmo que já aparece na tela de entrada pública daquela
+  // conta, então não é informação nova no mundo.
+  //
+  // Não devolve e-mail, plano, nem o nome do banco. Uma rota aberta que respondesse
+  // isso viraria um jeito de mapear a base chutando códigos.
+  app.get("/public/affiliate/:alias", async function (req, res) {
+    // Cache curto: o formulário chama a cada tecla e a resposta quase nunca muda.
+    res.setHeader("Cache-Control", "public, max-age=60, s-maxage=300");
+
+    const conferido = alias.conferir(req.params.alias);
+    // Formato inválido nem vai ao banco — e responde 200, não 404: a rota existe, o
+    // código é que não, e digitar errado é o caso comum.
+    if (!conferido.ok) return res.send({ ok: false, code: conferido.motivo });
+
+    const doc = await app.api.center.porAlias(conferido.valor);
+    if (!doc) return res.send({ ok: false, code: "nao_encontrado" });
+    if (doc.active === false) return res.send({ ok: false, code: "inativo" });
+
+    res.send({ ok: true, alias: doc.alias, name: doc.name || "" });
   });
 
   // ── O ENDEREÇO JÁ RESPONDE? ──────────────────────────────────────────────
