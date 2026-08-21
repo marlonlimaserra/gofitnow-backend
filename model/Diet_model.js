@@ -281,3 +281,14 @@ Diet_model.prototype.deleteAllOfStudent = async function (studentId) {
 };
 
 module.exports = Diet_model;
+
+// Os saneadores das REFEIÇÕES, exportados para o template de dieta.
+//
+// Exportados, e não copiados: o template guarda refeições com a mesma forma do
+// plano — é o ponto dele —, e duas versões de `limparRefeicao` divergiriam no
+// primeiro campo novo. O que acontecesse no plano e não no template apareceria
+// como alimento perdendo a foto, ou grupo de substituição virando alimento solto,
+// só nos planos criados a partir de template.
+module.exports.limparRefeicao = limparRefeicao;
+module.exports.limparAlimento = limparAlimento;
+module.exports.numeroOuNulo = numeroOuNulo;

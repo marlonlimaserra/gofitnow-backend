@@ -205,21 +205,49 @@ module.exports = function (app) {
     }
 
     if (email) {
-      // Dentro da instância o e-mail é único, então já existir aqui significa
-      // uma coisa só: essa pessoa já está nesta conta.
+      // Dentro da instância o e-mail é único. Já existir aqui NÃO significa uma
+      // coisa só — ver os três casos logo abaixo. Este comentário dizia que
+      // significava, e a mensagem que ele justificava mandava a pessoa procurar
+      // um cliente que era, na verdade, um usuário da equipe.
       //
-      // Antes existia um terceiro caso — "ela tem conta em OUTRO profissional"
-      // — que abria o pedido de acesso por e-mail. Com um banco por cliente
-      // esse caso deixou de existir: a conta de outra instância é outra conta,
-      // e não há nada para pedir a ninguém.
+      // O que de fato deixou de existir com um banco por cliente é o caso "ela
+      // tem conta em OUTRA instância": aquela é outra conta, e não há nada para
+      // pedir a ninguém.
       //
       // Duas fichas SEM e-mail não colidem: o índice é parcial (só onde o campo
       // é string), e `normalizeEmail` grava ausência em vez de "".
       const exists = await app.api.user.dataByEmail(email);
       if (exists) {
+        // ── TRÊS CASOS, TRÊS FRASES ─────────────────────────────────────────
+        //
+        // O e-mail é único na instância, e a mensagem era sempre "essa pessoa já
+        // está na sua lista". Ela é falsa em dois dos três casos, e o Marlon caiu
+        // justo neles: tentou cadastrar o PRÓPRIO e-mail de profissional na conta
+        // dele, ouviu "já existe na lista" e foi procurar na lista de clientes —
+        // onde a conta de profissional nunca aparece.
+        //
+        // Uma mensagem que manda procurar onde não está é pior que "e-mail
+        // ocupado": ela consome o tempo da pessoa duas vezes.
+        //
+        //   1. aluno JÁ VINCULADO a mim  → está na minha lista mesmo
+        //   2. aluno de OUTRO da equipe  → existe na conta, mas não na minha lista
+        //   3. usuário da EQUIPE         → outra tela (Configurações → Usuários)
+        const equipe = exists.type !== "student";
+        const meu = !equipe && (await app.api.link.exists(trainer._id, exists._id));
+
         res.status(409).send({
-          msg: req.t("errors.alreadyInYourList"),
+          msg: req.t(
+            equipe
+              ? "errors.emailIsTeamUser"
+              : meu
+                ? "errors.alreadyInYourList"
+                : "errors.emailOfAnotherProfessional"
+          ),
+          // O código continua o mesmo: quem já trata `email_taken` na tela não
+          // quebra. O `where` é o detalhe novo, para a tela poder oferecer o
+          // caminho certo um dia.
           code: "email_taken",
+          where: equipe ? "team" : meu ? "mine" : "other_professional",
         });
         return;
       }

@@ -9,7 +9,7 @@ const PESSOA = { _id: "p1", name: "Ana", email: "ana@x.com" };
 
 // Monta a rota de verdade sobre modelos de mentira, e devolve o que os modelos
 // receberam — é sobre isso que os testes afirmam.
-function monta({ target = PESSOA, existente } = {}) {
+function monta({ target = PESSOA, existente , vinculado = true } = {}) {
   const chamadas = { updateStudent: [], setNotes: [], setActive: [], insertStudent: [] };
   const permissao = permiteTudo(TRAINER);
 
@@ -37,6 +37,11 @@ function monta({ target = PESSOA, existente } = {}) {
         filter: (d) => d,
       },
       link: {
+        // Se o e-mail repetido é de aluno MEU ou de outro profissional da equipe:
+        // é o que decide a mensagem do 409 (ver o POST /people).
+        async exists() {
+          return vinculado;
+        },
         async setNotes(...a) {
           chamadas.setNotes.push(a);
         },
@@ -293,4 +298,42 @@ test("observação e status vão para o VÍNCULO, não para a pessoa", async () 
   assert.equal(chamadas.setNotes.length, 1);
   assert.equal(chamadas.setNotes[0][2], "lesão no ombro");
   assert.equal(chamadas.setActive[0][2], 0);
+});
+
+
+// ── QUAL É A MENSAGEM DO E-MAIL REPETIDO ──────────────────────────────────
+//
+// Ela era sempre "essa pessoa já está na sua lista", e é falsa em dois dos três
+// casos. O Marlon caiu justo neles: tentou cadastrar o PRÓPRIO e-mail de
+// profissional, ouviu "já existe na lista" e foi procurar na lista de clientes —
+// onde conta de profissional nunca aparece. Mensagem que manda procurar onde não
+// está consome o tempo da pessoa duas vezes.
+
+test("e-mail de USUÁRIO DA EQUIPE aponta para a tela certa", async () => {
+  const { app } = monta({ existente: { _id: "u9", type: "trainer" } });
+  const r = await post(app, { name: "Ana", email: "marlon@x.com" });
+
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, "email_taken");
+  assert.equal(r.body.where, "team");
+  // A frase manda para Usuários, e não para a lista de clientes.
+  assert.match(r.body.msg, /equipe/i);
+});
+
+test("aluno JÁ MEU continua dizendo que está na minha lista", async () => {
+  const { app } = monta({ existente: { _id: "p9", type: "student" }, vinculado: true });
+  const r = await post(app, { name: "Ana", email: "ana@x.com" });
+
+  assert.equal(r.body.where, "mine");
+  assert.match(r.body.msg, /lista/i);
+});
+
+test("aluno de OUTRO profissional diz que existe na conta, não na minha lista", async () => {
+  // Este é o caso mais escorregadio: a pessoa existe, a busca da tela não acha
+  // (a lista é vinculada a quem está olhando), e "já está na sua lista" é mentira.
+  const { app } = monta({ existente: { _id: "p9", type: "student" }, vinculado: false });
+  const r = await post(app, { name: "Ana", email: "ana@x.com" });
+
+  assert.equal(r.body.where, "other_professional");
+  assert.match(r.body.msg, /outro profissional/i);
 });

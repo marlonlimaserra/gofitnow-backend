@@ -32,6 +32,7 @@ models.role = require("./model/Role_model.js");
 models.link = require("./model/Link_model.js");
 models.actionHistory = require("./model/ActionHistory_model.js");
 models.workoutTemplate = require("./model/WorkoutTemplate_model.js");
+models.dietTemplate = require("./model/DietTemplate_model.js");
 models.autoFill = require("./model/AutoFill_model.js");
 models.avatar = require("./model/Avatar_model.js");
 models.apiKey = require("./model/ApiKey_model.js");

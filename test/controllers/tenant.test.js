@@ -34,6 +34,11 @@ function monta({
     cloudflare: {
       isConfigured: () => false,
       missingConfig: () => ["zoneId"],
+      // O que a central pergunta antes de a pessoa escolher o nome. Neste dublê
+      // é "não dá" de propósito: é o cenário que prova que o nome fica
+      // reservado mesmo sem a integração ligada.
+      subdomainReady: () => false,
+      subdomainMissing: () => ["zoneId"],
       isPagesConfigured: () => pages,
       missingPagesConfig: () => ["token", "accountId"],
       async createSubdomain() {

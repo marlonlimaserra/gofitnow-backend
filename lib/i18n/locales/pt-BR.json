@@ -156,7 +156,9 @@
     "categoryReserved": "Esse nome é de uma categoria do sistema. Escolha outro.",
     "categoryDuplicated": "Você já tem uma categoria com esse nome.",
     "invalidLanguage": "Idioma não reconhecido.",
-    "invalidCategory": "Essa categoria não está na lista. Recarregue a página e escolha de novo."
+    "invalidCategory": "Essa categoria não está na lista. Recarregue a página e escolha de novo.",
+    "emailIsTeamUser": "Esse e-mail é de um usuário da equipe, não de um cliente. Veja em Configurações → Usuários.",
+    "emailOfAnotherProfessional": "Esse e-mail já está cadastrado nesta conta, com outro profissional. Peça para ele compartilhar, ou use outro e-mail."
   },
   "ok": {
     "passwordChanged": "Senha alterada.",

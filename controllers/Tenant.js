@@ -166,8 +166,8 @@ module.exports = function (app) {
       appBgFadeMax: themeLib.MAX_APP_BG_FADE,
       maxPhotos: themeLib.MAX_PHOTOS,
       // A tela precisa saber se dá para registrar antes de oferecer o botão.
-      dnsReady: cf.isConfigured(),
-      dnsMissing: cf.missingConfig(),
+      dnsReady: cf.subdomainReady(),
+      dnsMissing: cf.subdomainMissing(),
       pagesReady: cf.isPagesConfigured(),
     });
   });
@@ -237,13 +237,13 @@ module.exports = function (app) {
 
     // Sem credencial de DNS o nome fica reservado assim mesmo: quem escolheu não
     // perde o nome porque a integração ainda não está ligada.
-    if (!cf.isConfigured()) {
+    if (!cf.subdomainReady()) {
       await app.api.tenant.setStatus(user._id, "pending", "cloudflare_not_configured");
       return res.send({
         ...reserva,
         status: "pending",
         dnsReady: false,
-        dnsMissing: cf.missingConfig(),
+        dnsMissing: cf.subdomainMissing(),
       });
     }
 

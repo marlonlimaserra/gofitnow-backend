@@ -161,3 +161,59 @@ test("domainStatus consulta e devolve o estado", async () => {
   assert.equal(r.status, "active");
   assert.equal(f.chamadas[0].method, "GET");
 });
+
+// ── O CURINGA ───────────────────────────────────────────────────────────────
+//
+// Quem serve `*.gofitnow.fit` é um Worker com rota curinga. Nesse arranjo o
+// cadastro não fala com a Cloudflare: nem DNS, nem domínio no Pages, nem espera
+// de certificado.
+const ENV_CURINGA = { CLOUDFLARE_WILDCARD_ROUTE: "1" };
+
+// `fetch` que ESTOURA. É a única forma de provar "nenhuma chamada saiu": um
+// espião que conta chamadas passaria igual se o código chamasse e ignorasse.
+const semRede = () => {
+  throw new Error("não deveria chamar a Cloudflare");
+};
+
+test("com curinga, o subdomínio não gasta uma chamada — nem credencial exige", async () => {
+  assert.equal(cf.isConfigured(ENV_CURINGA, "novo.gofitnow.fit"), true);
+  assert.deepEqual(cf.missingConfig(ENV_CURINGA, "novo.gofitnow.fit"), []);
+
+  const r = await cf.createSubdomain("novo.gofitnow.fit", { env: ENV_CURINGA, fetchImpl: semRede });
+  assert.deepEqual(r, { ok: true, host: "novo.gofitnow.fit", curinga: true });
+});
+
+test("com curinga, o endereço já nasce pronto — a tela de espera não trava", async () => {
+  const r = await cf.domainStatus("novo.gofitnow.fit", { env: ENV_CURINGA, fetchImpl: semRede });
+  assert.equal(r.ok, true);
+  assert.equal(r.status, "active");
+});
+
+test("o curinga vale só para o domínio base — o domínio próprio do cliente não muda", async () => {
+  assert.equal(cf.usaCuringa("treinos.marlon.com.br", ENV_CURINGA), false);
+
+  const r = await cf.createSubdomain("treinos.marlon.com.br", {
+    env: ENV_CURINGA,
+    fetchImpl: semRede,
+  });
+  assert.equal(r.ok, false);
+  assert.equal(r.erro, "cloudflare_not_configured");
+
+  // E o estado dele continua sendo pergunta de verdade ao Pages.
+  const f = fakeFetch([{ success: true, result: { status: "active" } }]);
+  const s = await cf.domainStatus("treinos.marlon.com.br", { env: { ...ENV, ...ENV_CURINGA }, fetchImpl: f });
+  assert.equal(s.status, "active");
+  assert.equal(f.chamadas.length, 1);
+});
+
+test("o próprio domínio base, sem subdomínio, não é curinga", () => {
+  // `gofitnow.fit` não casa com `*.gofitnow.fit` — e não é endereço de cliente.
+  assert.equal(cf.usaCuringa("gofitnow.fit", ENV_CURINGA), false);
+});
+
+test("sem a chave, nada muda: o caminho antigo continua exigindo a zona", async () => {
+  assert.equal(cf.usaCuringa("novo.gofitnow.fit", {}), false);
+  const r = await cf.createSubdomain("novo.gofitnow.fit", { env: {}, fetchImpl: semRede });
+  assert.equal(r.ok, false);
+  assert.deepEqual(r.faltando, ["token", "accountId", "zoneId"]);
+});

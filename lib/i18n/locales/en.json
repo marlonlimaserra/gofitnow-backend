@@ -156,7 +156,9 @@
     "categoryReserved": "That name belongs to a system category. Please choose another.",
     "categoryDuplicated": "You already have a category with that name.",
     "invalidLanguage": "Language not recognised.",
-    "invalidCategory": "That category is not on the list. Reload the page and pick again."
+    "invalidCategory": "That category is not on the list. Reload the page and pick again.",
+    "emailIsTeamUser": "That e-mail belongs to a team user, not a client. See Settings → Users.",
+    "emailOfAnotherProfessional": "That e-mail is already registered in this account, under another professional. Ask them to share it, or use a different e-mail."
   },
   "ok": {
     "passwordChanged": "Password changed.",
