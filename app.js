@@ -42,8 +42,7 @@ for (const k in appModels) app.api[k] = new appModels[k](app);
 app.helpers = {};
 for (const k in appHelpers) app.helpers[k] = new appHelpers[k](app);
 
-// Audit trail, on `app` directly so the call sites read the same as in
-// sprinthub-backend:
+// Audit trail, on `app` directly so every call site reads the same:
 //
 //   app.insertUserActionHistory(req, user, "create_person", { local, extra })
 //
@@ -72,6 +71,17 @@ app.use((req, res, next) => {
   // Sem isto o navegador recebe os cabeçalhos de limite mas não deixa o JS lê-los.
   res.setHeader("Access-Control-Expose-Headers", "X-RateLimit-Limit,X-RateLimit-Remaining,Retry-After");
   res.setHeader("Access-Control-Allow-Origin", "*");
+  // Quanto tempo o navegador pode GUARDAR este preflight.
+  //
+  // Sem isto, toda requisição da tela vinha em par: um OPTIONS e depois a de
+  // verdade — uma ida e volta a mais cada vez (medido: ~23 ms em conexão já
+  // aberta, e bem mais no celular). Com o cache, o par acontece uma vez.
+  //
+  // O Chrome limita a 2 horas por conta dele; mandar mais não quebra nada, só é
+  // aparado. O que este cabeçalho NÃO resolve: a chave do cache inclui a URL
+  // inteira, então busca-enquanto-digita (`?search=a`, `?search=ab`) paga um
+  // preflight por letra. Para esse caso o caminho é a API na MESMA origem.
+  res.setHeader("Access-Control-Max-Age", "86400");
   if (req.method === "OPTIONS") return res.status(200).send("GET,POST,PUT,DELETE,PATCH");
   next();
 });

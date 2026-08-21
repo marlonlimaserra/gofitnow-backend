@@ -57,7 +57,7 @@ const POR_INSTANCIA = [
 // A instância que nasce com o sistema. Sem ela o primeiro boot sobe um servidor
 // que não atende ninguém.
 const SEED_INSTANCE = process.env.SEED_INSTANCE || "marlon";
-const SEED_EMAIL = process.env.SEED_EMAIL || "marlon@sprinthub.com";
+const SEED_EMAIL = process.env.SEED_EMAIL || "marlon@gofitnow.fit";
 
 async function criarFaltantes(db, nomes, rotulo) {
   const existentes = (await db.listCollections({}, { nameOnly: true }).toArray()).map((c) => c.name);

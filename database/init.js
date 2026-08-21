@@ -2,8 +2,8 @@
 // cada instância registrada (contas, treinos, vínculos), com todos os índices.
 //
 //   npm run db:init
-//   npm run db:init -- "Marlon" "marlon@sprinthub.com" "senha"
-//   npm run db:init -- "Marlon" "marlon@sprinthub.com" "senha" outra-instancia
+//   npm run db:init -- "Marlon" "marlon@gofitnow.fit" "senha"
+//   npm run db:init -- "Marlon" "marlon@gofitnow.fit" "senha" outra-instancia
 //
 // O usuário é criado DENTRO de uma instância — a semente, ou a que vier no
 // quarto argumento. Isso é obrigatório e não tem padrão silencioso: um admin

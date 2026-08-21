@@ -13,7 +13,7 @@ const instanceContext = require("../../lib/instance.js");
 // derruba a busca dos outros.
 const MARLON = {
   instance: "marlon",
-  email: "marlon@sprinthub.com",
+  email: "marlon@gofitnow.fit",
   name: "Marlon",
   hosts: ["marlon.gofitnow.fit"],
   active: true,
@@ -61,7 +61,7 @@ function monta({ registros = [MARLON, BRUNA], usuarios = {}, quebra = [] } = {})
 test("acha o DONO da instância sem abrir banco de cliente", async () => {
   const { portal, visitadas } = monta();
 
-  const achadas = await portal.instancesForEmail("marlon@sprinthub.com");
+  const achadas = await portal.instancesForEmail("marlon@gofitnow.fit");
 
   assert.deepEqual(
     achadas.map((r) => r.instance),

@@ -3,7 +3,7 @@ const clientIp = require("../lib/clientIp.js");
 
 // The `user_action_history` collection — who did what, when, from where.
 //
-// Same call shape as sprinthub-backend so the two read alike:
+// One call shape, everywhere:
 //
 //   app.insertUserActionHistory(req, user, "create_person", {
 //     local: { target_type: "people", target_id: id + "" },
@@ -78,7 +78,7 @@ ActionHistory_model.prototype.diff = function (before, after, ignoreKeys) {
 };
 
 
-// The one entry point. `data` accepts the sprinthub shape:
+// The one entry point. `data` accepts this shape:
 //
 //   category   a bucket for filtering ("people", "auth", "admin"…)
 //   local      { target_type, target_id } — what the action was performed ON

@@ -49,7 +49,7 @@ test("a resposta não contém o nome da instância", async () => {
   PortalController(app);
 
   const r = await call(app, "post", "/public/portal/lookup", {
-    body: { email: "marlon@sprinthub.com" },
+    body: { email: "marlon@gofitnow.fit" },
   });
 
   assert.ok(!JSON.stringify(r.body).includes("instance"));
