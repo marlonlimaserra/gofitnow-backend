@@ -438,6 +438,8 @@
     "view_person": "Opened a record",
     "create_person": "Added a person",
     "update_person": "Edited a record",
+    "update_person_avatar": "Changed a person's photo",
+    "delete_person_avatar": "Removed a person's photo",
     "delete_person": "Deleted a person",
     "unlink_person": "Removed from their own list",
     "revoke_person_access": "Revoked a person's access",

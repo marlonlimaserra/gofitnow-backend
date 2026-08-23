@@ -53,6 +53,73 @@ module.exports = function (app) {
     res.send({ msg: req.t("ok.photoUpdated"), avatarAt: at });
   });
 
+  // ── A FOTO DE QUEM É ACOMPANHADO, enviada pelo PROFISSIONAL ───────────────
+  //
+  // A escrita acima é só da própria conta, e isso cobria quem entra no app. Só
+  // que a maioria das fichas nunca vai entrar em app nenhum — é gente que
+  // treina, é atendida e pronto — e é justamente nessas listas que a foto mais
+  // vale: numa lista de duzentas pessoas, o rosto encontra mais rápido que o
+  // nome, e na ficha ele confirma que se está olhando a pessoa certa.
+  //
+  // O que autoriza NÃO é uma permissão nova: é `people.edit`, a mesma que já
+  // deixa mudar nome, telefone e objetivo. Foto é dado de cadastro. E o alvo
+  // passa por `dataStudent`, que resolve pelo VÍNCULO — um profissional não
+  // alcança quem não acompanha, nem mandando o id na URL.
+  async function pessoaDoProfissional(req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "people.edit");
+    if (trainer === false) return null;
+
+    const alvo = await app.api.user.dataStudent(trainer._id, req.params.id);
+    if (!alvo) {
+      res.status(404).send({ msg: req.t("errors.personNotFound") });
+      return null;
+    }
+
+    return { trainer, alvo };
+  }
+
+  app.post("/people/:id/avatar", async function (req, res) {
+    const achado = await pessoaDoProfissional(req, res);
+    if (!achado) return;
+
+    const parsed = app.api.avatar.parseDataUri((req.body || {}).image);
+    if (!parsed) {
+      res.status(400).send({ msg: req.t("errors.invalidImage") });
+      return;
+    }
+
+    const at = await app.api.avatar.save(achado.alvo._id, parsed.mime, parsed.buffer);
+
+    // A auditoria aponta para a PESSOA, não para quem enviou: quem quer saber
+    // "quem mexeu na ficha da Ana" procura pela ficha dela.
+    app.insertUserActionHistory(req, achado.trainer, "update_person_avatar", {
+      category: "people",
+      local: { target_type: "people", target_id: String(achado.alvo._id) },
+      extra: { name: achado.alvo.name, size: parsed.buffer.length, mime: parsed.mime },
+    });
+
+    res.send({ msg: req.t("ok.photoUpdated"), avatarAt: at });
+  });
+
+  app.delete("/people/:id/avatar", async function (req, res) {
+    const achado = await pessoaDoProfissional(req, res);
+    if (!achado) return;
+
+    const ok = await app.api.avatar.delete(achado.alvo._id);
+    if (!ok) {
+      res.status(404).send({ msg: req.t("errors.noPhoto") });
+      return;
+    }
+
+    app.insertUserActionHistory(req, achado.trainer, "delete_person_avatar", {
+      category: "people",
+      local: { target_type: "people", target_id: String(achado.alvo._id) },
+      extra: { name: achado.alvo.name },
+    });
+
+    res.send({ msg: req.t("ok.photoRemoved") });
+  });
+
   app.delete("/me/avatar", async function (req, res) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;

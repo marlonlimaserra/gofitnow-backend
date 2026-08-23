@@ -438,6 +438,8 @@
     "view_person": "Abriu uma ficha",
     "create_person": "Cadastrou uma pessoa",
     "update_person": "Editou uma ficha",
+    "update_person_avatar": "Trocou a foto de uma pessoa",
+    "delete_person_avatar": "Removeu a foto de uma pessoa",
     "delete_person": "Excluiu uma pessoa",
     "unlink_person": "Removeu da própria lista",
     "revoke_person_access": "Tirou o acesso de uma pessoa",

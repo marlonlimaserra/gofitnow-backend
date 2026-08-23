@@ -438,6 +438,8 @@
     "view_person": "A ouvert une fiche",
     "create_person": "A ajouté une personne",
     "update_person": "A modifié une fiche",
+    "update_person_avatar": "A changé la photo d'une personne",
+    "delete_person_avatar": "A supprimé la photo d'une personne",
     "delete_person": "A supprimé une personne",
     "unlink_person": "A retiré de sa propre liste",
     "revoke_person_access": "A retiré l’accès d’une personne",
