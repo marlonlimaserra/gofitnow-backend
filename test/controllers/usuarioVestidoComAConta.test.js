@@ -40,6 +40,10 @@ function monta({ verificado = FOSSIL } = {}) {
         },
       },
       auth: { registerToken: async () => "tok" },
+      // Quantos profissionais acompanham esta pessoa — o vestir passou a
+      // carregar isso junto, para a tela saber já no boot se oferece a área de
+      // quem é atendido.
+      link: { countProfessionalsOf: async () => 0 },
       user: {
         authenticate: async () => FOSSIL,
         withRole: async (u) => ({ ...u, roleName: "Administrador" }),
@@ -54,6 +58,12 @@ function monta({ verificado = FOSSIL } = {}) {
       },
     },
   });
+
+  // O vestir de verdade lê `this.app.api` — sem esta linha ele cai no catch e
+  // devolve o fóssil, que é exatamente o defeito que este arquivo existe para
+  // pegar. (Foi o que aconteceu quando o campo `acompanhado` entrou: três
+  // testes falharam por causa do dublê, não do código.)
+  app.api.tenant.app = app;
 
   AuthController(app);
   UserController(app);

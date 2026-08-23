@@ -23,11 +23,18 @@ const TREINOS = [
   { _id: "w2", name: "B", status: "past", student: EU._id },
 ];
 
-function monta({ quem = EU } = {}) {
+function monta({ quem = EU, acompanhadoPor = 0 } = {}) {
   const pedidos = { workouts: [], exams: [] };
 
   const app = fakeApp({
     api: {
+      // Quantos profissionais acompanham esta pessoa. É o que o portão passou a
+      // perguntar no lugar de "que tipo de conta é esta?".
+      link: {
+        async countProfessionalsOf() {
+          return acompanhadoPor;
+        },
+      },
       workout: {
         async listOfStudent(id) {
           pedidos.workouts.push(String(id));
@@ -71,13 +78,31 @@ function monta({ quem = EU } = {}) {
   return { app, pedidos };
 }
 
-test("um PROFISSIONAL é barrado — a ficha é o lugar dele", async () => {
-  const { app, pedidos } = monta({ quem: PROF });
+test("um profissional que NÃO é acompanhado por ninguém é barrado — a ficha é o lugar dele", async () => {
+  const { app, pedidos } = monta({ quem: PROF, acompanhadoPor: 0 });
 
   const r = await call(app, "get", "/my/workouts");
 
   assert.equal(r.status, 403);
   assert.equal(pedidos.workouts.length, 0);
+});
+
+// O portão pergunta "alguém acompanha esta pessoa?", e não "que tipo de conta é
+// esta?".
+//
+// O caso real que mudou a regra: o Marlon é profissional na conta dele e
+// ATENDIDO na conta do Willian — com três dietas e uma avaliação montadas para
+// ele que nenhuma tela alcançava. A home de profissional listava quem ELE
+// acompanha (ninguém) e esta área estava fechada pelo tipo: um vão.
+test("um profissional que É acompanhado entra — e vê o que é DELE", async () => {
+  const { app, pedidos } = monta({ quem: PROF, acompanhadoPor: 1 });
+
+  const r = await call(app, "get", "/my/workouts");
+
+  assert.equal(r.status, 200);
+  // O filtro continua sendo a identidade de quem perguntou: entrar aqui nunca
+  // deu acesso ao dado de outra pessoa, e continua não dando.
+  assert.deepEqual(pedidos.workouts, [String(PROF._id)]);
 });
 
 test("a lista de treinos é filtrada pela MINHA identidade, não por parâmetro", async () => {

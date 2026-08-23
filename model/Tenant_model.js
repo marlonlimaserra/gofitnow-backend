@@ -420,15 +420,31 @@ Tenant_model.prototype.vestirComAConta = async function (usuario) {
   const payload = { ...usuario };
 
   try {
-    const [palavras, idiomaDaConta] = await Promise.all([
+    const [palavras, idiomaDaConta, acompanhadoPor] = await Promise.all([
       this.wordsOfInstance(),
       this.languageOfInstance(),
+      // ── SOU ACOMPANHADO POR ALGUÉM? ────────────────────────────────────
+      //
+      // Não é dado da conta como o resto daqui, mas viaja no mesmo funil pela
+      // mesma razão: TODA rota que devolve um usuário passa por este método, e
+      // a tela precisa saber disso já no boot para decidir se oferece a área de
+      // quem é atendido.
+      //
+      // Existe porque profissional TAMBÉM pode ser atendido: o Marlon é dono da
+      // conta dele e paciente na do Willian, com dietas montadas para ele que
+      // tela nenhuma alcançava. Sem este campo, a única forma de descobrir
+      // seria bater numa rota e ler um 403 — pedir para levar não.
+      //
+      // Uma contagem com índice (`by_person` em professional_links); o verify
+      // roda a cada abertura, e por isso ela não pode ser cara.
+      this.app.api.link.countProfessionalsOf(usuario._id),
     ]);
 
     payload.peopleSingular = palavras.singular;
     payload.peoplePlural = palavras.plural;
     payload.accountLanguage = idiomaDaConta || null;
     payload.lang = usuario.lang || idiomaDaConta || undefined;
+    payload.acompanhado = acompanhadoPor > 0;
   } catch (error) {
     // Nunca derruba a resposta que o chamador ia dar: sem as palavras a
     // interface cai no padrão "pessoa/pessoas", que é feio e funciona.

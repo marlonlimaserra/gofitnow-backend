@@ -18,16 +18,38 @@ const { catalogoPara } = require("../lib/examMarkers.js");
 // `/public/booking`, que casam a pessoa pelo e-mail) — escrever na ficha
 // continua sendo trabalho de quem atende.
 module.exports = function (app) {
-  // O portão: sessão válida E tipo aluno. Um profissional tem a ficha inteira —
-  // devolver "os treinos dele" aqui seria uma lista vazia com cara de defeito.
+  // ── O PORTÃO: quem É ACOMPANHADO, e não quem é "do tipo aluno" ────────────
+  //
+  // A regra era `type === "student"`, com o argumento de que "um profissional
+  // tem a ficha inteira, devolver os treinos dele aqui seria uma lista vazia
+  // com cara de defeito". O argumento assumia que profissional nunca é
+  // atendido — e o Marlon é o contraexemplo: profissional na conta dele,
+  // ATENDIDO na conta do Willian, com três dietas e uma avaliação montadas
+  // para ele que nenhuma tela alcançava.
+  //
+  // Ele caía num vão: a home de profissional lista quem ELE acompanha
+  // (ninguém), e a área de quem é acompanhado estava fechada pelo tipo.
+  //
+  // A pergunta certa não é "que tipo de conta é esta?", é "alguém acompanha
+  // esta pessoa?". Quem tem vínculo tem o que ver aqui, seja qual for o tipo.
+  //
+  // NÃO afrouxa nada: o filtro de todas as rotas continua sendo `student = eu`,
+  // cravado no servidor. Ninguém passa a ver o dado de outro — passa a ver o
+  // PRÓPRIO, que é o que esta área sempre serviu.
   async function aluno(req, res) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return false;
 
-    if (user.type !== "student") {
+    if (user.type === "student") return user;
+
+    // Um profissional sem ninguém acompanhando-o continua recebendo 403: para
+    // ele esta área é mesmo uma lista vazia, e a mensagem manda para a ficha.
+    const acompanhado = await app.api.link.countProfessionalsOf(user._id);
+    if (!acompanhado) {
       res.status(403).send({ msg: req.t("errors.studentAreaOnly") });
       return false;
     }
+
     return user;
   }
 
