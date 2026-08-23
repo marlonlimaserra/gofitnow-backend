@@ -56,6 +56,7 @@ const POR_INSTANCIA = [
   "api_keys",
   "api_calls",
   "tenants",
+  "configurations",
   "ai_sessions",
 ];
 
@@ -490,10 +491,57 @@ async function ensureInstance(app, instance) {
       );
   }
 
-  // tenants — um profissional, um domínio. Os índices são ÚNICOS e os dois
-  // importam: o de `user` impede dois documentos para a mesma conta, e o de
-  // `subdomain` decide quem levou o nome quando duas contas pedem o mesmo ao
-  // mesmo tempo.
+  // ── configurations — A CONFIGURAÇÃO DA CASA, num documento só ────────────
+  //
+  // Substitui `tenants`, e a razão é um defeito real: lá o documento era
+  // chaveado pelo USUÁRIO, resquício do tempo de banco único (quando cada
+  // profissional tinha subdomínio e marca próprios). Com um banco por cliente
+  // isso deixou de fazer sentido — e cobrou: quem não era o dono lia um tenant
+  // vazio, o web aplicava esse vazio por cima do tema do host, e a marca do
+  // cliente sumia no instante em que outro usuário da casa entrava. Salvar era
+  // pior: criava um tema paralelo que ninguém mais via.
+  //
+  // Aqui é UM documento por instância, sem dono. `chave: "instancia"` com
+  // índice único é o que garante isso no banco, e não só na intenção do código:
+  // um segundo documento é recusado pelo Mongo.
+  await db
+    .collection("configurations")
+    .createIndex({ chave: 1 }, { unique: true, name: "chave_unica" });
+
+  // A MIGRAÇÃO, aqui e não num script à parte: `ensureInstance` roda no boot
+  // para toda instância registrada, então subir o código já move o dado. É
+  // idempotente — com a configuração já criada, não faz nada.
+  const jaTem = await db.collection("configurations").findOne({ chave: "instancia" });
+  if (!jaTem) {
+    // O `tenants` de verdade tinha UM documento por instância (conferido nas
+    // quatro em produção); se houver mais de um, o do dono mais antigo é o que
+    // vale, pela mesma regra que `dataOfInstance` sempre usou.
+    const antigo = await db.collection("tenants").findOne({}, { sort: { createdAt: 1 } });
+
+    if (antigo) {
+      const { _id, user, ...resto } = antigo;
+      await db.collection("configurations").insertOne({
+        chave: "instancia",
+        ...resto,
+        // Quem criou fica como HISTÓRICO, não como chave: é a diferença entre
+        // "esta casa foi montada por fulano" e "esta configuração é do fulano".
+        criadoPor: user || null,
+        migradoDe: _id,
+        migradoEm: new Date(),
+      });
+      console.log(`[schema] configuração migrada de tenants (${nome})`);
+    } else {
+      // Instância sem tenant nenhum (nasceu e ninguém configurou nada): o
+      // documento nasce vazio, para as gravações seguintes terem onde cair.
+      await db
+        .collection("configurations")
+        .insertOne({ chave: "instancia", createdAt: new Date() });
+    }
+  }
+
+  // tenants — LEGADO. Os índices continuam enquanto a collection existir: ela
+  // é a cópia de segurança da migração acima, e some quando o dado novo tiver
+  // rodado tempo suficiente em produção.
   await db.collection("tenants").createIndex({ user: 1 }, { unique: true, name: "user_unique" });
   await db
     .collection("tenants")

@@ -5,24 +5,60 @@ const tempo = require("../lib/tempo.js");
 const theme = require("../lib/theme.js");
 const domainLib = require("../lib/domain.js");
 
-// A collection `tenants` — o domínio e a aparência de cada profissional.
+// A CONFIGURAÇÃO DA CASA: o endereço, a marca, o vocabulário, a moeda, o fuso e
+// o assistente. Um documento por instância, na collection `configurations`.
 //
-// Um profissional, um domínio. O documento é achado por DUAS chaves diferentes:
-// pelo dono (a tela de Aparência) e pelo subdomínio (a tela de login, que ainda
-// não sabe quem é ninguém). As duas têm índice.
+// ── POR QUE DEIXOU DE SER `tenants` ────────────────────────────────────────
+//
+// Lá o documento era chaveado pelo USUÁRIO — "um profissional, um domínio" —, e
+// isso fazia sentido no tempo de banco único, quando vários profissionais
+// dividiam a mesma base e cada um queria o próprio endereço. Com um banco por
+// cliente, a instância JÁ é o negócio: a chave por usuário virou um lugar onde
+// a mesma casa podia ter duas marcas.
+//
+// E cobrou. O Marlon entrou em `will.gofitnow.fit` com a conta dele (usuário da
+// casa, não o dono): o `/me/tenant` procurou o documento DELE, não achou, e o
+// web aplicou esse vazio por cima do tema que o host já tinha carregado — logo
+// e cores do Willian sumiram no instante em que ele entrou. Se ele tivesse
+// salvo a Aparência, teria criado um segundo tema que ninguém mais veria.
+//
+// Aqui não há chave por dono: `{ chave: "instancia" }`, com índice único. Um
+// segundo documento é recusado pelo BANCO, e não pela boa vontade do código.
+//
+// O `userId` que vários métodos ainda recebem virou HISTÓRICO (quem mexeu, para
+// a auditoria) — nunca mais o endereço do documento.
+const CHAVE = { chave: "instancia" };
+
 function Tenant_model(app) {
   this.app = app;
 }
 
 Tenant_model.prototype.collection = async function () {
   const db = await this.app.mongodb.connectToServer();
-  return db.collection("tenants");
+  return db.collection("configurations");
 };
 
-Tenant_model.prototype.dataByUser = async function (userId) {
-  if (!ObjectId.isValid(userId)) return undefined;
+// O documento da casa. É este o método; todo o resto lê dele.
+Tenant_model.prototype.data = async function () {
   const col = await this.collection();
-  return (await col.findOne({ user: new ObjectId(userId) })) || undefined;
+  return (await col.findOne(CHAVE)) || undefined;
+};
+
+// Gravar é sempre no MESMO documento, com upsert: uma instância que ainda não
+// configurou nada não pode perder o primeiro salvamento.
+Tenant_model.prototype.gravar = async function (set) {
+  const col = await this.collection();
+
+  await col.updateOne(
+    CHAVE,
+    { $set: { ...set, updatedAt: new Date() }, $setOnInsert: { ...CHAVE, createdAt: new Date() } },
+    { upsert: true }
+  );
+};
+
+Tenant_model.prototype.remover = async function (campos) {
+  const col = await this.collection();
+  await col.updateOne(CHAVE, { $unset: campos, $set: { updatedAt: new Date() } });
 };
 
 Tenant_model.prototype.dataBySubdomain = async function (subdomain) {
@@ -49,31 +85,16 @@ Tenant_model.prototype.dataByHost = async function (host) {
   return this.dataByCustomDomain(host);
 };
 
-// A aparência DA INSTÂNCIA, quando nenhum documento reivindica o endereço.
+// A configuração DA INSTÂNCIA.
 //
-// Existe por causa de um descompasso que o banco-por-cliente criou. O endereço
-// `marlon.gofitnow.fit` pertence à INSTÂNCIA — quem o registra é o painel, na
-// coleção `instances` do central. Mas a aparência mora no documento do
-// profissional, e ele só era achado por host se o profissional tivesse
-// reivindicado aquele subdomínio por dentro, numa segunda tela.
+// Antes isto era uma busca em três passos — achar o profissional mais antigo,
+// assumir que ele era o dono, ler o documento dele — e existia só para
+// contornar a chave por usuário. Com o documento único, é uma leitura direta.
 //
-// O resultado era o defeito mais confuso possível: a pessoa salvava a tela de
-// entrada, o tema ia para o banco, e a tela de entrada continuava a original —
-// porque a busca por host não achava nada e caía no padrão. Salvo e invisível.
-//
-// A regra é o profissional MAIS ANTIGO da instância: é a conta criada quando o
-// cliente foi provisionado, o dono do negócio. Uma instância é UM negócio com uma
-// marca; se um profissional de dentro quiser aparência própria, ele reivindica um
-// endereço e o `dataByHost` acima o acha primeiro.
+// O nome fica: são 44 chamadas espalhadas, e `dataOfInstance` continua dizendo
+// exatamente o que faz.
 Tenant_model.prototype.dataOfInstance = async function () {
-  const users = await this.app.api.user.collection();
-
-  // `createdAt: 1` e não o `_id`: o ObjectId cresce com o tempo, mas depender
-  // disso é depender de um detalhe do driver, não de um campo que a gente grava.
-  const dono = await users.findOne({ type: "trainer" }, { sort: { createdAt: 1 } });
-  if (!dono) return undefined;
-
-  return this.dataByUser(dono._id);
+  return this.data();
 };
 
 // Livre = nome válido, não reservado e ainda não tomado por outra conta.
@@ -99,10 +120,10 @@ Tenant_model.prototype.claim = async function (userId, subdomain) {
 
   try {
     await col.updateOne(
-      { user: new ObjectId(userId) },
+      CHAVE,
       {
-        $set: { subdomain: nome, status: "pending", updatedAt: agora },
-        $setOnInsert: { user: new ObjectId(userId), theme: theme.defaults(), createdAt: agora },
+        $set: { subdomain: nome, status: "pending", updatedAt: agora, criadoPor: new ObjectId(userId) },
+        $setOnInsert: { ...CHAVE, theme: theme.defaults(), createdAt: agora },
       },
       { upsert: true }
     );
@@ -118,7 +139,7 @@ Tenant_model.prototype.claim = async function (userId, subdomain) {
 Tenant_model.prototype.setStatus = async function (userId, status, erro) {
   const col = await this.collection();
   await col.updateOne(
-    { user: new ObjectId(userId) },
+    CHAVE,
     { $set: { status, lastError: erro || null, updatedAt: new Date() } }
   );
 };
@@ -148,10 +169,10 @@ Tenant_model.prototype.claimCustomDomain = async function (userId, host) {
 
   try {
     await col.updateOne(
-      { user: new ObjectId(userId) },
+      CHAVE,
       {
         $set: { customDomain: nome, customStatus: "pending", customError: null, updatedAt: agora },
-        $setOnInsert: { user: new ObjectId(userId), theme: theme.defaults(), createdAt: agora },
+        $setOnInsert: { ...CHAVE, theme: theme.defaults(), createdAt: agora },
       },
       { upsert: true }
     );
@@ -166,7 +187,7 @@ Tenant_model.prototype.claimCustomDomain = async function (userId, host) {
 Tenant_model.prototype.setCustomStatus = async function (userId, status, erro) {
   const col = await this.collection();
   await col.updateOne(
-    { user: new ObjectId(userId) },
+    CHAVE,
     { $set: { customStatus: status, customError: erro || null, updatedAt: new Date() } }
   );
 };
@@ -176,20 +197,32 @@ Tenant_model.prototype.setCustomStatus = async function (userId, status, erro) {
 Tenant_model.prototype.removeCustomDomain = async function (userId) {
   const col = await this.collection();
   await col.updateOne(
-    { user: new ObjectId(userId) },
+    CHAVE,
     { $unset: { customDomain: "", customStatus: "", customError: "" }, $set: { updatedAt: new Date() } }
   );
 };
 
+// ── A APARÊNCIA É DA INSTÂNCIA, e o documento tem UM dono ─────────────────
+//
+// Gravava no tenant de QUEM SALVOU, e isso partia a marca em duas: um segundo
+// usuário da equipe que abrisse a Aparência criava um tema paralelo, que os
+// outros nunca veriam. Uma instância é UM negócio com UMA marca — a mesma regra
+// que a leitura segue.
+//
+// `userId` continua na assinatura porque é ele quem entra na auditoria: quem
+// mexeu na marca da casa importa, mesmo que o documento seja o da casa.
 Tenant_model.prototype.saveTheme = async function (userId, entrada) {
   const col = await this.collection();
   const limpo = theme.sanitize(entrada);
 
+  // Sem contorno nenhum: o documento é o da casa, e é sempre o mesmo. A busca
+  // pelo dono que existia aqui era para achar em qual documento gravar — a
+  // pergunta deixou de existir junto com a chave por usuário.
   await col.updateOne(
-    { user: new ObjectId(userId) },
+    CHAVE,
     {
-      $set: { theme: limpo, updatedAt: new Date() },
-      $setOnInsert: { user: new ObjectId(userId), status: "none", createdAt: new Date() },
+      $set: { theme: limpo, updatedAt: new Date(), temaPor: new ObjectId(userId) },
+      $setOnInsert: { ...CHAVE, status: "none", createdAt: new Date() },
     },
     { upsert: true }
   );
@@ -209,10 +242,10 @@ Tenant_model.prototype.saveCurrency = async function (userId, code, lista) {
   const habilitadas = currencies.normalizeList(lista, padrao);
 
   await col.updateOne(
-    { user: new ObjectId(userId) },
+    CHAVE,
     {
       $set: { currency: padrao, currencies: habilitadas, updatedAt: new Date() },
-      $setOnInsert: { user: new ObjectId(userId), status: "none", createdAt: new Date() },
+      $setOnInsert: { ...CHAVE, status: "none", createdAt: new Date() },
     },
     { upsert: true }
   );
@@ -241,10 +274,10 @@ Tenant_model.prototype.saveTimezone = async function (userId, fuso) {
   const col = await this.collection();
 
   await col.updateOne(
-    { user: new ObjectId(userId) },
+    CHAVE,
     {
       $set: { timezone: fuso, updatedAt: new Date() },
-      $setOnInsert: { user: new ObjectId(userId), status: "none", createdAt: new Date() },
+      $setOnInsert: { ...CHAVE, status: "none", createdAt: new Date() },
     },
     { upsert: true }
   );

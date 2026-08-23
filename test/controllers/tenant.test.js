@@ -67,6 +67,13 @@ function monta({
           req._viaApiKey = viaApiKey;
           return USER;
         },
+        // A aparência passou a exigir `users.manage` — a mesma do vocabulário,
+        // porque ela muda a tela de todo mundo. O dublê libera: o que este
+        // arquivo testa é a limpeza do tema, não o portão.
+        async can(req) {
+          req._viaApiKey = viaApiKey;
+          return USER;
+        },
       },
     },
     api: {
@@ -642,4 +649,67 @@ test("remover o domínio próprio tira o endereço do central", async () => {
   await call(app, "delete", "/me/tenant/custom-domain");
 
   assert.deepEqual(hostsRemovidos, [{ instance: "marlon", host: "treinos.marlon.com.br" }]);
+});
+
+
+// ── A APARÊNCIA É DA INSTÂNCIA, não de quem está logado ────────────────────
+//
+// O caso real: o Marlon entrou em will.gofitnow.fit com a conta dele (usuário da
+// casa, não o dono). O `/me/tenant` procurava o tenant DELE, não achava, e o web
+// aplicava esse vazio POR CIMA do tema que o host já tinha carregado — a logo e
+// as cores do Willian sumiam no instante em que ele entrava.
+//
+// Uma instância é UM negócio com UMA marca. Quem não tem documento próprio lê o
+// da casa; o ENDEREÇO continua sendo o de cada um.
+test("qualquer um da equipe lê a MARCA e o ENDEREÇO da casa", async () => {
+  // Depois da migração para `configurations` existe UM documento por instância,
+  // e ele responde as duas coisas. O endereço chegou a ficar por usuário nesta
+  // rota (foi a primeira tentativa de conserto, na mesma madrugada) e era a
+  // herança do modelo antigo: `will.gofitnow.fit` é a INSTÂNCIA, não a conta de
+  // quem registrou.
+  const CASA = { theme: { brand: "#18181b" }, subdomain: "will" };
+  const app = fakeApp({
+    helpers: { ReqProtected: { async verify() { return { _id: "outro" }; } } },
+    api: {
+      tenant: {
+        async dataOfInstance() {
+          return CASA;
+        },
+      },
+    },
+  });
+
+  TenantController(app);
+  const r = await call(app, "get", "/me/tenant");
+
+  assert.equal(r.status, 200);
+  assert.equal(r.body.theme.brand, "#18181b", "a marca vem da casa");
+  assert.equal(r.body.subdomain, "will", "o endereço também — é o da instância");
+});
+
+test("salvar a aparência exige users.manage — ela muda a tela de todo mundo", async () => {
+  // Antes bastava estar logado: um CLIENTE podia trocar a logo e as cores da
+  // conta inteira.
+  const pedidas = [];
+  const app = fakeApp({
+    helpers: {
+      ReqProtected: {
+        async verify() {
+          return { _id: "u1" };
+        },
+        async can(req, res, permissao) {
+          pedidas.push(permissao);
+          res.status(403).send({ msg: "sem permissão" });
+          return false;
+        },
+      },
+    },
+    api: { tenant: { async saveTheme() { throw new Error("não podia ter chegado aqui"); } } },
+  });
+
+  TenantController(app);
+  const r = await call(app, "put", "/me/tenant/theme", { body: { brand: "#ff0000" } });
+
+  assert.equal(r.status, 403);
+  assert.deepEqual(pedidas, ["users.manage"]);
 });

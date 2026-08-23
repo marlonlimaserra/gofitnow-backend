@@ -122,19 +122,38 @@ module.exports = function (app) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;
 
-    const tenant = await app.api.tenant.dataByUser(user._id);
-    const tema = themeLib.sanitize(tenant?.theme);
+    // ── O TEMA É DA INSTÂNCIA, e o documento tem UM dono ──────────────────
+    //
+    // `dataByUser` acha o tenant de QUEM PERGUNTA. Só que o documento pertence
+    // ao profissional que criou a conta — os outros da equipe não têm um. Para
+    // eles isto devolvia vazio, e o web APLICAVA o vazio por cima do tema que o
+    // host já tinha carregado: entrar em will.gofitnow.fit com outro usuário da
+    // casa trocava a marca do Willian pela nossa, logo e cores.
+    //
+    // Foi o que o Marlon viu. A cura é cair no dono da instância: uma instância
+    // é UM negócio com UMA marca, e quem tem endereço próprio continua sendo
+    // achado primeiro pelo `dataByUser`.
+    //
+    // UM documento, o da casa — marca E endereço.
+    //
+    // O endereço chegou a ficar por usuário nesta rota, e era a herança do
+    // modelo antigo: `will.gofitnow.fit` é a INSTÂNCIA, não a conta de quem
+    // registrou. Dois usuários da mesma casa com endereços diferentes seriam
+    // duas marcas no mesmo banco — exatamente o que a `configurations` existe
+    // para impedir.
+    const daCasa = await app.api.tenant.dataOfInstance();
+    const tema = themeLib.sanitize(daCasa?.theme);
 
     res.send({
-      subdomain: tenant?.subdomain || "",
-      host: tenant?.subdomain ? domainLib.hostOf(tenant.subdomain) : "",
-      status: tenant?.status || "none",
-      lastError: tenant?.lastError || null,
+      subdomain: daCasa?.subdomain || "",
+      host: daCasa?.subdomain ? domainLib.hostOf(daCasa.subdomain) : "",
+      status: daCasa?.status || "none",
+      lastError: daCasa?.lastError || null,
       // O domínio próprio é outro endereço, com outro estado: ele espera o DNS
       // do profissional, não a credencial nossa.
-      customDomain: tenant?.customDomain || "",
-      customStatus: tenant?.customStatus || "none",
-      customError: tenant?.customError || null,
+      customDomain: daCasa?.customDomain || "",
+      customStatus: daCasa?.customStatus || "none",
+      customError: daCasa?.customError || null,
       cnameTarget: domainLib.CNAME_TARGET,
       theme: tema,
       scale: themeLib.scale(tema.brand),
@@ -346,7 +365,10 @@ module.exports = function (app) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;
 
-    const tenant = await app.api.tenant.dataByUser(user._id);
+    // O documento é o da CASA (um por instância). Antes era o de quem
+    // perguntava, e por isso um usuário da equipe via "nenhum domínio" mesmo
+    // com a casa tendo um.
+    const tenant = await app.api.tenant.dataOfInstance();
     if (!tenant?.customDomain) {
       return res.status(404).send({ msg: req.t("errors.noCustomDomain"), code: "no_domain" });
     }
@@ -376,7 +398,7 @@ module.exports = function (app) {
       return;
     }
 
-    const tenant = await app.api.tenant.dataByUser(user._id);
+    const tenant = await app.api.tenant.dataOfInstance();
     if (!tenant?.customDomain) return res.send({ customDomain: "", customStatus: "none" });
 
     // O banco primeiro: se a Cloudflare estiver fora do ar, o endereço tem de
@@ -542,7 +564,13 @@ module.exports = function (app) {
   });
 
   app.put("/me/tenant/theme", async function (req, res) {
-    const user = await app.helpers.ReqProtected.verify(req, res);
+    // `users.manage`, a MESMA do vocabulário — e pelo mesmo motivo: a aparência
+    // não é preferência de quem está logado, é a marca da casa, e ela muda a
+    // tela de todo mundo (inclusive a de entrada, que os clientes veem).
+    //
+    // Antes bastava estar logado: um CLIENTE podia trocar a logo e as cores da
+    // conta inteira. Ninguém tinha feito, mas a porta estava aberta.
+    const user = await app.helpers.ReqProtected.can(req, res, "users.manage");
     if (user === false) return;
 
     const salvo = await app.api.tenant.saveTheme(user._id, req.body);

@@ -17,18 +17,26 @@ function Ai_model(app) {
   this.app = app;
 }
 
+// A configuração do assistente mora na MESMA casa que a marca e o vocabulário:
+// `configurations`, um documento por instância. A chave da API é do negócio, e
+// não de quem a colou.
+const CHAVE = { chave: "instancia" };
+
 Ai_model.prototype.collection = async function () {
   const db = await this.app.mongodb.connectToServer();
-  return db.collection("tenants");
+  return db.collection("configurations");
 };
 
-// De quem é o documento da instância. É o mesmo critério de
-// `Tenant_model#dataOfInstance`: a conta criada quando o cliente foi
-// provisionado, o dono do negócio.
+// ── `ownerId` VIROU O DOCUMENTO ÚNICO ─────────────────────────────────────
+//
+// Ele existia para contornar a chave por usuário do antigo `tenants`: como o
+// documento era do dono, gravar a chave da API exigia descobrir quem era o
+// dono. Este modelo já tratava a configuração como da casa — foi o tema que
+// ficou preso ao usuário — e por isso ele serviu de modelo para a migração.
+//
+// Continua devolvendo algo verdadeiro para quem chama: a chave do documento.
 Ai_model.prototype.ownerId = async function () {
-  const users = await this.app.api.user.collection();
-  const dono = await users.findOne({ type: "trainer" }, { sort: { createdAt: 1 } });
-  return dono?._id;
+  return CHAVE.chave;
 };
 
 // A chave NUNCA volta inteira para a tela. Só o bastante para quem configurou
@@ -49,7 +57,7 @@ Ai_model.prototype.settings = async function () {
   if (!id) return { configured: false, model: ai.DEFAULT_MODEL, hint: "" };
 
   const col = await this.collection();
-  const doc = await col.findOne({ user: new ObjectId(id) });
+  const doc = await col.findOne(CHAVE);
   const guardado = doc?.ai || {};
 
   const provider = ai.normalizeProvider(guardado.provider);
@@ -80,7 +88,7 @@ Ai_model.prototype.realtimeCredentials = async function () {
   if (!id) return null;
 
   const col = await this.collection();
-  const doc = await col.findOne({ user: new ObjectId(id) });
+  const doc = await col.findOne(CHAVE);
   const guardado = doc?.ai;
   if (!guardado?.realtimeKey) return null;
 
@@ -97,7 +105,7 @@ Ai_model.prototype.credentials = async function () {
   if (!id) return null;
 
   const col = await this.collection();
-  const doc = await col.findOne({ user: new ObjectId(id) });
+  const doc = await col.findOne(CHAVE);
   const guardado = doc?.ai;
   if (!guardado) return null;
 
@@ -150,8 +158,8 @@ Ai_model.prototype.save = async function (entrada) {
   if (chaveVoz) set["ai.realtimeKey"] = chaveVoz;
 
   await col.updateOne(
-    { user: new ObjectId(id) },
-    { $set: { ...set, updatedAt: new Date() }, $setOnInsert: { user: new ObjectId(id), status: "none", createdAt: new Date() } },
+    CHAVE,
+    { $set: { ...set, updatedAt: new Date() }, $setOnInsert: { ...CHAVE, status: "none", createdAt: new Date() } },
     { upsert: true }
   );
 
@@ -163,7 +171,7 @@ Ai_model.prototype.remove = async function () {
   if (!id) return null;
 
   const col = await this.collection();
-  await col.updateOne({ user: new ObjectId(id) }, { $unset: { "ai.key": "" }, $set: { updatedAt: new Date() } });
+  await col.updateOne(CHAVE, { $unset: { "ai.key": "" }, $set: { updatedAt: new Date() } });
 
   return this.settings();
 };
