@@ -43,7 +43,12 @@ module.exports = function (app) {
       extra: { name: user.name, email: user.email, self_signup: true },
     });
 
-    res.status(201).send({ session: token, user: await app.api.user.withRole(user) });
+    res.status(201).send({
+      session: token,
+      // Vestido com a conta (vocabulário, idioma padrão): esta resposta vira o
+      // `user` do app inteiro até o próximo boot — ver Tenant_model.
+      user: await app.api.tenant.vestirComAConta(await app.api.user.withRole(user)),
+    });
   });
 
   // Login — professional and person come through the same door; the frontend
@@ -77,7 +82,10 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, user, "login", { category: "auth" });
 
-    res.send({ session: token, user: await app.api.user.withRole(user) });
+    res.send({
+      session: token,
+      user: await app.api.tenant.vestirComAConta(await app.api.user.withRole(user)),
+    });
   });
 
   // Revalidates the session when the frontend boots.
@@ -85,7 +93,9 @@ module.exports = function (app) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;
 
-    res.send({ user: user });
+    // Vestido com a conta, como o login e o /me. É ESTA rota que o app usa para
+    // botar — era aqui que o F5 ressuscitava o vocabulário fóssil do documento.
+    res.send({ user: await app.api.tenant.vestirComAConta(user) });
   });
 
   app.post("/auth/logout", async function (req, res) {

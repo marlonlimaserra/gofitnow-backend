@@ -203,6 +203,14 @@ module.exports = function (app) {
       });
       return;
     }
+    // A categoria é conferida ANTES de inserir: recusar depois deixaria a ficha
+    // criada e um 400 dizendo que nada foi salvo. O tipo é sempre "student" —
+    // é o que esta rota cria — e a gravação em si fica com o UserCategory, que
+    // é o único lugar que escreve `users.category`.
+    if (body.category && !(await app.api.userCategory.valida(body.category, "student"))) {
+      res.status(400).send({ msg: req.t("errors.invalidCategory"), code: "invalid_category" });
+      return;
+    }
 
     if (email) {
       // Dentro da instância o e-mail é único. Já existir aqui NÃO significa uma
@@ -264,6 +272,9 @@ module.exports = function (app) {
     // A observacao e do profissional, nao da pessoa: fica no vinculo.
     if (body.notes) await app.api.link.setNotes(trainer._id, id, body.notes);
 
+    // Já validada lá em cima; aqui só grava.
+    if (body.category) await app.api.userCategory.gravar(id, body.category, "student");
+
     const created = await app.api.user.data(id);
 
     app.insertUserActionHistory(req, trainer, "create_person", {
@@ -324,6 +335,17 @@ module.exports = function (app) {
       });
       return;
     }
+    // Conferida junto das outras validações: a tela manda o formulário inteiro,
+    // e um 400 depois de já ter gravado nome e telefone diria "não salvou"
+    // mentindo pela metade. Em branco APAGA (quem escolheu errado volta atrás);
+    // ausente mantém — é o que faz uma edição parcial por API funcionar.
+    if (
+      body.category !== undefined &&
+      !(await app.api.userCategory.valida(body.category, "student"))
+    ) {
+      res.status(400).send({ msg: req.t("errors.invalidCategory"), code: "invalid_category" });
+      return;
+    }
     // O e-mail PODE ser trocado aqui.
     //
     // Ficou travado por um bom tempo, e a razão era do mundo de banco único: o
@@ -346,6 +368,12 @@ module.exports = function (app) {
           return;
         }
       }
+    }
+
+    // Já validada lá em cima; o UserCategory é quem escreve `users.category`
+    // (o updateStudent não conhece o campo, de propósito).
+    if (body.category !== undefined) {
+      await app.api.userCategory.gravar(req.params.id, body.category, "student");
     }
 
     try {

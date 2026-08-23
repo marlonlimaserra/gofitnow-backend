@@ -31,7 +31,13 @@ function monta({
   afiliados = [{ alias: "wil", instance: "will", name: "Willian Costa", active: true }],
   indicacaoErro = null,
 } = {}) {
-  const feito = { dns: [], ensure: [], schema: [], hosts: [], trainers: [], vocab: [], mails: [], indicacoes: [] };
+  // `essencial` é o esquema mínimo, que o cadastro ESPERA; `schema` é o
+  // completo, que ele manda para depois de responder. `falhas` guarda o que
+  // estourou lá — o real só loga, e um teste precisa poder olhar.
+  const feito = {
+    dns: [], ensure: [], essencial: [], schema: [], hosts: [], trainers: [], vocab: [],
+    mails: [], indicacoes: [], falhas: [],
+  };
 
   const app = fakeApp({
     crypto: require("crypto"),
@@ -47,6 +53,9 @@ function monta({
     },
     // O dublê do banco.
     schema: {
+      async ensureInstanceEssencial(_app, nome) {
+        feito.essencial.push(nome);
+      },
       async ensureInstance(_app, nome) {
         feito.schema.push(nome);
       },
@@ -109,17 +118,48 @@ function monta({
     },
   });
 
+  // O que roda DEPOIS da resposta. No servidor é `setImmediate` e o erro só vai
+  // para o log; aqui a tarefa começa na hora e a promessa fica guardada, para o
+  // teste poder esperar por ela quando o que ele afere é o resultado dela.
+  app.pendentes = [];
+  app.depois = (rotulo, tarefa) => {
+    // `setImmediate` como no de verdade (lib/depois.js), e não um `.then` na
+    // hora: o que este dublê precisa reproduzir é justamente a ORDEM — a rota
+    // responde primeiro, a tarefa acontece depois. Com um microtask, a tarefa
+    // rodaria antes de `call` devolver e o caso da resposta imediata não teria
+    // como ver a diferença.
+    app.pendentes.push(
+      new Promise((resolve) => {
+        setImmediate(() => {
+          Promise.resolve()
+            .then(tarefa)
+            .catch((erro) => feito.falhas.push({ rotulo, erro: erro.message }))
+            .then(resolve);
+        });
+      })
+    );
+  };
+
   PortalController(app);
   return { app, feito };
 }
 
 test.beforeEach(() => rateLimit.reset());
 
-const cadastrar = (app, body = CORPO, ip = "5.5.5.5") =>
-  call(app, "post", "/public/portal/signup", {
+// Cadastra E ESPERA o que ficou para depois da resposta.
+//
+// Sem essa espera, todo caso que afere e-mail enviado ou esquema completo viraria
+// uma corrida: a rota responde antes dessas duas coisas acontecerem, de
+// propósito. Quem quiser ver o instante ANTES delas chama `call` direto — é o que
+// o caso da resposta imediata faz.
+const cadastrar = async (app, body = CORPO, ip = "5.5.5.5") => {
+  const r = await call(app, "post", "/public/portal/signup", {
     body,
     headers: { "x-forwarded-for": ip },
   });
+  await Promise.all(app.pendentes);
+  return r;
+};
 
 test("cria a instância, o banco, o endereço e o primeiro acesso", async () => {
   const { app, feito } = monta();
@@ -131,10 +171,54 @@ test("cria a instância, o banco, o endereço e o primeiro acesso", async () => 
   assert.ok(r.body.token);
 
   assert.deepEqual(feito.dns, ["bruna-sampaio.gofitnow.fit"]);
-  assert.deepEqual(feito.schema, ["bruna-sampaio"]);
+  assert.deepEqual(feito.essencial, ["bruna-sampaio"], "o mínimo é esperado");
+  assert.deepEqual(feito.schema, ["bruna-sampaio"], "o resto acontece depois de responder");
   assert.deepEqual(feito.hosts, [
     { instancia: "bruna-sampaio", host: "bruna-sampaio.gofitnow.fit" },
   ]);
+});
+
+// ── O QUE O CADASTRO NÃO ESPERA ────────────────────────────────────────────
+//
+// Criar as 29 coleções e os 85 índices leva ~900 ms no servidor, e esperar o SMTP
+// levava outros ~2 s. Nada disso muda o que a pessoa vê agora: ela é
+// redirecionada com o token que já veio na resposta.
+test("responde ANTES do esquema completo e do e-mail — e faz as duas coisas depois", async () => {
+  const { app, feito } = monta();
+
+  // `call` direto, sem esperar as pendências: é o instante em que o navegador
+  // recebeu a resposta.
+  const r = await call(app, "post", "/public/portal/signup", {
+    body: CORPO,
+    headers: { "x-forwarded-for": "5.5.5.5" },
+  });
+
+  assert.equal(r.status, 201);
+  assert.ok(r.body.token, "o token vem na resposta — é ele que abre o primeiro acesso");
+  assert.deepEqual(feito.essencial, ["bruna-sampaio"], "o mínimo é esperado");
+  assert.deepEqual(feito.schema, [], "o esquema completo ainda não rodou");
+  assert.deepEqual(feito.mails, [], "o e-mail ainda não saiu");
+
+  await Promise.all(app.pendentes);
+
+  assert.deepEqual(feito.schema, ["bruna-sampaio"], "o resto do esquema roda depois");
+  assert.deepEqual(feito.mails, ["bruna@exemplo.com"], "e o e-mail sai depois");
+  assert.deepEqual(feito.falhas, []);
+});
+
+test("esquema completo que falha DEPOIS não estraga o cadastro que já deu certo", async () => {
+  const { app, feito } = monta();
+  // O dublê passa a estourar só no completo — o essencial já aconteceu.
+  app.schema.ensureInstance = async () => {
+    throw new Error("mongo caiu");
+  };
+
+  const r = await cadastrar(app);
+
+  assert.equal(r.status, 201, "a conta existe: 201 é a verdade");
+  assert.deepEqual(feito.essencial, ["bruna-sampaio"]);
+  assert.equal(feito.falhas.length, 1, "a falha é registrada, não engolida");
+  assert.match(feito.falhas[0].rotulo, /esquema completo/);
 });
 
 // A primeira pessoa é a dona da casa. Sem `admin: true` ela entra e não consegue

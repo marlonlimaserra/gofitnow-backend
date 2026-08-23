@@ -10,7 +10,7 @@ const PESSOA = { _id: "p1", name: "Ana", email: "ana@x.com" };
 // Monta a rota de verdade sobre modelos de mentira, e devolve o que os modelos
 // receberam — é sobre isso que os testes afirmam.
 function monta({ target = PESSOA, existente , vinculado = true } = {}) {
-  const chamadas = { updateStudent: [], setNotes: [], setActive: [], insertStudent: [] };
+  const chamadas = { updateStudent: [], setNotes: [], setActive: [], insertStudent: [], categoria: [] };
   const permissao = permiteTudo(TRAINER);
 
   const app = fakeApp({
@@ -59,6 +59,18 @@ function monta({ target = PESSOA, existente , vinculado = true } = {}) {
         clientName: "Pessoa",
         async dataByName() {
           return { _id: "r1" };
+        },
+      },
+      // O catálogo de mentira aceita só "aluno" — o suficiente para exercitar a
+      // regra da rota: validar antes, gravar depois, e nunca pelo modelo de
+      // pessoa (quem escreve `users.category` é o UserCategory).
+      userCategory: {
+        async valida(key) {
+          return !String(key || "").trim() || key === "aluno";
+        },
+        async gravar(userId, key, tipo) {
+          chamadas.categoria.push({ userId: String(userId), key, tipo });
+          return { ok: true, category: key || "" };
         },
       },
       actionHistory: { diff: () => ({}) },
@@ -143,6 +155,65 @@ test("nome continua obrigatório — é o que sobrou de identidade", async () =>
 
   assert.equal(r.status, 400);
   assert.equal(chamadas.insertStudent.length, 0);
+});
+
+// ── A CATEGORIA (o que a pessoa é, para a contagem da central) ─────────────
+//
+// A resposta mora em `users.category` e quem a escreve é o UserCategory — o
+// insertStudent não conhece o campo, de propósito. A rota valida ANTES de
+// inserir: recusar depois deixaria a ficha criada com um 400 dizendo que nada
+// foi salvo.
+
+test("cadastrar com categoria grava a categoria — com o tipo da pessoa", async () => {
+  const { app, chamadas } = monta();
+  const r = await post(app, { name: "Ana", category: "aluno" });
+
+  assert.equal(r.status, 201);
+  assert.deepEqual(chamadas.categoria, [{ userId: "novo1", key: "aluno", tipo: "student" }]);
+});
+
+test("categoria fora do catálogo recusa ANTES de criar a ficha", async () => {
+  // Um typo gravado viraria uma categoria fantasma na contagem — que ninguém
+  // cadastrou e ninguém consegue renomear.
+  const { app, chamadas } = monta();
+  const r = await post(app, { name: "Ana", category: "nutrisionista" });
+
+  assert.equal(r.status, 400);
+  assert.equal(r.body.code, "invalid_category");
+  assert.equal(chamadas.insertStudent.length, 0);
+});
+
+test("cadastrar SEM categoria não toca no campo — não dizer o que é também é resposta", async () => {
+  const { app, chamadas } = monta();
+  const r = await post(app, { name: "Ana" });
+
+  assert.equal(r.status, 201);
+  assert.equal(chamadas.categoria.length, 0);
+});
+
+test("editar com categoria grava; inválida recusa sem salvar o resto", async () => {
+  const { app, chamadas } = monta();
+
+  const ok = await put(app, { name: "Ana", category: "aluno" });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(chamadas.categoria, [{ userId: "p1", key: "aluno", tipo: "student" }]);
+
+  const ruim = await put(app, { name: "Ana", category: "nutrisionista" });
+  assert.equal(ruim.status, 400);
+  assert.equal(ruim.body.code, "invalid_category");
+  // O 400 tem de chegar antes de qualquer gravação: um "não salvou" com o nome
+  // já salvo faria a pessoa desconfiar do salvar inteiro.
+  assert.equal(chamadas.updateStudent.length, 1, "só a edição válida chegou ao modelo");
+});
+
+test("editar com categoria em BRANCO apaga; sem o campo, mantém", async () => {
+  const { app, chamadas } = monta();
+
+  await put(app, { name: "Ana", category: "" });
+  assert.deepEqual(chamadas.categoria, [{ userId: "p1", key: "", tipo: "student" }]);
+
+  await put(app, { name: "Ana" });
+  assert.equal(chamadas.categoria.length, 1, "sem o campo, o gravar não roda");
 });
 
 test("editar mandando o MESMO e-mail continua funcionando", async () => {

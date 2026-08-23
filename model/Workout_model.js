@@ -100,6 +100,56 @@ Workout_model.prototype.list = async function (trainerId, studentId) {
   });
 };
 
+// ── A VISÃO DA PRÓPRIA PESSOA ───────────────────────────────────────────────
+//
+// O aluno vê os treinos DELE, venham de qual profissional vierem: numa clínica
+// com dois profissionais, o treino que o segundo montou é tão dele quanto o do
+// primeiro. Por isso o filtro é só `student`, sem `trainer`.
+//
+// SÓ LEITURA de verdade: diferente do `list` de cima, este não congela ordem nem
+// grava nada — uma rota de leitura do aluno não pode ser quem escreve no banco.
+Workout_model.prototype.listOfStudent = async function (studentId) {
+  const col = await this.workoutsCollection();
+
+  const docs = await col
+    .find({ student: new ObjectId(studentId) })
+    .sort({ startDate: -1, createdAt: -1 })
+    .toArray();
+
+  // A ordem escolhida à mão vale aqui também, quando todo mundo a tem.
+  if (docs.length && docs.every((d) => typeof d.order === "number")) {
+    docs.sort((a, b) => a.order - b.order);
+  }
+
+  return docs.map((d) => {
+    const exercises = d.exercises || [];
+    return {
+      ...d,
+      status: statusOf(d),
+      exerciseCount: exercises.length,
+      setCount: exercises.reduce((soma, e) => soma + (e.sets || []).length, 0),
+      muscleGroups: [...new Set(exercises.map((e) => e.muscleGroup).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, "pt-BR")
+      ),
+    };
+  });
+};
+
+Workout_model.prototype.dataOfStudent = async function (studentId, id) {
+  if (!ObjectId.isValid(id)) return undefined;
+  const col = await this.workoutsCollection();
+  const doc = await col.findOne({ _id: new ObjectId(id), student: new ObjectId(studentId) });
+  if (!doc) return undefined;
+
+  const exercises = doc.exercises || [];
+  return {
+    ...doc,
+    status: statusOf(doc),
+    exerciseCount: exercises.length,
+    setCount: exercises.reduce((soma, e) => soma + (e.sets || []).length, 0),
+  };
+};
+
 Workout_model.prototype.data = async function (trainerId, id) {
   if (!ObjectId.isValid(id)) return undefined;
   const col = await this.workoutsCollection();

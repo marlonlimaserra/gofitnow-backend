@@ -79,6 +79,19 @@ UserCategory_model.prototype.contagens = async function () {
   return total;
 };
 
+// Só a CONFERÊNCIA, sem gravar. Os formulários de cadastro validam ANTES de
+// criar o documento — recusar a categoria depois de inserir deixaria uma ficha
+// criada pela metade, com um 400 dizendo que nada foi salvo.
+//
+// Vazio é válido: quem não quis dizer o que é tem direito de não dizer.
+UserCategory_model.prototype.valida = async function (key, tipoDeUsuario) {
+  const chave = String(key || "").trim();
+  if (!chave) return true;
+
+  const permitidas = await this.paraTipo(tipoDeUsuario);
+  return permitidas.some((c) => c.key === chave);
+};
+
 // A categoria de UMA pessoa. Conferida contra o catálogo antes de gravar.
 //
 // Sem a conferência, um `category: "nutrisionista"` gravado por um cliente com
@@ -96,8 +109,7 @@ UserCategory_model.prototype.gravar = async function (userId, key, tipoDeUsuario
     return { ok: true, category: "" };
   }
 
-  const permitidas = await this.paraTipo(tipoDeUsuario);
-  if (!permitidas.some((c) => c.key === chave)) return { erro: "invalid_category" };
+  if (!(await this.valida(chave, tipoDeUsuario))) return { erro: "invalid_category" };
 
   const db = await this.app.mongodb.instanceDb(instanceContext.required());
   const { ObjectId } = require("mongodb");

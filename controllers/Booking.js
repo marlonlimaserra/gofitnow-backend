@@ -1,6 +1,7 @@
 const instanceContext = require("../lib/instance.js");
 const rateLimit = require("../lib/rateLimit.js");
 const slots = require("../lib/slots.js");
+const tempo = require("../lib/tempo.js");
 
 module.exports = function (app) {
   // A agenda pública: onde o cliente marca sozinho.
@@ -387,12 +388,27 @@ module.exports = function (app) {
       // A lista que o cliente viu tem segundos de idade, e nesse tempo outra
       // pessoa pode ter marcado o mesmo horário. Confiar na tela seria deixar
       // a última vaga ser vendida duas vezes.
-      const dia = new Date(inicio);
-      dia.setHours(0, 0, 0, 0);
-      const amanha = new Date(dia.getTime() + 86400000);
-
-      const ocupados = await app.api.appointment.between([body.professional], dia, amanha);
+      //
+      // O DIA é o dia DE PAREDE do horário pedido, no fuso da conta — nunca a
+      // meia-noite UTC. `setHours(0,0,0,0)` num servidor em UTC devolvia a
+      // meia-noite UTC, que no Brasil ainda é a NOITE DO DIA ANTERIOR: a grade
+      // era gerada para sexta quando a pessoa marcava sábado, o horário nunca
+      // estava na lista, e TODA confirmação voltava "taken". O app de iPhone
+      // foi quem denunciou — a página web tinha o mesmo defeito adormecido.
       const fuso = await app.api.tenant.timezoneOfInstance();
+      const parede = tempo.paredeDe(inicio, fuso);
+      const dia = tempo.instante(
+        { ano: parede.ano, mes: parede.mes, dia: parede.dia, hora: 0, minuto: 0 },
+        fuso
+      );
+      // A janela de OCUPADOS é maior que o dia de propósito: um compromisso que
+      // começa antes da meia-noite e atravessa, ou termina depois dela, também
+      // disputa vaga. Buscar folgado é barato; deixar de ver um conflito não é.
+      const ocupados = await app.api.appointment.between(
+        [body.professional],
+        new Date(dia.getTime() - 12 * 3600000),
+        new Date(dia.getTime() + 36 * 3600000)
+      );
 
       const livres = slots.livresDoDia({
         dia,

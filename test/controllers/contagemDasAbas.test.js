@@ -72,6 +72,9 @@ const TODAS = [
   "finance.view",
   "schedule.view",
   "assessments.view",
+  "supplements.view",
+  "prescriptions.view",
+  "exams.view",
 ];
 
 const pedir = (app) =>
@@ -80,13 +83,31 @@ const pedir = (app) =>
 test("devolve um número por aba", async () => {
   const { app } = monta({
     permissoes: TODAS,
-    docs: { workouts: 2, diets: 1, charges: 3, appointments: 4, assessments: 7 },
+    docs: {
+      workouts: 2,
+      diets: 1,
+      charges: 3,
+      appointments: 4,
+      assessments: 7,
+      supplements: 5,
+      prescriptions: 6,
+      exams: 8,
+    },
   });
 
   const r = await pedir(app);
 
   assert.equal(r.status, 200);
-  assert.deepEqual(r.body, { workouts: 2, diet: 1, finance: 3, schedule: 4, assessment: 7 });
+  assert.deepEqual(r.body, {
+    workouts: 2,
+    diet: 1,
+    finance: 3,
+    schedule: 4,
+    assessment: 7,
+    supplement: 5,
+    prescription: 6,
+    exam: 8,
+  });
 });
 
 test("treino e dieta contam só os VIGENTES", async () => {
@@ -95,7 +116,9 @@ test("treino e dieta contam só os VIGENTES", async () => {
   const { app, consultas } = monta({ permissoes: TODAS });
   await pedir(app);
 
-  for (const collection of ["workouts", "diets"]) {
+  // A suplementação entra na mesma regra: creatina que terminou em março não é
+  // "o que esta pessoa toma hoje".
+  for (const collection of ["workouts", "diets", "supplements"]) {
     const q = consultas[collection];
     assert.ok(q.$and, `${collection} não filtrou por vigência`);
 
@@ -104,6 +127,17 @@ test("treino e dieta contam só os VIGENTES", async () => {
     const [comeco, fim] = q.$and;
     assert.equal(comeco.$or[0].startDate.$lte, HOJE);
     assert.equal(fim.$or[0].endDate.$gte, HOJE);
+
+    // E a STRING VAZIA conta como "sem data".
+    //
+    // É assim que os modelos gravam data ausente, e sem este ramo o filtro
+    // deixava de fora justamente o caso comum: o selo da aba não aparecia para
+    // quem não pôs data de fim. Apareceu na suplementação e valia para os três.
+    assert.ok(
+      fim.$or.some((c) => c.endDate === ""),
+      `${collection}: string vazia não conta como "sem fim"`
+    );
+    assert.ok(comeco.$or.some((c) => c.startDate === ""));
   }
 });
 
@@ -140,6 +174,34 @@ test("avaliação conta TODAS — aqui o histórico é o conteúdo", async () =>
   assert.equal(q.date, undefined);
   assert.equal(q.$and, undefined);
   assert.ok(q.trainer && q.student);
+});
+
+test("prescrição conta TODAS — documento emitido não vence por ser antigo", async () => {
+  // Reimprimir a receita do ano passado é caso real: o que existe continua
+  // existindo, e o selo diz quantos documentos aquela pessoa tem.
+  const { app, consultas } = monta({ permissoes: TODAS });
+  await pedir(app);
+
+  const q = consultas.prescriptions;
+  assert.equal(q.date, undefined);
+  assert.equal(q.$and, undefined);
+  assert.ok(q.trainer && q.student);
+});
+
+test("suplemento e prescrição também respeitam a permissão", async () => {
+  // Mesma regra do financeiro: o que a conta não abre, ela não conta. Aqui o
+  // vazamento seria pior — "esta pessoa tem 4 prescrições" é informação de saúde.
+  const { app, consultas } = monta({
+    permissoes: ["workouts.view"],
+    docs: { supplements: 9, prescriptions: 9 },
+  });
+
+  const r = await pedir(app);
+
+  assert.equal(r.body.supplement, 0);
+  assert.equal(r.body.prescription, 0);
+  assert.equal(consultas.supplements, undefined, "consultou suplementos sem permissão");
+  assert.equal(consultas.prescriptions, undefined, "consultou prescrições sem permissão");
 });
 
 test("a agenda respeita o alcance da EQUIPE", async () => {
@@ -201,5 +263,14 @@ test("sem nenhuma permissão, todos os números são zero", async () => {
   const { app } = monta({ permissoes: [] });
   const r = await pedir(app);
 
-  assert.deepEqual(r.body, { workouts: 0, diet: 0, finance: 0, schedule: 0, assessment: 0 });
+  assert.deepEqual(r.body, {
+    workouts: 0,
+    diet: 0,
+    finance: 0,
+    schedule: 0,
+    assessment: 0,
+    supplement: 0,
+    prescription: 0,
+    exam: 0,
+  });
 });

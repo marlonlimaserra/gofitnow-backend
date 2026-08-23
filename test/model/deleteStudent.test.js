@@ -67,6 +67,26 @@ function monta({ vinculado = true } = {}) {
 
   // Os planos alimentares saem junto desde 13/08/2026, pelo mesmo motivo dos
   // treinos: sem isso ficariam apontando para um `student` apagado.
+  const anamnesisLink = { apagadosDe: [], async deleteAllOfStudent(id) {
+    anamnesisLink.apagadosDe.push(String(id));
+    return 1;
+  } };
+  const anamnesis = { apagadosDe: [], async deleteAllOfStudent(id) {
+    anamnesis.apagadosDe.push(String(id));
+    return 1;
+  } };
+  const supplement = { apagadosDe: [], async deleteAllOfStudent(id) {
+    supplement.apagadosDe.push(String(id));
+    return 1;
+  } };
+  const prescription = { apagadosDe: [], async deleteAllOfStudent(id) {
+    prescription.apagadosDe.push(String(id));
+    return 1;
+  } };
+  const exam = { apagadosDe: [], async deleteAllOfStudent(id) {
+    exam.apagadosDe.push(String(id));
+    return 1;
+  } };
   const diet = { apagadosDe: [], async deleteAllOfStudent(id) {
     diet.apagadosDe.push(String(id));
     return 0;
@@ -127,7 +147,10 @@ function monta({ vinculado = true } = {}) {
   };
 
   const app = {
-    api: { link, workout, diet, assessment, assessmentPhoto, chat, appointment, finance },
+    api: {
+      link, workout, diet, anamnesis, anamnesisLink, supplement, exam, prescription, assessment,
+      assessmentPhoto, chat, appointment, finance,
+    },
   };
   const user = new User_model(app);
   user.collection = async () => users;
@@ -139,6 +162,11 @@ function monta({ vinculado = true } = {}) {
     workouts,
     link,
     diet,
+    anamnesis,
+    anamnesisLink,
+    supplement,
+    exam,
+    prescription,
     assessment,
     assessmentPhoto,
     chat,
@@ -154,6 +182,11 @@ test("apaga a pessoa, os vínculos, os treinos, os planos e as avaliações", as
     workouts,
     link,
     diet,
+    anamnesis,
+    anamnesisLink,
+    supplement,
+    exam,
+    prescription,
     assessment,
     assessmentPhoto,
     chat,
@@ -174,6 +207,17 @@ test("apaga a pessoa, os vínculos, os treinos, os planos e as avaliações", as
     ["De outra pessoa"]
   );
   assert.deepEqual(diet.apagadosDe, [String(PESSOA)]);
+  // Anamnese, suplementação e prescrições saem com a pessoa. São dado de saúde:
+  // deixar para trás não é sobra de banco, é registro clínico de quem pediu para
+  // sair.
+  assert.deepEqual(anamnesis.apagadosDe, [String(PESSOA)]);
+  // O LINK público também: um endereço que ainda abre um formulário de uma pessoa
+  // que já saiu é o pior tipo de sobra.
+  assert.deepEqual(anamnesisLink.apagadosDe, [String(PESSOA)]);
+  assert.deepEqual(supplement.apagadosDe, [String(PESSOA)]);
+  // Os exames idem: laudo de sangue é o dado mais sensível da ficha.
+  assert.deepEqual(exam.apagadosDe, [String(PESSOA)]);
+  assert.deepEqual(prescription.apagadosDe, [String(PESSOA)]);
   assert.deepEqual(assessment.apagadosDe, [String(PESSOA)]);
   assert.deepEqual(assessmentPhoto.apagadasDe, ["coleta-1", "coleta-2"]);
   assert.deepEqual(chat.apagadasDe, [String(PESSOA)]);

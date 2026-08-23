@@ -22,6 +22,8 @@
     "requireExerciseList": "Envie a lista de exercícios.",
     "invalidImage": "Envie uma imagem JPG, PNG ou WEBP de até 2 MB.",
     "personNotFound": "Pessoa não encontrada.",
+    "personWithoutEmail": "Esta pessoa não tem e-mail cadastrado.",
+    "mailFailed": "Não deu para enviar o e-mail.",
     "userNotFound": "Usuário não encontrado.",
     "studentNotFound": "Aluno não encontrado.",
     "targetStudentNotFound": "Aluno de destino não encontrado.",
@@ -95,6 +97,14 @@
     "inviteEmailTaken": "Não foi possível concluir o cadastro com esse e-mail. Tente entrar ou use outro.",
     "requireDietName": "Informe o nome do plano.",
     "dietNotFound": "Plano não encontrado.",
+    "requireSupplementName": "Informe o nome do suplemento.",
+    "requireExamDate": "Informe a data da coleta.",
+    "requireExamMarkers": "Lance pelo menos um marcador.",
+    "examNotFound": "Exame não encontrado.",
+    "studentAreaOnly": "Esta área é de quem é atendido. O seu acesso é pela ficha.",
+    "supplementNotFound": "Suplemento não encontrado.",
+    "requirePrescriptionItem": "Uma prescrição precisa de pelo menos um item ou uma orientação.",
+    "prescriptionNotFound": "Prescrição não encontrada.",
     "requireMeals": "Mande a lista de refeições.",
     "requireFoodName": "Informe o nome do alimento.",
     "foodNotFound": "Alimento não encontrado.",
@@ -179,6 +189,9 @@
     "apiKeyRevoked": "Chave revogada.",
     "inviteDone": "Cadastro concluído! Agora é só entrar no app.",
     "dietRemoved": "Plano apagado.",
+    "supplementRemoved": "Suplemento apagado.",
+    "examRemoved": "Exame apagado.",
+    "prescriptionRemoved": "Prescrição apagada.",
     "foodRemoved": "Alimento apagado.",
     "assessmentRemoved": "Avaliação apagada.",
     "appointmentRemoved": "Compromisso removido.",
@@ -226,6 +239,22 @@
       "assessments": {
         "title": "Avaliação física",
         "description": "Medidas, dobras e evolução"
+      },
+      "anamnesis": {
+        "title": "Anamnese",
+        "description": "Histórico de saúde, hábitos e rotina alimentar"
+      },
+      "supplements": {
+        "title": "Suplementação",
+        "description": "O que a pessoa toma, e em que momento do dia"
+      },
+      "exams": {
+        "title": "Exames",
+        "description": "Laudos de sangue e a evolução dos marcadores"
+      },
+      "prescriptions": {
+        "title": "Prescrições",
+        "description": "Receitas, exames, encaminhamentos e atestados"
       },
       "schedule": {
         "title": "Agenda",
@@ -325,6 +354,38 @@
         "label": "Gerenciar avaliações",
         "hint": "Registrar e apagar medidas. A tela está em construção."
       },
+      "anamnesis.view": {
+        "label": "Ver anamnese",
+        "hint": "Abrir a aba e ler o histórico de saúde."
+      },
+      "anamnesis.manage": {
+        "label": "Preencher anamnese",
+        "hint": "Escrever e alterar o histórico de saúde e os hábitos."
+      },
+      "supplements.view": {
+        "label": "Ver suplementação",
+        "hint": "Abrir a aba e ler o que foi indicado."
+      },
+      "supplements.manage": {
+        "label": "Indicar suplemento",
+        "hint": "Acrescentar, alterar e encerrar itens da suplementação."
+      },
+      "exams.view": {
+        "label": "Ver exames",
+        "hint": "Abrir a aba e ler os laudos e a evolução."
+      },
+      "exams.manage": {
+        "label": "Lançar exame",
+        "hint": "Lançar, corrigir e apagar laudos."
+      },
+      "prescriptions.view": {
+        "label": "Ver prescrições",
+        "hint": "Abrir os documentos emitidos e reimprimi-los."
+      },
+      "prescriptions.manage": {
+        "label": "Emitir prescrição",
+        "hint": "Criar, alterar e apagar documentos. É quem assina."
+      },
       "schedule.view": {
         "label": "Ver a agenda",
         "hint": "Abrir a aba de agenda. A tela está em construção."
@@ -411,6 +472,19 @@
     "update_diet": "Alterou um plano alimentar",
     "delete_diet": "Apagou um plano alimentar",
     "update_diet_meals": "Alterou as refeições de um plano",
+    "create_anamnesis": "Preencheu a anamnese",
+    "update_anamnesis": "Alterou a anamnese",
+    "create_anamnesis_link": "Gerou o link da anamnese",
+    "send_anamnesis_link": "Enviou o link da anamnese",
+    "create_supplement": "Indicou um suplemento",
+    "update_supplement": "Alterou um suplemento",
+    "delete_supplement": "Apagou um suplemento",
+    "create_exam": "Lançou um exame",
+    "update_exam": "Corrigiu um exame",
+    "delete_exam": "Apagou um exame",
+    "create_prescription": "Emitiu uma prescrição",
+    "update_prescription": "Alterou uma prescrição",
+    "delete_prescription": "Apagou uma prescrição",
     "create_food": "Criou um alimento",
     "update_food": "Alterou um alimento",
     "delete_food": "Apagou um alimento",
@@ -448,6 +522,10 @@
     "exercises": "Exercícios",
     "admin": "Administração",
     "diets": "Dietas",
+    "anamnesis": "Anamnese",
+    "supplements": "Suplementação",
+    "exams": "Exames",
+    "prescriptions": "Prescrições",
     "foods": "Alimentos",
     "assessments": "Avaliação física",
     "schedule": "Agenda",
@@ -464,6 +542,10 @@
     "api_keys": "Chave de API",
     "tenants": "Domínio",
     "diets": "Plano alimentar",
+    "anamnesis": "Anamnese",
+    "supplements": "Suplemento",
+    "exams": "Exame",
+    "prescriptions": "Prescrição",
     "foods": "Alimento",
     "assessments": "Avaliação física",
     "appointments": "Compromisso",
@@ -547,6 +629,14 @@
       "button": "Criar nova senha",
       "footer": "Se não foi você que pediu, ignore este e-mail — sua senha continua a mesma e ninguém teve acesso à sua conta.",
       "text": "{{name}}, você pediu para redefinir a senha do GoFitNow.\n\nAbra este endereço para escolher uma nova senha (vale por {{minutes}} minutos e só pode ser usado uma vez):\n{{url}}\n\nSe não foi você que pediu, ignore este e-mail — sua senha continua a mesma."
+    },
+    "anamnesis": {
+      "subject": "{{professional}} pediu para você responder algumas perguntas",
+      "title": "{{name}}, faltam algumas informações",
+      "body": "{{professional}} está montando seu acompanhamento e precisa saber algumas coisas sobre sua saúde e sua rotina: o que você toma, o que não come, como dorme. Responder leva poucos minutos, e você pode fazer isso com calma, do celular. O link vale por <strong>{{days}} dias</strong>.",
+      "button": "Responder agora",
+      "footer": "Só quem tem este link consegue abrir o formulário, e suas respostas vão direto para {{professional}}. Se você não esperava este e-mail, ignore.",
+      "text": "{{name}}, {{professional}} precisa de algumas informações sobre sua saúde e sua rotina para montar seu acompanhamento.\n\nAbra este endereço para responder (vale por {{days}} dias):\n{{url}}\n\nSe você não esperava este e-mail, ignore."
     },
     "invite": {
       "subject": "Seu acesso ao GoFitNow está pronto",

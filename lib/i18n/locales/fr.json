@@ -23,6 +23,8 @@
     "invalidImage": "Envoyez une image JPG, PNG ou WEBP de 2 Mo maximum.",
     "vocabularyLength": "Utilisez entre 3 et 20 lettres pour le {{field}} (ex. : élève / élèves).",
     "personNotFound": "Personne introuvable.",
+    "personWithoutEmail": "Cette personne n'a pas d'e-mail enregistré.",
+    "mailFailed": "Impossible d'envoyer l'e-mail.",
     "userNotFound": "Utilisateur introuvable.",
     "studentNotFound": "Élève introuvable.",
     "targetStudentNotFound": "Élève de destination introuvable.",
@@ -95,6 +97,14 @@
     "inviteEmailTaken": "Impossible de terminer l’inscription avec cet e-mail. Essayez de vous connecter ou utilisez-en un autre.",
     "requireDietName": "Indiquez le nom du plan.",
     "dietNotFound": "Plan introuvable.",
+    "requireSupplementName": "Indiquez le nom du complément.",
+    "requireExamDate": "Indiquez la date du prélèvement.",
+    "requireExamMarkers": "Saisissez au moins un marqueur.",
+    "examNotFound": "Analyse introuvable.",
+    "studentAreaOnly": "Cet espace appartient aux personnes suivies. Votre accès passe par leur fiche.",
+    "supplementNotFound": "Complément introuvable.",
+    "requirePrescriptionItem": "Une prescription demande au moins un élément ou une consigne.",
+    "prescriptionNotFound": "Prescription introuvable.",
     "requireMeals": "Envoyez la liste des repas.",
     "requireFoodName": "Indiquez le nom de l’aliment.",
     "foodNotFound": "Aliment introuvable.",
@@ -179,6 +189,9 @@
     "apiKeyRevoked": "Clé révoquée.",
     "inviteDone": "Inscription terminée ! Il ne reste plus qu’à vous connecter.",
     "dietRemoved": "Plan supprimé.",
+    "supplementRemoved": "Complément supprimé.",
+    "examRemoved": "Analyse supprimée.",
+    "prescriptionRemoved": "Prescription supprimée.",
     "foodRemoved": "Aliment supprimé.",
     "assessmentRemoved": "Évaluation supprimée.",
     "appointmentRemoved": "Rendez-vous supprimé.",
@@ -226,6 +239,22 @@
       "assessments": {
         "title": "Évaluation physique",
         "description": "Mesures, plis cutanés et évolution"
+      },
+      "anamnesis": {
+        "title": "Anamnèse",
+        "description": "Antécédents de santé, habitudes et routine alimentaire"
+      },
+      "supplements": {
+        "title": "Compléments",
+        "description": "Ce que la personne prend, et à quel moment de la journée"
+      },
+      "exams": {
+        "title": "Analyses",
+        "description": "Bilans sanguins et l'évolution des marqueurs"
+      },
+      "prescriptions": {
+        "title": "Prescriptions",
+        "description": "Ordonnances, examens, orientations et certificats"
       },
       "schedule": {
         "title": "Agenda",
@@ -325,6 +354,38 @@
         "label": "Gérer les évaluations",
         "hint": "Enregistrer et supprimer des mesures. L’écran est en construction."
       },
+      "anamnesis.view": {
+        "label": "Voir l'anamnèse",
+        "hint": "Ouvrir l'onglet et lire les antécédents."
+      },
+      "anamnesis.manage": {
+        "label": "Remplir l'anamnèse",
+        "hint": "Écrire et modifier les antécédents et les habitudes."
+      },
+      "supplements.view": {
+        "label": "Voir les compléments",
+        "hint": "Ouvrir l'onglet et lire ce qui a été indiqué."
+      },
+      "supplements.manage": {
+        "label": "Indiquer un complément",
+        "hint": "Ajouter, modifier et arrêter des compléments."
+      },
+      "exams.view": {
+        "label": "Voir les analyses",
+        "hint": "Ouvrir l'onglet et lire les bilans et l'évolution."
+      },
+      "exams.manage": {
+        "label": "Saisir une analyse",
+        "hint": "Saisir, corriger et supprimer des bilans."
+      },
+      "prescriptions.view": {
+        "label": "Voir les prescriptions",
+        "hint": "Ouvrir les documents émis et les réimprimer."
+      },
+      "prescriptions.manage": {
+        "label": "Émettre une prescription",
+        "hint": "Créer, modifier et supprimer des documents. C'est qui signe."
+      },
       "schedule.view": {
         "label": "Voir l’agenda",
         "hint": "Ouvrir l’onglet agenda. L’écran est en construction."
@@ -411,6 +472,19 @@
     "update_diet": "A modifié un plan alimentaire",
     "delete_diet": "A supprimé un plan alimentaire",
     "update_diet_meals": "A modifié les repas d’un plan",
+    "create_anamnesis": "A rempli l'anamnèse",
+    "update_anamnesis": "A modifié l'anamnèse",
+    "create_anamnesis_link": "A créé le lien de l'anamnèse",
+    "send_anamnesis_link": "A envoyé le lien de l'anamnèse",
+    "create_supplement": "A ajouté un complément",
+    "update_supplement": "A modifié un complément",
+    "delete_supplement": "A supprimé un complément",
+    "create_exam": "A saisi une analyse",
+    "update_exam": "A corrigé une analyse",
+    "delete_exam": "A supprimé une analyse",
+    "create_prescription": "A émis une prescription",
+    "update_prescription": "A modifié une prescription",
+    "delete_prescription": "A supprimé une prescription",
     "create_food": "A créé un aliment",
     "update_food": "A modifié un aliment",
     "delete_food": "A supprimé un aliment",
@@ -448,6 +522,10 @@
     "exercises": "Exercices",
     "admin": "Administration",
     "diets": "Régimes",
+    "anamnesis": "Anamnèse",
+    "supplements": "Compléments",
+    "exams": "Analyses",
+    "prescriptions": "Prescriptions",
     "foods": "Aliments",
     "assessments": "Évaluation physique",
     "schedule": "Agenda",
@@ -464,6 +542,10 @@
     "api_keys": "Clé d’API",
     "tenants": "Domaine",
     "diets": "Plan alimentaire",
+    "anamnesis": "Anamnèse",
+    "supplements": "Complément",
+    "exams": "Analyse",
+    "prescriptions": "Prescription",
     "foods": "Aliment",
     "assessments": "Évaluation physique",
     "appointments": "Rendez-vous",
@@ -547,6 +629,14 @@
       "button": "Créer un nouveau mot de passe",
       "footer": "Si ce n’est pas vous qui l’avez demandé, ignorez cet e-mail — votre mot de passe reste le même et personne n’a accédé à votre compte.",
       "text": "{{name}}, vous avez demandé à réinitialiser votre mot de passe GoFitNow.\n\nOuvrez cette adresse pour choisir un nouveau mot de passe (valable {{minutes}} minutes, usage unique) :\n{{url}}\n\nSi ce n’est pas vous, ignorez cet e-mail — votre mot de passe reste le même."
+    },
+    "anamnesis": {
+      "subject": "{{professional}} vous demande de répondre à quelques questions",
+      "title": "{{name}}, il manque quelques informations",
+      "body": "{{professional}} prépare votre suivi et a besoin de savoir quelques choses sur votre santé et votre routine : ce que vous prenez, ce que vous ne mangez pas, comment vous dormez. Cela prend quelques minutes, depuis votre téléphone. Le lien est valable <strong>{{days}} jours</strong>.",
+      "button": "Répondre maintenant",
+      "footer": "Seule une personne ayant ce lien peut ouvrir le formulaire, et vos réponses vont directement à {{professional}}. Si vous n'attendiez pas cet e-mail, ignorez-le.",
+      "text": "{{name}}, {{professional}} a besoin de quelques informations sur votre santé et votre routine pour préparer votre suivi.\n\nOuvrez cette adresse pour répondre (valable {{days}} jours) :\n{{url}}\n\nSi vous n'attendiez pas cet e-mail, ignorez-le."
     },
     "invite": {
       "subject": "Votre accès à GoFitNow est prêt",

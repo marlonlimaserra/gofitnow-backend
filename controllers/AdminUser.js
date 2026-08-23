@@ -84,6 +84,13 @@ module.exports = function (app) {
     }
     if (!role) role = await app.api.role.dataByName(app.api.role.defaultName);
 
+    // Conferida ANTES de inserir — recusar depois deixaria a conta criada com um
+    // 400 dizendo que nada foi salvo. O tipo é "trainer": é o que esta rota cria.
+    if (req.body.category && !(await app.api.userCategory.valida(req.body.category, "trainer"))) {
+      res.status(400).send({ msg: req.t("errors.invalidCategory"), code: "invalid_category" });
+      return;
+    }
+
     const id = await app.api.user.insertTrainer({
       name,
       email,
@@ -93,6 +100,10 @@ module.exports = function (app) {
       role: role ? role._id : null,
       admin: req.body.admin === true,
     });
+
+    // Já validada lá em cima; o UserCategory é o único lugar que escreve
+    // `users.category`.
+    if (req.body.category) await app.api.userCategory.gravar(id, req.body.category, "trainer");
 
     const created = await app.api.user.data(id);
 
@@ -132,6 +143,14 @@ module.exports = function (app) {
     }
     if (body.type !== undefined && !["trainer", "student"].includes(String(body.type))) {
       res.status(400).send({ msg: req.t("errors.invalidType") });
+      return;
+    }
+    // O tipo que vale é o que a conta VAI TER depois deste save: quem está
+    // virando pessoa nesta mesma edição escolhe da lista de pessoa. Em branco
+    // apaga; ausente mantém.
+    const tipoFinal = body.type !== undefined ? String(body.type) : target.type;
+    if (body.category !== undefined && !(await app.api.userCategory.valida(body.category, tipoFinal))) {
+      res.status(400).send({ msg: req.t("errors.invalidCategory"), code: "invalid_category" });
       return;
     }
     if (body.email !== undefined && String(body.email).trim() !== "") {
@@ -191,6 +210,11 @@ module.exports = function (app) {
     }
 
     await app.api.user.updateAny(req.params.id, body);
+
+    // Antes de reler `updated`: assim a mudança entra no diff da auditoria.
+    if (body.category !== undefined) {
+      await app.api.userCategory.gravar(req.params.id, body.category, tipoFinal);
+    }
 
     // A deactivated user must not keep browsing with the session they already
     // had — the guard only runs on the next request, so drop the tokens now.

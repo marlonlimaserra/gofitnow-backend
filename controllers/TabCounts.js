@@ -54,12 +54,32 @@ module.exports = function (app) {
   // Vigente = já começou (ou não tem começo) e ainda não terminou (ou não tem fim).
   // É o `statusOf === "current"` dos modelos de treino e dieta, escrito como filtro
   // de banco.
+  //
+  // O `""` na lista não é zelo: os modelos gravam data ausente como STRING VAZIA
+  // (`obj.endDate ? String(obj.endDate) : ""`), não como `null` nem como campo
+  // ausente. Sem esta linha, tudo que não tem data de fim — que é o caso comum —
+  // ficava fora da contagem, e o selo da aba não aparecia nunca. Descoberto com a
+  // suplementação, mas o defeito valia igual para treino e dieta.
   function vigenteHoje() {
     const dia = hoje();
     return {
       $and: [
-        { $or: [{ startDate: { $lte: dia } }, { startDate: null }, { startDate: { $exists: false } }] },
-        { $or: [{ endDate: { $gte: dia } }, { endDate: null }, { endDate: { $exists: false } }] },
+        {
+          $or: [
+            { startDate: { $lte: dia } },
+            { startDate: "" },
+            { startDate: null },
+            { startDate: { $exists: false } },
+          ],
+        },
+        {
+          $or: [
+            { endDate: { $gte: dia } },
+            { endDate: "" },
+            { endDate: null },
+            { endDate: { $exists: false } },
+          ],
+        },
       ],
     };
   }
@@ -83,13 +103,17 @@ module.exports = function (app) {
 
     const pode = async (permissao) => app.api.user.hasPermission(trainer, permissao);
 
-    const [verTreinos, verDietas, verFinanceiro, verAgenda, verAvaliacoes] = await Promise.all([
-      pode("workouts.view"),
-      pode("diets.view"),
-      pode("finance.view"),
-      pode("schedule.view"),
-      pode("assessments.view"),
-    ]);
+    const [verTreinos, verDietas, verFinanceiro, verAgenda, verAvaliacoes, verSuplementos, verPrescricoes, verExames] =
+      await Promise.all([
+        pode("workouts.view"),
+        pode("diets.view"),
+        pode("finance.view"),
+        pode("schedule.view"),
+        pode("assessments.view"),
+        pode("supplements.view"),
+        pode("prescriptions.view"),
+        pode("exams.view"),
+      ]);
 
     const doAluno = new ObjectId(String(student._id));
     const doProfissional = new ObjectId(String(trainer._id));
@@ -99,7 +123,7 @@ module.exports = function (app) {
       return db.collection(collection).countDocuments(query);
     }
 
-    const [workouts, diet, finance, schedule, assessment] = await Promise.all([
+    const [workouts, diet, finance, schedule, assessment, supplement, prescription, exam] = await Promise.all([
       // Espelho de `Workout_model.list` (trainer + student) + `statusOf === current`.
       verTreinos
         ? contar("workouts", { trainer: doProfissional, student: doAluno, ...vigenteHoje() })
@@ -140,8 +164,28 @@ module.exports = function (app) {
       verAvaliacoes
         ? contar("assessments", { trainer: doProfissional, student: doAluno })
         : 0,
+
+      // Espelho de `Supplement_model.countCurrent`: o que a pessoa está tomando
+      // HOJE. "3" no selo tem de significar três potes na cozinha dela, não três
+      // coisas que já foram indicadas algum dia.
+      verSuplementos
+        ? contar("supplements", { trainer: doProfissional, student: doAluno, ...vigenteHoje() })
+        : 0,
+
+      // Espelho de `Prescription_model.list`. Sem recorte de data, como as
+      // avaliações: documento emitido não deixa de existir por ser antigo — e
+      // reimprimir uma receita do ano passado é caso real.
+      verPrescricoes
+        ? contar("prescriptions", { trainer: doProfissional, student: doAluno })
+        : 0,
+
+      // Espelho de `Exam_model.list`. Sem recorte de data pelo mesmo motivo das
+      // avaliações: aqui o histórico É o conteúdo — a série é o dado.
+      verExames
+        ? contar("exams", { trainer: doProfissional, student: doAluno })
+        : 0,
     ]);
 
-    res.send({ workouts, diet, finance, schedule, assessment });
+    res.send({ workouts, diet, finance, schedule, assessment, supplement, prescription, exam });
   });
 };

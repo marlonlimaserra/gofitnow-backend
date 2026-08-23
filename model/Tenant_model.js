@@ -401,6 +401,43 @@ Tenant_model.prototype.saveLanguage = async function (idioma) {
   return alvo;
 };
 
+// VESTE um usuário com o que é da CONTA, antes de ele sair pela API.
+//
+// O vocabulário mora na conta, mas TODA a interface o lê de `user.peopleSingular`
+// (peopleWords no menuConfig) — a fonte mudou, a forma não. Quem monta uma
+// resposta com um usuário dentro precisa passar por aqui, senão devolve o campo
+// FÓSSIL do documento (a palavra que o dono escolheu no cadastro e nunca mais).
+//
+// Foi exatamente esse o defeito: o `GET /me` vestia e o `/auth/verify` não. O app
+// bota pelo verify — então salvar a palavra funcionava, a tela trocava... e o F5
+// ressuscitava a antiga, porque o boot lia o fóssil. Um F5 que DESFAZ o que foi
+// salvo é o tipo de defeito que faz a pessoa desconfiar do salvar inteiro.
+//
+// O idioma segue regra diferente do vocabulário, de propósito: a conta define o
+// PADRÃO e cada pessoa pode ter o dela — então o pessoal ganha, e o padrão só
+// aparece para quem nunca escolheu.
+Tenant_model.prototype.vestirComAConta = async function (usuario) {
+  const payload = { ...usuario };
+
+  try {
+    const [palavras, idiomaDaConta] = await Promise.all([
+      this.wordsOfInstance(),
+      this.languageOfInstance(),
+    ]);
+
+    payload.peopleSingular = palavras.singular;
+    payload.peoplePlural = palavras.plural;
+    payload.accountLanguage = idiomaDaConta || null;
+    payload.lang = usuario.lang || idiomaDaConta || undefined;
+  } catch (error) {
+    // Nunca derruba a resposta que o chamador ia dar: sem as palavras a
+    // interface cai no padrão "pessoa/pessoas", que é feio e funciona.
+    console.error("[tenant] não consegui vestir o usuário com a conta:", error.message);
+  }
+
+  return payload;
+};
+
 Tenant_model.prototype.currencyOfInstance = async function () {
   const doc = await this.dataOfInstance();
 

@@ -117,6 +117,17 @@ Appointment_model.prototype.listOfStudent = async function (trainerIds, studentI
     .toArray();
 };
 
+// A visão da própria pessoa: TODOS os compromissos dela, sem recorte de
+// profissional — o aluno não tem "alcance de agenda", tem a agenda dele.
+Appointment_model.prototype.listAllOfStudent = async function (studentId) {
+  const col = await this.collection();
+
+  return await col
+    .find({ student: new ObjectId(studentId) })
+    .sort({ date: 1 })
+    .toArray();
+};
+
 // `trainerIds` é o conjunto de profissionais que esta conta pode alcançar —
 // ela mesma, ou a equipe inteira. É o mesmo filtro em ler, editar e apagar:
 // sem ele, bastaria trocar o id na URL para mexer na agenda de um colega.

@@ -722,3 +722,53 @@ test("MARCAR por uma página que não existe é recusado", async () => {
   assert.equal(r.body.erro || r.body.msg, "unavailable");
   assert.equal(marcados.length, 0);
 });
+
+// ── O DIA DA MARCAÇÃO É O DIA DE PAREDE, NÃO A MEIA-NOITE UTC ───────────────
+//
+// O defeito que este caso mata: o POST derivava o dia com `setHours(0,0,0,0)`,
+// que num servidor em UTC devolve a meia-noite UTC — e no Brasil isso ainda é a
+// NOITE DO DIA ANTERIOR. A grade era gerada para sexta quando a pessoa marcava
+// sábado 09:00, o horário nunca estava na lista, e TODA confirmação voltava
+// "taken". O app de iPhone denunciou; a página web tinha o mesmo defeito.
+test("marcar sábado de manhã VALE, mesmo com o servidor em UTC", async () => {
+  // O relógio do PROCESSO vira UTC aqui dentro, como no VPS. Sem isto, este
+  // teste rodando num Mac em horário de Brasília passaria até com o defeito —
+  // `setHours(0,0,0,0)` só erra quando o processo não está no fuso da conta.
+  const tzDeAntes = process.env.TZ;
+  process.env.TZ = "UTC";
+  try {
+  const { app, marcados } = monta({
+    // Grade só de sábado, 08h–12h: se o servidor gerar a grade de sexta (o dia
+    // errado), não há horário nenhum e a marcação volta "taken".
+    semana: { sat: [{ from: "08:00", to: "12:00" }] },
+  });
+
+  // O sábado é CALCULADO, não cravado: uma data fixa vira passado, e horário
+  // no passado é recusado como "taken" — este teste apodreceu no próprio
+  // sábado que ele cravava. Sempre o próximo sábado a pelo menos uma semana.
+  const sabado = new Date();
+  sabado.setUTCDate(sabado.getUTCDate() + 7);
+  while (sabado.getUTCDay() !== 6) sabado.setUTCDate(sabado.getUTCDate() + 1);
+  // 12:00Z = 09:00 em São Paulo — sábado nos DOIS relógios. A meia-noite UTC
+  // deste instante (sábado 00:00Z) ainda é SEXTA 21:00 no relógio de quem
+  // atende, que é exatamente o que o defeito confundia.
+  sabado.setUTCHours(12, 0, 0, 0);
+
+  const r = await call(app, "post", "/public/booking", {
+    query: { host: "marlon.gofitnow.fit" },
+    body: {
+      professional: String(PRO_A),
+      service: String(SERVICO_A),
+      date: sabado.toISOString(),
+      name: "Marlon Cliente",
+      email: "cliente@x.com",
+    },
+  });
+
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    assert.equal(marcados.length, 1);
+  } finally {
+    if (tzDeAntes === undefined) delete process.env.TZ;
+    else process.env.TZ = tzDeAntes;
+  }
+});

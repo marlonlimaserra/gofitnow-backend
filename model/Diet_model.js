@@ -183,6 +183,19 @@ Diet_model.prototype.list = async function (trainerId, studentId) {
   return docs.map(comTotais);
 };
 
+// A visão da própria pessoa: os planos DELA, de qualquer profissional. Ver o
+// comentário em Workout_model.listOfStudent — é a mesma regra, pelo mesmo motivo.
+Diet_model.prototype.listOfStudent = async function (studentId) {
+  const col = await this.collection();
+
+  const docs = await col
+    .find({ student: new ObjectId(studentId) })
+    .sort({ createdAt: -1 })
+    .toArray();
+
+  return docs.map(comTotais);
+};
+
 Diet_model.prototype.data = async function (trainerId, id) {
   if (!ObjectId.isValid(id)) return undefined;
   const col = await this.collection();

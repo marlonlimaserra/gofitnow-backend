@@ -3,6 +3,7 @@ const rateLimit = require("../lib/rateLimit.js");
 const ensureSchema = require("../database/schema.js");
 const instanceContext = require("../lib/instance.js");
 const cloudflareLib = require("../lib/cloudflare.js");
+const depoisLib = require("../lib/depois.js");
 const alias = require("../lib/alias.js");
 const { passwordReset } = require("../lib/emailTemplates.js");
 
@@ -223,10 +224,18 @@ module.exports = function (app) {
         });
       }
 
+      // ── SÓ O QUE O PRIMEIRO MINUTO USA ─────────────────────────────────
+      //
+      // As 29 coleções e os 85 índices levam ~900 ms. Quem acabou de se
+      // inscrever não toca em `payment_files` nem em `ai_sessions` nesse tempo:
+      // toca em entrar, criar senha, papéis e auditoria. Essas cinco coleções
+      // nascem aqui (~150 ms) e o resto vai para depois da resposta, no fim
+      // desta função.
+      //
       // `app.schema` é o dublê do teste, no mesmo padrão do `app.cloudflare`: as
       // duas coisas que saem desta máquina — o banco e a rede — ficam trocáveis
       // num ponto só, senão um teste de regra bateria no Mongo e na Cloudflare.
-      await (app.schema || ensureSchema).ensureInstance(app, instancia);
+      await (app.schema || ensureSchema).ensureInstanceEssencial(app, instancia);
       await app.api.center.addHost(instancia, host);
       // O portão guarda por alguns segundos que um nome NÃO é de ninguém. Sem
       // isto, a pessoa chega no endereço dela e vê "domínio não identificado" —
@@ -304,17 +313,27 @@ module.exports = function (app) {
         referral: indicado ? indicado.indicadoPor || false : null,
       };
 
-      try {
-        const enviado = await app.helpers.mailer.send({ to: email, ...mail });
-        if (enviado.preview) resposta.preview = enviado.preview;
-      } catch (error) {
-        // O cadastro DEU CERTO. Falhar o e-mail não pode virar erro para quem
-        // acabou de criar a conta — ela vai entrar pelo redirecionamento, que é
-        // o caminho principal. Fica no log.
-        console.error("[portal] cadastro criado mas o e-mail não saiu:", error.message);
-      }
-
       res.status(201).send(resposta);
+
+      // ── O QUE FICA PARA DEPOIS DE RESPONDER ───────────────────────────
+      //
+      // As duas coisas mais lentas do cadastro, e nenhuma das duas muda o que a
+      // pessoa vê agora: ela é redirecionada com o token que já está na
+      // resposta.
+      //
+      // O e-mail é rede de segurança para quem fechou a aba (o log conta se não
+      // sair). O resto do esquema é o que as telas que ela vai abrir depois
+      // usam — e `ensureInstance` é idempotente, então se falhar aqui o próximo
+      // boot do servidor conserta.
+      const depois = app.depois || depoisLib;
+
+      depois(`e-mail do primeiro acesso de ${instancia}`, () =>
+        app.helpers.mailer.send({ to: email, ...mail })
+      );
+
+      depois(`esquema completo de ${instancia}`, () =>
+        (app.schema || ensureSchema).ensureInstance(app, instancia)
+      );
     } catch (error) {
       console.error("[portal] falha no cadastro:", error.message);
       res.status(503).send({ msg: req.t("errors.internal"), code: "signup_failed" });

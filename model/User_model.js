@@ -778,6 +778,11 @@ User_model.prototype.deleteStudent = async function (trainerId, id) {
   await this.app.api.link.deleteAllOf(id);
   await this.app.api.workout.deleteAllOfStudent(id);
   await this.app.api.diet.deleteAllOfStudent(id);
+  await this.app.api.anamnesis.deleteAllOfStudent(id);
+  await this.app.api.anamnesisLink.deleteAllOfStudent(id);
+  await this.app.api.supplement.deleteAllOfStudent(id);
+  await this.app.api.exam.deleteAllOfStudent(id);
+  await this.app.api.prescription.deleteAllOfStudent(id);
   // As fotos são referenciadas pela COLETA, não pela pessoa — então os ids
   // precisam ser lidos antes de as coletas sumirem.
   // As conversas somem com a pessoa: uma linha na lista apontando para uma

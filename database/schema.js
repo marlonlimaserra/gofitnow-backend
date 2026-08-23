@@ -27,6 +27,11 @@ const POR_INSTANCIA = [
   "user_tokens",
   "workouts",
   "diets",
+  "anamnesis",
+  "anamnesis_links",
+  "supplements",
+  "exams",
+  "prescriptions",
   "assessments",
   "assessment_photos",
   "appointments",
@@ -145,13 +150,20 @@ async function ensureCentral(app) {
 
 // ── Por instância ──────────────────────────────────────────────────────────
 
-async function ensureInstance(app, instance) {
-  const nome = instanceContext.normalize(instance);
-  if (!nome) throw new Error("invalid_instance: " + instance);
+// ── O QUE UMA INSTÂNCIA PRECISA PARA JÁ ABRIR ─────────────────────────────
+//
+// Criar as 29 coleções e os 85 índices leva ~900 ms no servidor, e o cadastro
+// esperava por tudo antes de responder. Só que quem acabou de se inscrever não
+// usa `payment_files` nem `ai_sessions` no primeiro minuto: usa entrar, criar
+// senha, os papéis do sistema e a trilha de auditoria.
+//
+// Então o cadastro cria ESTAS cinco coleções e os índices delas (~150 ms), e
+// manda o resto para depois da resposta. `ensureInstance` continua sendo a
+// verdade completa — e continua idempotente, então rodar as duas na ordem que
+// for não repete nem conflita.
+const ESSENCIAIS = ["users", "roles", "user_tokens", "password_resets", "user_action_history"];
 
-  const db = await app.mongodb.instanceDb(nome);
-  await criarFaltantes(db, POR_INSTANCIA, nome);
-
+async function indicesEssenciais(db) {
   // users — o e-mail é a chave de login, então o índice único no banco é o que
   // de fato impede dois cadastros iguais (a checagem no controller sozinha
   // perde a corrida entre duas requisições simultâneas).
@@ -198,6 +210,102 @@ async function ensureInstance(app, instance) {
     .collection("user_tokens")
     .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "token_ttl" });
   await db.collection("user_tokens").createIndex({ user: 1 }, { name: "by_user" });
+  // anamnesis — um documento por (profissional, pessoa), e o índice é ÚNICO: é
+  // ele que garante que duas abas abertas na mesma ficha não criem duas
+  // anamneses da mesma pessoa.
+  await db
+    .collection("anamnesis")
+    .createIndex({ trainer: 1, student: 1 }, { unique: true, name: "por_pessoa_unico" });
+
+  // anamnesis_links — o link público é procurado pelo TOKEN, que é único; e o
+  // TTL varre os vencidos sozinho, senão a collection cresceria para sempre com
+  // endereços que já não abrem nada.
+  await db
+    .collection("anamnesis_links")
+    .createIndex({ token: 1 }, { unique: true, name: "token_unico" });
+  await db
+    .collection("anamnesis_links")
+    .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "link_ttl" });
+  await db
+    .collection("anamnesis_links")
+    .createIndex({ trainer: 1, student: 1 }, { name: "por_pessoa" });
+
+  // supplements — a suplementação é lida SEMPRE por (profissional, pessoa), e a
+  // ordem de exibição é montada na memória (por momento do dia), então o índice
+  // só precisa do par.
+  await db
+    .collection("supplements")
+    .createIndex({ trainer: 1, student: 1 }, { name: "by_trainer_student" });
+
+  // exams — o par de sempre mais a data da coleta: a lista abre da mais
+  // recente para trás, e é a coleta que ordena a tabela de evolução.
+  await db
+    .collection("exams")
+    .createIndex({ trainer: 1, student: 1, collectedAt: -1 }, { name: "by_trainer_student_collected" });
+
+  // prescriptions — mesmo par, mais a data: a lista abre pela mais recente, que
+  // é a que vale.
+  await db
+    .collection("prescriptions")
+    .createIndex({ trainer: 1, student: 1, date: -1 }, { name: "by_trainer_student_date" });
+
+  // password_resets — consultado por hash do token; o TTL varre os expirados.
+  await db
+    .collection("password_resets")
+    .createIndex({ tokenHash: 1 }, { unique: true, name: "token_hash_unique" });
+  await db
+    .collection("password_resets")
+    .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "reset_ttl" });
+  await db.collection("password_resets").createIndex({ user: 1 }, { name: "by_user" });
+  // roles — os tipos de usuário. Poucas linhas, lidas em toda requisição
+  // autenticada, então o nome é único para dois "Administrador" nunca
+  // coexistirem.
+  await db.collection("roles").createIndex({ name: 1 }, { unique: true, name: "role_name_unique" });
+  await db.collection("roles").createIndex({ permissions: 1 }, { name: "by_permission" });
+
+  // user_action_history — muita escrita, lido por "quem fez isto" e "o que
+  // aconteceu com este registro". Sem TTL: uma trilha de auditoria que se apaga
+  // sozinha não é uma. Se um dia precisar de poda, que seja decisão explícita e
+  // não uma varredura que ninguém lembra de ter configurado.
+  await db.collection("user_action_history").createIndex({ createdAt: -1 }, { name: "by_date" });
+  await db
+    .collection("user_action_history")
+    .createIndex({ user: 1, createdAt: -1 }, { name: "by_user_date" });
+  await db
+    .collection("user_action_history")
+    .createIndex({ "target.type": 1, "target.id": 1, createdAt: -1 }, { name: "by_target" });
+  await db
+    .collection("user_action_history")
+    .createIndex({ action: 1, createdAt: -1 }, { name: "by_action" });
+}
+
+async function ensureInstanceEssencial(app, instance) {
+  const nome = instanceContext.normalize(instance);
+  if (!nome) throw new Error("invalid_instance: " + instance);
+
+  const db = await app.mongodb.instanceDb(nome);
+  await criarFaltantes(db, ESSENCIAIS, nome);
+  await indicesEssenciais(db);
+
+  // Os papéis do sistema entram aqui, e não no resto: sem eles a tela de
+  // Usuários abre vazia e o primeiro convite não tem o que oferecer.
+  await instanceContext.run(nome, () => app.api.role.ensureSystemRoles());
+
+  return db;
+}
+
+async function ensureInstance(app, instance) {
+  const nome = instanceContext.normalize(instance);
+  if (!nome) throw new Error("invalid_instance: " + instance);
+
+  const db = await app.mongodb.instanceDb(nome);
+  await criarFaltantes(db, POR_INSTANCIA, nome);
+
+  // Os índices que os primeiros minutos usam (entrar, criar senha, papéis,
+  // auditoria) estão em `indicesEssenciais`: o cadastro cria só eles antes de
+  // responder, e o resto vem depois. Aqui a chamada é para o caso de a instância
+  // ser antiga — a função é idempotente.
+  await indicesEssenciais(db);
 
   // workouts — sempre listados por (trainer, student), na ordem do período.
   await db
@@ -315,42 +423,12 @@ async function ensureInstance(app, instance) {
   // E pela conversa, que é como a exclusão em cascata os encontra.
   await db.collection("message_files").createIndex({ conversation: 1 }, { name: "by_conversation" });
 
-  // password_resets — consultado por hash do token; o TTL varre os expirados.
-  await db
-    .collection("password_resets")
-    .createIndex({ tokenHash: 1 }, { unique: true, name: "token_hash_unique" });
-  await db
-    .collection("password_resets")
-    .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "reset_ttl" });
-  await db.collection("password_resets").createIndex({ user: 1 }, { name: "by_user" });
-
   // professional_links — lido constantemente (toda lista de pessoas começa
   // aqui) e nos dois sentidos. O par único é o que faz vincular ser idempotente.
   await db
     .collection("professional_links")
     .createIndex({ professional: 1, person: 1 }, { unique: true, name: "link_unique" });
   await db.collection("professional_links").createIndex({ person: 1 }, { name: "by_person" });
-
-  // roles — os tipos de usuário. Poucas linhas, lidas em toda requisição
-  // autenticada, então o nome é único para dois "Administrador" nunca
-  // coexistirem.
-  await db.collection("roles").createIndex({ name: 1 }, { unique: true, name: "role_name_unique" });
-  await db.collection("roles").createIndex({ permissions: 1 }, { name: "by_permission" });
-
-  // user_action_history — muita escrita, lido por "quem fez isto" e "o que
-  // aconteceu com este registro". Sem TTL: uma trilha de auditoria que se apaga
-  // sozinha não é uma. Se um dia precisar de poda, que seja decisão explícita e
-  // não uma varredura que ninguém lembra de ter configurado.
-  await db.collection("user_action_history").createIndex({ createdAt: -1 }, { name: "by_date" });
-  await db
-    .collection("user_action_history")
-    .createIndex({ user: 1, createdAt: -1 }, { name: "by_user_date" });
-  await db
-    .collection("user_action_history")
-    .createIndex({ "target.type": 1, "target.id": 1, createdAt: -1 }, { name: "by_target" });
-  await db
-    .collection("user_action_history")
-    .createIndex({ action: 1, createdAt: -1 }, { name: "by_action" });
 
   // payment_methods — lidos SEMPRE na ordem escolhida, e a chave é única: ela é
   // o que fica gravado no pagamento, e duas formas com a mesma chave seriam a
@@ -461,6 +539,8 @@ module.exports = async function ensureSchema(app) {
 
 module.exports.ensureCentral = ensureCentral;
 module.exports.ensureInstance = ensureInstance;
+module.exports.ensureInstanceEssencial = ensureInstanceEssencial;
+module.exports.ESSENCIAIS = ESSENCIAIS;
 module.exports.CENTRAL = CENTRAL;
 module.exports.POR_INSTANCIA = POR_INSTANCIA;
 

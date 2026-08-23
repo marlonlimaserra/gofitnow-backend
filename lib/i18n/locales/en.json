@@ -23,6 +23,8 @@
     "invalidImage": "Send a JPG, PNG or WEBP image of up to 2 MB.",
     "vocabularyLength": "Use between 3 and 20 letters for the {{field}} (e.g. student / students).",
     "personNotFound": "Person not found.",
+    "personWithoutEmail": "This person has no e-mail on file.",
+    "mailFailed": "Could not send the e-mail.",
     "userNotFound": "User not found.",
     "studentNotFound": "Student not found.",
     "targetStudentNotFound": "Target student not found.",
@@ -95,6 +97,14 @@
     "inviteEmailTaken": "Could not finish signup with that e-mail. Try signing in or use another one.",
     "requireDietName": "Enter the plan name.",
     "dietNotFound": "Plan not found.",
+    "requireSupplementName": "Enter the supplement name.",
+    "requireExamDate": "Enter the collection date.",
+    "requireExamMarkers": "Enter at least one marker.",
+    "examNotFound": "Lab result not found.",
+    "studentAreaOnly": "This area belongs to the people you follow. Your access is through their records.",
+    "supplementNotFound": "Supplement not found.",
+    "requirePrescriptionItem": "A prescription needs at least one item or one instruction.",
+    "prescriptionNotFound": "Prescription not found.",
     "requireMeals": "Send the list of meals.",
     "requireFoodName": "Enter the food name.",
     "foodNotFound": "Food not found.",
@@ -179,6 +189,9 @@
     "apiKeyRevoked": "Key revoked.",
     "inviteDone": "You're signed up! Just log in to the app now.",
     "dietRemoved": "Plan deleted.",
+    "supplementRemoved": "Supplement deleted.",
+    "examRemoved": "Lab result deleted.",
+    "prescriptionRemoved": "Prescription deleted.",
     "foodRemoved": "Food deleted.",
     "assessmentRemoved": "Assessment deleted.",
     "appointmentRemoved": "Appointment removed.",
@@ -226,6 +239,22 @@
       "assessments": {
         "title": "Assessment",
         "description": "Measurements, skinfolds and progress"
+      },
+      "anamnesis": {
+        "title": "Health history",
+        "description": "Medical history, habits and eating routine"
+      },
+      "supplements": {
+        "title": "Supplements",
+        "description": "What the person takes, and when in the day"
+      },
+      "exams": {
+        "title": "Lab results",
+        "description": "Blood work and marker trends"
+      },
+      "prescriptions": {
+        "title": "Prescriptions",
+        "description": "Prescriptions, lab orders, referrals and notes"
       },
       "schedule": {
         "title": "Schedule",
@@ -325,6 +354,38 @@
         "label": "Manage assessments",
         "hint": "Record and delete measurements. The screen is under construction."
       },
+      "anamnesis.view": {
+        "label": "View history",
+        "hint": "Open the tab and read the health history."
+      },
+      "anamnesis.manage": {
+        "label": "Fill in history",
+        "hint": "Write and change the health history and habits."
+      },
+      "supplements.view": {
+        "label": "View supplements",
+        "hint": "Open the tab and read what was recommended."
+      },
+      "supplements.manage": {
+        "label": "Recommend supplement",
+        "hint": "Add, change and end supplement items."
+      },
+      "exams.view": {
+        "label": "View lab results",
+        "hint": "Open the tab and read reports and trends."
+      },
+      "exams.manage": {
+        "label": "Enter lab results",
+        "hint": "Enter, correct and delete reports."
+      },
+      "prescriptions.view": {
+        "label": "View prescriptions",
+        "hint": "Open issued documents and reprint them."
+      },
+      "prescriptions.manage": {
+        "label": "Issue prescription",
+        "hint": "Create, change and delete documents. This is who signs."
+      },
       "schedule.view": {
         "label": "View the schedule",
         "hint": "Open the schedule tab. The screen is under construction."
@@ -411,6 +472,19 @@
     "update_diet": "Changed a meal plan",
     "delete_diet": "Deleted a meal plan",
     "update_diet_meals": "Changed a plan's meals",
+    "create_anamnesis": "Filled in the history",
+    "update_anamnesis": "Changed the history",
+    "create_anamnesis_link": "Created the history link",
+    "send_anamnesis_link": "Sent the history link",
+    "create_supplement": "Added a supplement",
+    "update_supplement": "Changed a supplement",
+    "delete_supplement": "Deleted a supplement",
+    "create_exam": "Entered a lab result",
+    "update_exam": "Corrected a lab result",
+    "delete_exam": "Deleted a lab result",
+    "create_prescription": "Issued a prescription",
+    "update_prescription": "Changed a prescription",
+    "delete_prescription": "Deleted a prescription",
     "create_food": "Created a food",
     "update_food": "Changed a food",
     "delete_food": "Deleted a food",
@@ -448,6 +522,10 @@
     "exercises": "Exercises",
     "admin": "Administration",
     "diets": "Diets",
+    "anamnesis": "Health history",
+    "supplements": "Supplements",
+    "exams": "Lab results",
+    "prescriptions": "Prescriptions",
     "foods": "Foods",
     "assessments": "Assessment",
     "schedule": "Schedule",
@@ -464,6 +542,10 @@
     "api_keys": "API key",
     "tenants": "Domain",
     "diets": "Meal plan",
+    "anamnesis": "Health history",
+    "supplements": "Supplement",
+    "exams": "Lab result",
+    "prescriptions": "Prescription",
     "foods": "Food",
     "assessments": "Assessment",
     "appointments": "Appointment",
@@ -547,6 +629,14 @@
       "button": "Create a new password",
       "footer": "If it was not you who asked, ignore this e-mail — your password stays the same and nobody accessed your account.",
       "text": "{{name}}, you asked to reset your GoFitNow password.\n\nOpen this address to choose a new password (valid for {{minutes}} minutes, single use):\n{{url}}\n\nIf it was not you who asked, ignore this e-mail — your password stays the same."
+    },
+    "anamnesis": {
+      "subject": "{{professional}} asked you to answer a few questions",
+      "title": "{{name}}, a few details are missing",
+      "body": "{{professional}} is putting your plan together and needs to know a few things about your health and routine: what you take, what you do not eat, how you sleep. It takes a few minutes, and you can do it from your phone. The link is valid for <strong>{{days}} days</strong>.",
+      "button": "Answer now",
+      "footer": "Only someone with this link can open the form, and your answers go straight to {{professional}}. If you were not expecting this e-mail, ignore it.",
+      "text": "{{name}}, {{professional}} needs a few details about your health and routine to put your plan together.\n\nOpen this address to answer (valid for {{days}} days):\n{{url}}\n\nIf you were not expecting this e-mail, ignore it."
     },
     "invite": {
       "subject": "Your GoFitNow access is ready",
