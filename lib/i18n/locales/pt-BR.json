@@ -175,7 +175,8 @@
     "pdfFailed": "Não foi possível gerar o PDF. Tente novamente.",
     "studentWithoutEmail": "Esta pessoa não tem e-mail cadastrado.",
     "captcha_required": "Confirme que você não é um robô para continuar.",
-    "captcha_failed": "A verificação falhou. Tente de novo."
+    "captcha_failed": "A verificação falhou. Tente de novo.",
+    "emailTooSoon": "Este e-mail acabou de ser enviado. Aguarde {{seconds}} segundos para mandar de novo."
   },
   "ok": {
     "passwordChanged": "Senha alterada.",

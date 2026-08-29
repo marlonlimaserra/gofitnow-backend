@@ -178,3 +178,66 @@ describe("a folha", () => {
     assert.match(gerar(), /page-break-inside:avoid/);
   });
 });
+
+// ── AS FOTINHAS DOS ALIMENTOS (29/08/2026) ────────────────────────────────
+//
+// Relato: *"ao enviar a dieta para o e-mail, está sem as fotinhos da comida"*. A
+// tela da dieta as mostra, e a folha não tinha nenhuma — quem recebe reconhece o
+// prato pela foto antes de ler o nome.
+describe("as fotos dos alimentos", () => {
+  const COM_FOTO = {
+    ...DIETA,
+    meals: [
+      {
+        time: "07:00",
+        name: "Café da manhã",
+        totals: {},
+        foods: [
+          { name: "Ovo cozido", imageKey: "ovo" },
+          { name: "Tapioca", imageKey: "tapioca" },
+          { name: "Sem foto nenhuma" },
+        ],
+      },
+    ],
+  };
+
+  const gerarCom = (imagens) =>
+    documentoDieta({ diet: COM_FOTO, person: PESSOA, lang: "pt-BR", imagens });
+
+  test("a foto entra antes do nome quando existe", () => {
+    const html = gerarCom({ ovo: "data:image/jpeg;base64,AAA" });
+
+    assert.match(html, /<img src="data:image\/jpeg;base64,AAA"[^>]*>\s*Ovo cozido/);
+  });
+
+  test("alimento SEM foto não vira imagem quebrada", () => {
+    // A folha lista alimentos que nunca tiveram foto — plano montado antes de as
+    // fotos existirem. Um `<img>` sem origem sai como ícone de erro.
+    const html = gerarCom({ ovo: "data:image/jpeg;base64,AAA" });
+
+    assert.doesNotMatch(html, /<img src=""/);
+    assert.doesNotMatch(html, /<img src="undefined"/);
+    assert.match(html, /Sem foto nenhuma/);
+  });
+
+  test("sem imagem nenhuma, a folha sai inteira", () => {
+    const html = gerarCom({});
+
+    assert.match(html, /Ovo cozido/);
+    assert.doesNotMatch(html, /<img src="data:/);
+  });
+
+  test("aceita `cid:` do mesmo jeito — o módulo não sabe a diferença", () => {
+    // É o que faz a foto aparecer no corpo do e-mail: o Gmail descarta `data:`.
+    const html = gerarCom({ ovo: "cid:alimento-ovo" });
+
+    assert.match(html, /<img src="cid:alimento-ovo"/);
+  });
+
+  test("a foto tem tamanho FIXO — a linha não pode crescer com ela", () => {
+    // Sem largura e altura, uma foto de 800 px empurraria a tabela inteira.
+    const html = gerarCom({ ovo: "data:image/jpeg;base64,AAA" });
+
+    assert.match(html, /width="22" height="22"/);
+  });
+});

@@ -94,7 +94,7 @@ Mailer.prototype.appUrl = function () {
   return (process.env.APP_URL || "https://app.gofitnow.fit").replace(/\/+$/, "");
 };
 
-// `attachments` é `[{ filename, content, contentType }]`, com `content` em
+// `attachments` é `[{ filename, content, contentType, cid }]`, com `content` em
 // Buffer. Os dois caminhos o aceitam: o nodemailer usa o Buffer direto, e o de
 // Resend converte para base64 (JSON não carrega byte cru).
 //
@@ -102,6 +102,11 @@ Mailer.prototype.appUrl = function () {
 // junto. O PDF é gerado no SERVIDOR, a partir do mesmo HTML que vira o corpo da
 // mensagem (ver `lib/pdf.js` e `lib/documentoAvaliacao.js`) — foi o pedido do
 // Marlon, para a folha ser idêntica no site e no app.
+//
+// `cid` marca um anexo EMBUTIDO: ele aparece no corpo, onde o HTML o referencia
+// por `cid:…`, e também na lista de anexos. É assim que foto entra em e-mail — o
+// Gmail descarta `<img src="data:…">`. O nodemailer entende `cid` nativamente; o
+// caminho da Resend traduz para `content_id` (ver `lib/resend.js`).
 Mailer.prototype.send = async function ({ to, subject, html, text, attachments }) {
   // ── A RESEND PRIMEIRO, e o SMTP como rede de segurança ────────────────
   //

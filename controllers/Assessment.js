@@ -1,5 +1,18 @@
 const { documentoAvaliacao } = require("../lib/documentoAvaliacao.js");
 const { registrarRotasDeDocumento } = require("../lib/rotasDeDocumento.js");
+const { logoDaCasa } = require("../lib/logoDaCasa.js");
+
+// Os bytes de uma foto, venha ela como vier do banco.
+//
+// O Mongo devolve `Binary`, cujo `.buffer` É um Buffer — daí o caminho de sempre.
+// Mas um Buffer TAMBÉM tem `.buffer`, e ali ele é o ArrayBuffer do pool
+// compartilhado: `Buffer.from(buf.buffer)` devolveria o pool inteiro, com os
+// bytes de outra coisa junto. Por isso o Buffer é testado PRIMEIRO.
+function bytesDa(dado) {
+  if (Buffer.isBuffer(dado)) return dado;
+  if (dado?.buffer) return Buffer.from(dado.buffer);
+  return Buffer.from(dado || "");
+}
 
 module.exports = function (app) {
   // As avaliações físicas de uma pessoa.
@@ -374,10 +387,11 @@ module.exports = function (app) {
 
       const student = await app.api.user.dataStudent(trainer._id, assessment.student);
 
-      const [previous, photoSides, fuso] = await Promise.all([
+      const [previous, photoSides, fuso, casa] = await Promise.all([
         app.api.assessment.previousOf(trainer._id, assessment.student, assessment.date, assessment._id),
         app.api.tenant.assessmentPhotoSides(),
         app.api.tenant.timezoneOfInstance(),
+        app.api.tenant.dataOfInstance(),
       ]);
 
       // ── AS FOTOS VÃO EMBUTIDAS, e é isso que faz a folha viajar ───────
@@ -389,29 +403,81 @@ module.exports = function (app) {
       //
       // O custo é o tamanho: cada foto infla ~33% em base64. São no máximo os
       // ângulos configurados, e é o preço de a folha existir fora do app.
-      const imagens = {};
+      // ── DUAS VERSÕES DA MESMA FOLHA, e o motivo é concreto ───────────
+      //
+      // O Gmail DESCARTA `<img src="data:…">` — foi o que sumiu as fotos do corpo
+      // do e-mail. O que funciona lá é o anexo embutido (`cid:`).
+      //
+      // Só que o PDF é gerado do mesmo HTML por um Chromium que NÃO resolve
+      // `cid:` — ele não tem a mensagem MIME, só a página. Gerar o PDF a partir
+      // da versão de e-mail deixou o anexo sem foto nenhuma: *"inverteu o
+      // problema"*, como o Marlon descreveu.
+      //
+      // Então saem duas: a de `data:` para o PDF, para ver e para imprimir; e a
+      // de `cid:` para o corpo do e-mail. As duas são construídas do MESMO dado,
+      // no mesmo lugar — não há como uma envelhecer sem a outra.
+      const bytesPorLado = {};
+
       await Promise.all(
         (photoSides || []).map(async (lado) => {
           if (!assessment.photos?.[lado.key]) return;
           const foto = await app.api.assessmentPhoto.data(req.params.id, lado.key);
           if (!foto) return;
-          const bytes = foto.data?.buffer ? Buffer.from(foto.data.buffer) : foto.data;
-          imagens[lado.key] = `data:${foto.mime};base64,${bytes.toString("base64")}`;
+          bytesPorLado[lado.key] = { bytes: bytesDa(foto.data), mime: foto.mime || "image/jpeg" };
         })
       );
 
-      const html = documentoAvaliacao({
-        assessment,
-        person: student,
-        previous,
-        photoSides,
-        imagens,
-        // O idioma é o de quem PEDIU — é ele que vai ler ou entregar a folha.
-        lang: trainer.lang || req.language,
-        fuso,
-      });
+      const marca = await logoDaCasa(casa?.theme);
 
-      return { trainer, pessoa: student, html, nome: student?.name, data: assessment.date };
+      // A LOGO tem o mesmo problema das fotos: ela é `data:`, e o Gmail a
+      // descarta igual. No corpo do e-mail ela também vira anexo embutido.
+      const CID_LOGO = "logo-da-casa";
+
+      const desenhar = (comoImagem, comoMarca) =>
+        documentoAvaliacao({
+          assessment,
+          person: student,
+          previous,
+          photoSides,
+          imagens: comoImagem,
+          // O idioma é o de quem PEDIU — é ele que vai ler ou entregar a folha.
+          lang: trainer.lang || req.language,
+          fuso,
+          marca: comoMarca,
+        });
+
+      const embutidas = {};
+      const porCid = {};
+      const fotos = [];
+
+      for (const [lado, { bytes, mime }] of Object.entries(bytesPorLado)) {
+        embutidas[lado] = `data:${mime};base64,${bytes.toString("base64")}`;
+
+        const cid = `foto-${lado}`;
+        porCid[lado] = `cid:${cid}`;
+        fotos.push({ cid, filename: `${lado}.${mime.split("/")[1] || "jpg"}`, content: bytes, contentType: mime });
+      }
+
+      if (marca) {
+        // A logo já veio em `data:`; para o anexo ela precisa voltar a ser byte.
+        const [cabecalho, base64] = marca.split(",");
+        fotos.push({
+          cid: CID_LOGO,
+          filename: "logo.png",
+          content: Buffer.from(base64 || "", "base64"),
+          contentType: (cabecalho.match(/data:([^;]+)/) || [])[1] || "image/png",
+        });
+      }
+
+      return {
+        trainer,
+        pessoa: student,
+        html: desenhar(embutidas, marca),
+        htmlDeEmail: desenhar(porCid, marca ? `cid:${CID_LOGO}` : null),
+        fotos,
+        nome: student?.name,
+        data: assessment.date,
+      };
     },
   });
 };

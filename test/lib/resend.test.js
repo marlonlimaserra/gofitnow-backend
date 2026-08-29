@@ -117,3 +117,59 @@ test("o id devolvido pela API volta como messageId", async () => {
   const r = await enviarPelaResend({ ...BASE, html: "x" }, fetchFalso({ json: { id: "re_abc" } }));
   assert.strictEqual(r.messageId, "re_abc");
 });
+
+// ── A IMAGEM NO CORPO DO E-MAIL (29/08/2026) ──────────────────────────────
+//
+// Relato do Marlon: *"o PDF chegou perfeito, mas as imagens no próprio e-mail,
+// não"*. É o Gmail: ele DESCARTA `<img src="data:…">`. Não é defeito nosso, é
+// política dele, e nenhum ajuste de HTML contorna.
+//
+// O que funciona é o anexo EMBUTIDO: a foto viaja como anexo com um
+// `Content-ID`, e o corpo a referencia por `cid:`. Isso cumpre os dois papéis de
+// uma vez — ela aparece no corpo E na lista de anexos.
+test("o `cid` vira `content_id` — é o nome que a Resend usa", async () => {
+  const reg = {};
+  await enviarPelaResend(
+    {
+      ...BASE,
+      html: '<img src="cid:foto-front">',
+      attachments: [
+        { filename: "front.jpg", content: Buffer.from("bytes"), cid: "foto-front", contentType: "image/jpeg" },
+      ],
+    },
+    fetchFalso({}, reg)
+  );
+
+  const anexo = reg.corpo.attachments[0];
+  assert.strictEqual(anexo.content_id, "foto-front");
+  assert.strictEqual(anexo.content_type, "image/jpeg");
+});
+
+test("anexo SEM cid não ganha content_id — o PDF é anexo comum", async () => {
+  const reg = {};
+  await enviarPelaResend(
+    { ...BASE, html: "x", attachments: [{ filename: "a.pdf", content: Buffer.from("%PDF") }] },
+    fetchFalso({}, reg)
+  );
+
+  assert.ok(!("content_id" in reg.corpo.attachments[0]));
+});
+
+test("o corpo referencia a MESMA chave que o anexo declara", async () => {
+  // Se as duas divergirem, o e-mail chega com um quadrado quebrado no lugar da
+  // foto — e nada avisa, porque o envio dá certo.
+  const reg = {};
+  await enviarPelaResend(
+    {
+      ...BASE,
+      html: '<img src="cid:foto-back">',
+      attachments: [{ filename: "back.jpg", content: Buffer.from("x"), cid: "foto-back" }],
+    },
+    fetchFalso({}, reg)
+  );
+
+  const usadas = [...reg.corpo.html.matchAll(/cid:([\w-]+)/g)].map((m) => m[1]);
+  const declaradas = reg.corpo.attachments.map((a) => a.content_id).filter(Boolean);
+
+  for (const u of usadas) assert.ok(declaradas.includes(u), `o corpo usa ${u}, que ninguém declarou`);
+});

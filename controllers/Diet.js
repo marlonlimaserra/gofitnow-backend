@@ -1,5 +1,6 @@
 const { documentoDieta } = require("../lib/documentoDieta.js");
 const { registrarRotasDeDocumento } = require("../lib/rotasDeDocumento.js");
+const { logoDaCasa } = require("../lib/logoDaCasa.js");
 
 module.exports = function (app) {
   // Os planos alimentares de uma pessoa.
@@ -197,22 +198,107 @@ module.exports = function (app) {
         return null;
       }
 
-      const [student, fuso] = await Promise.all([
+      const [student, fuso, casa] = await Promise.all([
         app.api.user.dataStudent(trainer._id, diet.student),
         app.api.tenant.timezoneOfInstance(),
+        app.api.tenant.dataOfInstance(),
       ]);
 
-      const html = documentoDieta({
-        diet,
-        person: student,
-        lang: trainer.lang || req.language,
-        fuso,
-      });
+      // ── AS FOTINHAS DOS ALIMENTOS ────────────────────────────────────
+      //
+      // Relato do Marlon: *"ao enviar a dieta para o e-mail, está sem as
+      // fotinhos da comida"*. A tela da dieta as mostra, e a folha não tinha
+      // nenhuma — quem recebe reconhece o prato pela foto antes de ler o nome.
+      //
+      // DEDUPLICADAS por chave: um plano repete "arroz integral" no almoço e no
+      // jantar, e a mesma foto entraria duas vezes no anexo e no PDF. Com 42 kB
+      // de média, repetir custa caro rápido.
+      //
+      // TETO de 60 imagens distintas. Um plano gigante não pode virar um e-mail
+      // de 10 MB que nenhum servidor aceita — e, passando disso, a folha ainda
+      // vale sem foto. `log` quando cortar, senão o limite mente em silêncio.
+      const TETO = 60;
+
+      const chaves = [
+        ...new Set(
+          (diet.meals || [])
+            .flatMap((m) => m.foods || [])
+            .map((a) => a.imageKey)
+            .filter(Boolean)
+        ),
+      ];
+
+      if (chaves.length > TETO) {
+        console.warn(`[documento:diets] ${chaves.length} fotos, usando ${TETO}`);
+      }
+
+      const bytesPorChave = {};
+      await Promise.all(
+        chaves.slice(0, TETO).map(async (chave) => {
+          const img = await app.api.foodImage.byKey(chave);
+          if (!img) return;
+          const dado = img.data;
+          bytesPorChave[chave] = {
+            bytes: Buffer.isBuffer(dado) ? dado : dado?.buffer ? Buffer.from(dado.buffer) : Buffer.from(dado || ""),
+            mime: img.mime || "image/webp",
+          };
+        })
+      );
+
+      const marca = await logoDaCasa(casa?.theme);
+      const CID_LOGO = "logo-da-casa";
+
+      // Duas versões, pelo mesmo motivo da avaliação: o Gmail descarta `data:` no
+      // corpo, e o Chromium que faz o PDF não resolve `cid:`.
+      const embutidas = {};
+      const porCid = {};
+      const anexosDeFoto = [];
+
+      for (const [chave, { bytes, mime }] of Object.entries(bytesPorChave)) {
+        embutidas[chave] = `data:${mime};base64,${bytes.toString("base64")}`;
+
+        const cid = `alimento-${chave}`;
+        porCid[chave] = `cid:${cid}`;
+        anexosDeFoto.push({
+          cid,
+          filename: `${chave}.${(mime.split("/")[1] || "webp").replace("jpeg", "jpg")}`,
+          content: bytes,
+          contentType: mime,
+        });
+      }
+
+      if (marca) {
+        const [cabecalho, base64] = marca.split(",");
+        anexosDeFoto.push({
+          cid: CID_LOGO,
+          filename: "logo.png",
+          content: Buffer.from(base64 || "", "base64"),
+          contentType: (cabecalho.match(/data:([^;]+)/) || [])[1] || "image/png",
+        });
+      }
+
+      const desenhar = (imagens, comoMarca) =>
+        documentoDieta({
+          diet,
+          person: student,
+          lang: trainer.lang || req.language,
+          fuso,
+          imagens,
+          marca: comoMarca,
+        });
 
       // A data do arquivo é a de INÍCIO do plano, não a de hoje: dois planos
       // baixados em dias diferentes ficariam com nomes diferentes para o mesmo
       // conteúdo, e o de ontem pareceria outro documento.
-      return { trainer, pessoa: student, html, nome: student?.name, data: diet.startDate };
+      return {
+        trainer,
+        pessoa: student,
+        html: desenhar(embutidas, marca),
+        htmlDeEmail: desenhar(porCid, marca ? `cid:${CID_LOGO}` : null),
+        fotos: anexosDeFoto,
+        nome: student?.name,
+        data: diet.startDate,
+      };
     },
   });
 };

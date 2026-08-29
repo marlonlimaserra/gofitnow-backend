@@ -1,4 +1,6 @@
 const { passwordReset } = require("../lib/emailTemplates.js");
+const { enderecoDaInstancia } = require("../lib/enderecoDaInstancia.js");
+const travaDeEnvio = require("../lib/travaDeEnvio.js");
 const clientIp = require("../lib/clientIp.js");
 const desafio = require("../lib/desafio.js");
 const tentativas = require("../lib/tentativasDeLogin.js");
@@ -235,6 +237,30 @@ module.exports = function (app) {
       return;
     }
 
+    // ── A TRAVA, e por que ela é MARCADA ANTES DE SABER SE A CONTA EXISTE ──
+    //
+    // Esta rota manda e-mail, e sem freio ela é uma máquina de encher a caixa de
+    // alguém — basta saber o endereço da pessoa.
+    //
+    // O detalhe que importa: a resposta desta rota é genérica DE PROPÓSITO, para
+    // não dizer quais e-mails têm conta aqui. Se a trava só fosse marcada quando
+    // o envio acontece, um 429 passaria a significar "esta conta existe" — e a
+    // trava, criada para conter abuso, viraria o oráculo que a resposta genérica
+    // existe para negar.
+    //
+    // Por isso ela é marcada para QUALQUER endereço bem formado, exista conta ou
+    // não. E a recusa também responde `generic`: nem o código de status muda.
+    const alvo = `senha:${String(email).trim().toLowerCase()}`;
+    const configDaTrava = await travaDeEnvio.configuracao(app);
+
+    if (configDaTrava.ligada) {
+      if ((await travaDeEnvio.faltamSegundos(alvo, configDaTrava.janela)) > 0) {
+        res.send(generic);
+        return;
+      }
+      travaDeEnvio.marcarEnvio(alvo);
+    }
+
     const user = await app.api.user.dataByEmail(email);
 
     // A student registered as a profile only (no password yet) has nothing to
@@ -245,12 +271,20 @@ module.exports = function (app) {
     }
 
     const token = await app.api.passwordReset.create(user._id);
-    const url = `${app.helpers.mailer.appUrl()}/reset-password?token=${token}`;
+    // O endereço da CASA que pediu, e não o portal. Quem pede a senha em
+    // `marlon.gofitnow.fit` tem de voltar para lá — `app.gofitnow.fit` é o
+    // portal, que não é a casa de ninguém.
+    const url = `${await enderecoDaInstancia(app)}/reset-password?token=${token}`;
 
     app.insertUserActionHistory(req, user, "forgot_password", {
       category: "auth",
       local: { target_type: "users", target_id: user._id + "" },
     });
+
+    // A MARCA DA CASA vai no e-mail. Sem ela a mensagem chega com a cor de
+    // fábrica, e um e-mail com a cor de outra pessoa denuncia que o sistema é
+    // alugado — que é justamente o que o produto vende ao contrário.
+    const casa = await app.api.tenant.dataOfInstance();
 
     const mail = passwordReset({
       // Idioma de QUEM RECEBE: quem lê o e-mail é o dono da conta, não quem
@@ -260,6 +294,7 @@ module.exports = function (app) {
       name: user.name,
       url: url,
       minutes: app.api.passwordReset.validityMinutes,
+      tema: casa?.theme,
     });
 
     try {

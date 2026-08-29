@@ -3,6 +3,7 @@ const clientIp = require("../lib/clientIp.js");
 const tempoReal = require("../lib/tempoReal.js");
 const rateLimit = require("../lib/rateLimit.js");
 const { anamnesisInvite } = require("../lib/emailTemplates.js");
+const travaDeEnvio = require("../lib/travaDeEnvio.js");
 const { BASE_DOMAIN } = require("../lib/domain.js");
 
 module.exports = function (app) {
@@ -167,6 +168,28 @@ module.exports = function (app) {
 
     const url = await enderecoDoFormulario(doc.token);
 
+    // A trava, pela PESSOA: o mesmo convite não sai duas vezes em cinco minutos.
+    // Um pedido de histórico de saúde repetido é o tipo de e-mail que faz quem
+    // recebe marcar como spam — e aí a entrega piora para todos os clientes.
+    const trava = `anamnese:${student._id}`;
+    const configDaTrava = await travaDeEnvio.configuracao(app);
+    const faltam = configDaTrava.ligada
+      ? await travaDeEnvio.faltamSegundos(trava, configDaTrava.janela)
+      : 0;
+
+    if (faltam > 0) {
+      res.status(429).send({
+        msg: req.t("errors.emailTooSoon", { seconds: faltam }),
+        code: "email_too_soon",
+        retryAfter: faltam,
+      });
+      return;
+    }
+
+    if (configDaTrava.ligada) travaDeEnvio.marcarEnvio(trava);
+
+    const casa = await app.api.tenant.dataOfInstance();
+
     const mail = anamnesisInvite({
       // O idioma é o de QUEM LÊ: a pessoa, não quem disparou. É a mesma regra dos
       // outros e-mails do sistema.
@@ -175,6 +198,7 @@ module.exports = function (app) {
       professional: trainer.name,
       url,
       days: app.api.anamnesisLink.diasDeValidade,
+      tema: casa?.theme,
     });
 
     try {

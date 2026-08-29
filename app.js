@@ -12,6 +12,7 @@ const tempoReal = require("./lib/tempoReal.js");
 const instanceGate = require("./lib/instanceGate.js");
 const rateLimit = require("./lib/rateLimit.js");
 const tentativasDeLogin = require("./lib/tentativasDeLogin.js");
+const travaDeEnvio = require("./lib/travaDeEnvio.js");
 const appRoutes = require("./appRoutes.js");
 const appModels = require("./appModels.js");
 const appHelpers = require("./appHelpers.js");
@@ -230,6 +231,9 @@ clusterLib.start({
     // Map por worker faria o limiar de 3 valer 3 × número de workers. Quem conta
     // é o primário, e é aqui que ele passa a atender.
     tentativasDeLogin.atenderWorker(worker);
+    // A trava de envio tem o mesmo problema: um Map por worker faria os cinco
+    // minutos valerem cinco minutos VEZES o número de workers de folga.
+    travaDeEnvio.atenderWorker(worker);
   },
 });
 

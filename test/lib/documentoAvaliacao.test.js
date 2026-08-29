@@ -166,3 +166,35 @@ test("em inglês, os rótulos mudam", () => {
   const html = documentoAvaliacao({ assessment: COLETA, person: PESSOA, photoSides: [], lang: "en" });
   assert.match(html, /Weight/);
 });
+
+// ── A LOGO NO CABEÇALHO (29/08/2026) ──────────────────────────────────────
+//
+// Pedido: *"coloca a nossa logo também, no e-mail, no PDF etc… precisamos
+// divulgar a marca"*.
+test("a logo entra no cabeçalho quando é passada", () => {
+  const html = base({ marca: "data:image/png;base64,AAAA" });
+
+  assert.match(html, /<img src="data:image\/png;base64,AAAA"/);
+});
+
+test("a logo NÃO depende de cor de fundo do CSS", () => {
+  // O wordmark tem o "FitNow" em branco e precisa de fundo escuro. Ele já vem
+  // ASSADO no PNG: como `background` do CSS, sumia ao imprimir — navegador não
+  // imprime cor de fundo por padrão, e a logo saía invisível no papel.
+  const html = base({ marca: "data:image/png;base64,AAAA" });
+
+  assert.doesNotMatch(html, /background:#0f172a[^"]*"[^>]*>\s*<img/);
+});
+
+test("a logo leva `height` como ATRIBUTO — cliente de e-mail ignora o estilo", () => {
+  const html = base({ marca: "data:image/png;base64,AAAA" });
+
+  assert.match(html, /<img[^>]*height="\d+"/);
+});
+
+test("sem logo, o cabeçalho continua inteiro", () => {
+  const html = base({ marca: null });
+
+  assert.doesNotMatch(html, /<img src="data:image\/png/);
+  assert.match(html, /Marlon|assessments|Avaliação/i);
+});

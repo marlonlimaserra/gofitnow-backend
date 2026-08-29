@@ -175,7 +175,8 @@
     "pdfFailed": "Could not generate the PDF. Please try again.",
     "studentWithoutEmail": "This person has no email address on file.",
     "captcha_required": "Confirm you are not a robot to continue.",
-    "captcha_failed": "Verification failed. Please try again."
+    "captcha_failed": "Verification failed. Please try again.",
+    "emailTooSoon": "This email was just sent. Wait {{seconds}} seconds to send it again."
   },
   "ok": {
     "passwordChanged": "Password changed.",

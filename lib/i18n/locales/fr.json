@@ -175,7 +175,8 @@
     "pdfFailed": "Impossible de générer le PDF. Réessayez.",
     "studentWithoutEmail": "Cette personne n'a pas d'adresse e-mail enregistrée.",
     "captcha_required": "Confirmez que vous n'êtes pas un robot pour continuer.",
-    "captcha_failed": "La vérification a échoué. Réessayez."
+    "captcha_failed": "La vérification a échoué. Réessayez.",
+    "emailTooSoon": "Cet e-mail vient d'être envoyé. Attendez {{seconds}} secondes pour le renvoyer."
   },
   "ok": {
     "passwordChanged": "Mot de passe modifié.",
