@@ -5,6 +5,9 @@ const models = {};
 // que existe mais de um cliente.
 models.center = require("./model/Center_model.js");
 models.affiliate = require("./model/Affiliate_model.js");
+// A identidade que atravessa os clientes: e-mail, senha e foto de cada pessoa,
+// uma vez só. Também na central — ver o comentário do modelo.
+models.allUser = require("./model/AllUser_model.js");
 
 models.user = require("./model/User_model.js");
 models.auth = require("./model/Auth_model.js");
@@ -46,5 +49,12 @@ models.tenant = require("./model/Tenant_model.js");
 models.ai = require("./model/Ai_model.js");
 models.aiSession = require("./model/AiSession_model.js");
 models.brandImage = require("./model/BrandImage_model.js");
+// As chaves do "entrar com ___" — lidas do banco da CENTRAL, onde a tela
+// "Chaves e apps" do painel as grava. Estes modelos só leem.
+//
+// O que é IGUAL nos dois (chaves, bilhete, TTL, endereço de volta) mora em
+// `Oauth_model.js`, de onde os dois herdam.
+models.oauthGoogle = require("./model/OauthGoogle_model.js");
+models.oauthFacebook = require("./model/OauthFacebook_model.js");
 
 module.exports = models;

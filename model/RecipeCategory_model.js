@@ -53,11 +53,12 @@ RecipeCategory_model.prototype.publicas = async function () {
 // uma só: "o que eu mostro?". Duas collections dariam duas consultas e uma
 // junção para responder isso.
 RecipeCategory_model.prototype.collection = async function () {
-  // `instanceDb()` explícito: `connectToServer()` faria o mesmo hoje, mas ele
-  // ignora argumento e esconde de qual banco se está falando. Nas duas linhas
-  // acima e abaixo o banco é diferente — deixar isso legível é o que evita
-  // repetir o erro.
-  const db = await this.app.mongodb.instanceDb(instanceContext.required());
+  // `connectToServer()` já vem ESCOPADO no cliente da requisição — o
+  // `.collection()` dele injeta `instance` em todo filtro e todo insert. Antes
+  // aqui havia um `instanceDb()` explícito, para deixar visível qual banco era;
+  // hoje o banco é um só e o que precisa ficar visível é o ESCOPO, que é
+  // justamente o que este método devolve.
+  const db = await this.app.mongodb.connectToServer();
   return db.collection("recipe_categories");
 };
 
@@ -239,32 +240,43 @@ RecipeCategory_model.prototype.apagar = async function (id) {
 // do provisionamento e do `stats`. Manter isso vale mais que economizar uma
 // chamada HTTP.
 RecipeCategory_model.prototype.dosClientes = async function () {
+  // ── ERA UM LAÇO POR TODOS OS BANCOS ────────────────────────────────────────
+  //
+  // Abria o banco de cada cliente ativo e lia as categorias próprias dele, um a
+  // um, com `try/catch` por volta porque um banco fora do ar derrubava a tela.
+  // Com mil clientes seriam mil consultas por abertura.
+  //
+  // Num banco só é UMA agregação, e o `$group` já devolve a lista de clientes de
+  // cada chave — que era exatamente o que o laço montava à mão num Map.
+  //
+  // O banco vem CRU porque a pergunta é, por definição, sobre todos os clientes:
+  // é o painel querendo saber quais categorias os clientes inventaram. O que sai
+  // é agregado — chave, nome e a lista de quem usa —, nunca documento de ninguém.
+  const db = await this.app.mongodb.bancoCruSemEscopo();
+
   const registros = await this.app.api.center.list();
-  const ativas = registros.filter((r) => r.active !== false && r.active !== 0);
+  const ativos = registros
+    .filter((r) => r.active !== false && r.active !== 0)
+    .map((r) => r.instance);
 
-  const porChave = new Map();
+  const linhas = await db
+    .collection("recipe_categories")
+    .aggregate([
+      { $match: { instance: { $in: ativos }, own: true } },
+      {
+        $group: {
+          _id: "$key",
+          // O nome pode divergir entre clientes que usaram a mesma chave; o
+          // primeiro serve, como no laço antigo (o Map guardava o primeiro).
+          name: { $first: "$name" },
+          clientes: { $addToSet: "$instance" },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ])
+    .toArray();
 
-  for (const registro of ativas) {
-    try {
-      const db = await this.app.mongodb.instanceDb(registro.instance);
-      const dele = await db.collection("recipe_categories").find({ own: true }).toArray();
-
-      for (const c of dele) {
-        const atual = porChave.get(c.key) || { key: c.key, name: c.name, clientes: [] };
-        atual.clientes.push(registro.instance);
-        porChave.set(c.key, atual);
-      }
-    } catch (error) {
-      // Cliente com banco fora do ar sai desta leitura e volta na próxima.
-      // Melhor uma lista incompleta que uma tela de erro.
-      console.error(`[categorias] não li ${registro.instance}: ${error.message}`);
-    }
-  }
-
-  // Mais usadas primeiro: é a ordem que responde "o que eu deveria promover?".
-  return [...porChave.values()].sort(
-    (a, b) => b.clientes.length - a.clientes.length || a.name.localeCompare(b.name)
-  );
+  return linhas.map((l) => ({ key: l._id, name: l.name, clientes: l.clientes }));
 };
 
 module.exports = RecipeCategory_model;

@@ -49,33 +49,43 @@ UserCategory_model.prototype.paraTipo = async function (tipoDeUsuario) {
 // Devolve `{ chave: quantos }` somando tudo. O painel usa para mostrar o retrato de
 // quem usa o sistema, e o site para exibir prova social.
 UserCategory_model.prototype.contagens = async function () {
+  // ── ERA UM LAÇO POR TODOS OS BANCOS ────────────────────────────────────────
+  //
+  // Com um banco por cliente, esta contagem abria o banco de cada cliente ativo,
+  // rodava uma agregação em cada um e somava em JavaScript. Com mil clientes
+  // seriam mil agregações por abertura de tela — e um `try/catch` por volta,
+  // porque um banco fora do ar derrubava a página.
+  //
+  // Num banco só é UMA agregação, servida pelo índice `{ instance: 1, ... }` de
+  // `users`. O `try/catch` por cliente deixou de fazer sentido: não há mais
+  // "banco de um cliente fora do ar" — ou o banco está de pé, ou nada está.
+  //
+  // O banco vem CRU de propósito: esta é a única leitura do sistema que é sobre
+  // TODOS os clientes ao mesmo tempo. Ela alimenta o painel, que é nosso, e o
+  // resultado é agregado — sai contagem por categoria, nunca documento de
+  // ninguém.
+  const db = await this.app.mongodb.bancoCruSemEscopo();
+
+  // Só os clientes ATIVOS entram na conta, como antes. A lista vem do registro
+  // central, que é quem sabe quem está ativo.
   const registros = await this.app.api.center.list();
-  const ativas = registros.filter((r) => r.active !== false && r.active !== 0);
+  const ativos = registros
+    .filter((r) => r.active !== false && r.active !== 0)
+    .map((r) => r.instance);
+
+  const linhas = await db
+    .collection("users")
+    .aggregate([
+      { $match: { instance: { $in: ativos } } },
+      // Sem categoria também conta, como `(sem categoria)`: a diferença entre
+      // "ninguém é nutricionista" e "ninguém preencheu" é a informação mais
+      // útil desta tela no começo.
+      { $group: { _id: { $ifNull: ["$category", "(sem categoria)"] }, n: { $sum: 1 } } },
+    ])
+    .toArray();
 
   const total = {};
-
-  for (const registro of ativas) {
-    try {
-      const db = await this.app.mongodb.instanceDb(registro.instance);
-
-      const linhas = await db
-        .collection("users")
-        .aggregate([
-          // Sem categoria também conta, como `(sem categoria)`: a diferença entre
-          // "ninguém é nutricionista" e "ninguém preencheu" é a informação mais
-          // útil desta tela no começo.
-          { $group: { _id: { $ifNull: ["$category", "(sem categoria)"] }, n: { $sum: 1 } } },
-        ])
-        .toArray();
-
-      for (const l of linhas) total[l._id] = (total[l._id] || 0) + l.n;
-    } catch (error) {
-      // Cliente com banco fora do ar sai desta leitura e volta na próxima. Melhor
-      // um número incompleto que uma tela de erro.
-      console.error(`[categorias] não li ${registro.instance}: ${error.message}`);
-    }
-  }
-
+  for (const l of linhas) total[l._id] = l.n;
   return total;
 };
 
@@ -103,7 +113,7 @@ UserCategory_model.prototype.gravar = async function (userId, key, tipoDeUsuario
   // Vazio APAGA o campo, e é diferente de inválido: quem não quis dizer o que é
   // tem direito de não dizer.
   if (!chave) {
-    const db = await this.app.mongodb.instanceDb(instanceContext.required());
+    const db = await this.app.mongodb.connectToServer();
     const { ObjectId } = require("mongodb");
     await db.collection("users").updateOne({ _id: new ObjectId(userId) }, { $unset: { category: "" } });
     return { ok: true, category: "" };
@@ -111,7 +121,7 @@ UserCategory_model.prototype.gravar = async function (userId, key, tipoDeUsuario
 
   if (!(await this.valida(chave, tipoDeUsuario))) return { erro: "invalid_category" };
 
-  const db = await this.app.mongodb.instanceDb(instanceContext.required());
+  const db = await this.app.mongodb.connectToServer();
   const { ObjectId } = require("mongodb");
   const r = await db
     .collection("users")

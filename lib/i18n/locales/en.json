@@ -81,6 +81,7 @@
     "unknownInstance": "Unrecognised address. This address is not linked to any registered client.",
     "invalidName": "Please enter your name.",
     "invalidWords": "Write both words: singular and plural.",
+    "invalidPhotoSides": "Invalid list of angles.",
     "signupRateLimited": "Too many sign-ups from this computer. Please try again in an hour.",
     "emailAlreadyHasAccess": "This e-mail already has access to GoFitNow. Sign in instead of creating a new account.",
     "usernameInUse": "This username is already taken.",
@@ -125,6 +126,7 @@
     "aiInvalidKey": "An Anthropic key starts with sk-ant-. Check what was pasted.",
     "aiNoOwner": "This instance has no professional registered yet.",
     "aiNotConfigured": "The assistant is not configured yet. Add the key under Settings.",
+    "aiDisabled": "The assistant is turned off for this account.",
     "aiUnreachable": "Could not reach Anthropic. Try again in a moment.",
     "aiBadKey": "Anthropic rejected the key. Check it under Settings.",
     "aiRateLimited": "Anthropic asked us to wait a bit. Try again in a moment.",
@@ -168,7 +170,12 @@
     "invalidLanguage": "Language not recognised.",
     "invalidCategory": "That category is not on the list. Reload the page and pick again.",
     "emailIsTeamUser": "That e-mail belongs to a team user, not a client. See Settings → Users.",
-    "emailOfAnotherProfessional": "That e-mail is already registered in this account, under another professional. Ask them to share it, or use a different e-mail."
+    "emailOfAnotherProfessional": "That e-mail is already registered in this account, under another professional. Ask them to share it, or use a different e-mail.",
+    "pdfUnavailable": "PDF generation is not available on this server. Use the print option.",
+    "pdfFailed": "Could not generate the PDF. Please try again.",
+    "studentWithoutEmail": "This person has no email address on file.",
+    "captcha_required": "Confirm you are not a robot to continue.",
+    "captcha_failed": "Verification failed. Please try again."
   },
   "ok": {
     "passwordChanged": "Password changed.",
@@ -200,7 +207,9 @@
     "paymentRemoved": "Payment removed.",
     "bookingPageRemoved": "Booking page removed.",
     "paymentMethodSaved": "Payment method saved.",
-    "paymentMethodRemoved": "Payment method removed."
+    "paymentMethodRemoved": "Payment method removed.",
+    "assessmentEmailed": "Assessment sent by email.",
+    "dietEmailed": "Meal plan sent by email."
   },
   "permissions": {
     "groups": {
@@ -515,7 +524,9 @@
     "create_payment_method": "Created payment method",
     "update_payment_method": "Updated payment method",
     "delete_payment_method": "Deleted payment method",
-    "update_timezone": "Changed the time zone"
+    "update_timezone": "Changed the time zone",
+    "email_assessment": "Emailed a body assessment",
+    "email_diet": "Emailed a meal plan"
   },
   "categories": {
     "auth": "Access",
@@ -655,6 +666,12 @@
       "button": "See and answer the request",
       "footer": "Do not know who is asking? Just ignore this e-mail — without your confirmation nobody sees anything.",
       "text": "{{name}}, {{professionalName}} ({{professionalEmail}}) wants to follow you on GoFitNow.\n\nIf you grant it, this person will see your history. You can revoke the access whenever you want.\n\nOpen this address to answer (valid for {{days}} days):\n{{url}}\n\nDo not know who is asking? Ignore this e-mail — without your confirmation nobody sees anything."
+    },
+    "assessment": {
+      "subject": "Your body assessment"
+    },
+    "diet": {
+      "subject": "Your meal plan"
     }
   },
   "apiDocs": {

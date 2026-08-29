@@ -54,7 +54,7 @@ Ai_model.prototype.hint = function (key) {
 // O que a tela recebe: se está configurado, qual modelo, e a dica da chave.
 Ai_model.prototype.settings = async function () {
   const id = await this.ownerId();
-  if (!id) return { configured: false, model: ai.DEFAULT_MODEL, hint: "" };
+  if (!id) return { enabled: true, configured: false, model: ai.DEFAULT_MODEL, hint: "" };
 
   const col = await this.collection();
   const doc = await col.findOne(CHAVE);
@@ -63,6 +63,12 @@ Ai_model.prototype.settings = async function () {
   const provider = ai.normalizeProvider(guardado.provider);
 
   return {
+    // LIGADO por padrão, e é a ausência que decide.
+    //
+    // `enabled !== false` e não `Boolean(enabled)`: toda conta que existe hoje
+    // não tem o campo, e ler ausência como "desligado" apagaria o assistente de
+    // todo mundo no instante do deploy. Só um `false` gravado desliga.
+    enabled: guardado.enabled !== false,
     provider,
     // "Configurado" quer dizer coisas diferentes conforme quem responde: a
     // Anthropic precisa de chave, o Ollama precisa de endereço.
@@ -156,6 +162,10 @@ Ai_model.prototype.save = async function (entrada) {
 
   const chaveVoz = String(entrada?.realtimeKey || "").trim();
   if (chaveVoz) set["ai.realtimeKey"] = chaveVoz;
+
+  // DESLIGAR o assistente. `undefined` mantém — este salvar é o mesmo do modelo
+  // e das chaves, e quem só troca o modelo não pode religar sem querer.
+  if (entrada?.enabled !== undefined) set["ai.enabled"] = entrada.enabled !== false;
 
   await col.updateOne(
     CHAVE,

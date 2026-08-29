@@ -80,6 +80,17 @@ test("o host do produto NÃO é instância", () => {
 
 test("host de dois níveis não é instância", () => {
   assert.equal(instance.fromRequest({ headers: { host: "a.b.gofitnow.fit" } }), null);
+
+  // O DOMÍNIO NOVO leva à mesma instância. `shapeapp.fit` entrou em 25/08/2026 e
+  // `gofitnow.fit` não saiu: quem tem o endereço antigo salvo continua entrando
+  // por ele, e os dois hosts respondem pela mesma cliente.
+  assert.equal(instance.fromRequest({ headers: { host: "bruna.shapeapp.fit" } }), "bruna");
+  assert.equal(instance.fromRequest({ headers: { host: "BRUNA.ShapeApp.fit:443" } }), "bruna");
+  // E as mesmas exceções valem no domínio novo: nem endereço nosso, nem dois níveis.
+  for (const host of ["app.shapeapp.fit", "www.shapeapp.fit", "backend.shapeapp.fit", "shapeapp.fit"]) {
+    assert.equal(instance.fromRequest({ headers: { host } }), null, host);
+  }
+  assert.equal(instance.fromRequest({ headers: { host: "a.b.shapeapp.fit" } }), null);
 });
 
 test("domínio de fora não vira instância pelo host", () => {

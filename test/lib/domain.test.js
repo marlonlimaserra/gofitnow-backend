@@ -122,3 +122,22 @@ test("domínio nosso não entra pelo caminho de domínio próprio", () => {
 test("o alvo do CNAME é o app principal", () => {
   assert.equal(domain.CNAME_TARGET, "app." + domain.BASE_DOMAIN);
 });
+
+test("os dois domínios nossos são lidos, e só um é escrito", () => {
+  // `shapeapp.fit` entrou em 25/08/2026, ao lado de `gofitnow.fit`. LER aceita os
+  // dois — é o que faz o endereço novo funcionar sem mexer no cadastro de
+  // ninguém. ESCREVER continua num só, senão a mesma cliente passaria a ter dois
+  // endereços canônicos.
+  assert.equal(domain.subdomainOf("bruna.shapeapp.fit"), "bruna");
+  assert.equal(domain.subdomainOf("bruna.gofitnow.fit"), "bruna");
+  assert.equal(domain.subdomainOf("a.b.shapeapp.fit"), null);
+  assert.ok(domain.isOwnDomain("shapeapp.fit"));
+  assert.ok(domain.isOwnDomain("bruna.shapeapp.fit"));
+  assert.ok(!domain.isOwnDomain("treinos.marlon.com.br"));
+  // domínio próprio do cliente não pode ser um dos nossos, nos dois casos
+  assert.ok(!domain.isUsableDomain("x.shapeapp.fit"));
+  assert.ok(!domain.isUsableDomain("x.gofitnow.fit"));
+  // o endereço MOSTRADO segue no domínio canônico
+  assert.equal(domain.BASE_DOMAIN, "gofitnow.fit");
+  assert.equal(domain.hostOf("bruna"), "bruna.gofitnow.fit");
+});

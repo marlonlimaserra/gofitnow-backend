@@ -1,5 +1,6 @@
 const { ObjectId } = require("mongodb");
 const permissionCatalog = require("../lib/permissions.js");
+const instanceContext = require("../lib/instance.js");
 
 // The `users` collection — every person in the system.
 //
@@ -553,13 +554,26 @@ User_model.prototype.pageStudents = async function (trainerId, filtros = {}) {
         let: { pessoa: "$_id" },
         pipeline: [
           {
+            // ── O ÚNICO LUGAR ONDE O CLIENTE É ESCRITO À MÃO ────────────────
+            //
+            // `lib/escopo.js` injeta o cliente em toda consulta, mas não alcança
+            // DENTRO de um `$lookup`: a sub-pipeline é outra consulta, e o `from`
+            // aponta para a collection inteira.
+            //
+            // Correção não depende disto — `person` e `professional` são
+            // ObjectId, únicos globais, então nenhum vínculo de outro cliente
+            // casaria. É DESEMPENHO: sem o `instance` aqui, a junção varreria os
+            // vínculos de todos os clientes a cada pessoa da página.
+            //
+            // E os dois campos entram como IGUALDADE simples, fora do `$expr`, de
+            // propósito: assim o Mongo usa o índice
+            // `{ instance: 1, professional: 1, person: 1 }` pelo prefixo. Dentro
+            // do `$expr` ele não usaria — que é como estava antes, quando a
+            // collection era pequena porque o banco era de um cliente só.
             $match: {
-              $expr: {
-                $and: [
-                  { $eq: ["$person", "$$pessoa"] },
-                  { $eq: ["$professional", new ObjectId(trainerId)] },
-                ],
-              },
+              instance: instanceContext.required(),
+              professional: new ObjectId(trainerId),
+              $expr: { $eq: ["$person", "$$pessoa"] },
             },
           },
           { $project: { active: 1, notes: 1 } },
@@ -580,6 +594,15 @@ User_model.prototype.pageStudents = async function (trainerId, filtros = {}) {
   etapas.push({
     $addFields: { hasAccess: { $cond: [{ $ifNull: ["$password", false] }, true, false] } },
   });
+
+  // SÓ QUEM ENTRA NO APP.
+  //
+  // O filtro existe por causa de "iniciar uma conversa": só se conversa com quem
+  // tem acesso, e sem isto a tela pedia uma página de pessoas ao servidor e
+  // descartava metade dela no navegador — o que faz uma página de vinte virar
+  // uma lista de três, e a de trás não existir. Filtrar aqui é o que mantém a
+  // paginação dizendo a verdade.
+  if (String(filtros.access) === "1") etapas.push({ $match: { hasAccess: true } });
 
   const campo = ORDEM_PESSOAS[filtros.sort] || "createdAt";
   const direcao = filtros.dir === "asc" ? 1 : -1;
@@ -918,14 +941,47 @@ User_model.prototype.updateSelf = async function (id, obj) {
 // que o servidor toma sozinho.
 User_model.prototype.authenticate = async function (identificador, password) {
   const user = await this.dataByLogin(identificador);
-  if (!user) return undefined;
-  if (user.active === 0) return undefined;
-
-  // Student registered as a profile, with no access granted yet.
-  if (!user.password || !user.salt) return undefined;
+  if (!this.podeEntrar(user)) return undefined;
 
   if (this.hashPassword(password, user.salt) !== user.password) return undefined;
 
+  return user;
+};
+
+// QUEM pode entrar — independentemente de COMO provou quem é.
+//
+// Isto era um par de `if` dentro de `authenticate`, e saiu de lá quando o login
+// pelo Google apareceu: agora há duas provas de identidade, e as duas têm de
+// recusar as MESMAS contas. Deixado como estava, o caminho do Google nasceria sem
+// essas recusas — e entrar pelo Google seria justamente o jeito de furar o
+// "acesso ainda não liberado".
+User_model.prototype.podeEntrar = function (user) {
+  if (!user) return false;
+  // Conta desativada pelo negócio.
+  if (user.active === 0) return false;
+  // Perfil de aluno/paciente criado pelo profissional e SEM acesso concedido: a
+  // ficha existe, o login ainda não. Sem senha definida não há o que conferir —
+  // e um caminho de login que dispensa senha entraria por essa porta.
+  if (!user.password || !user.salt) return false;
+  return true;
+};
+
+// Entrar por um e-mail que um provedor de fora JÁ VERIFICOU (hoje o Google).
+//
+// ── Não cria conta, e isto é a decisão principal ──────────────────────────
+//
+// Achar-ou-criar aqui deixaria qualquer pessoa com conta no Google criar uma
+// conta dentro do sistema de um profissional só clicando no botão — no
+// subdomínio dele, com dados dele por perto. Quem entra por aqui é quem JÁ é da
+// casa; e-mail sem conta é recusa, e criar alguém continua sendo ato do
+// profissional.
+//
+// Por consequência, o Google só entra em conta que já tem acesso por senha
+// (`podeEntrar` exige senha definida). Conta que só existe no Google não é
+// possível hoje — e não vai ser por acidente.
+User_model.prototype.porEmailVerificado = async function (email) {
+  const user = await this.dataByEmail(email);
+  if (!this.podeEntrar(user)) return undefined;
   return user;
 };
 

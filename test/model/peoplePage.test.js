@@ -4,6 +4,7 @@ const { ObjectId } = require("mongodb");
 
 const User_model = require("../../model/User_model.js");
 const Link_model = require("../../model/Link_model.js");
+const instanceContext = require("../../lib/instance.js");
 
 // O CUSTO da lista de pessoas — o mesmo caso da lista de treinos.
 //
@@ -15,6 +16,21 @@ const Link_model = require("../../model/Link_model.js");
 // O que este teste protege não é o tempo, é a ORDEM DOS ESTÁGIOS, que é a razão
 // do tempo. Um estágio caro voltar para antes do corte não quebra nada e só
 // aparece quando a lista cresce.
+//
+// ── POR QUE AGORA RODA DENTRO DE UM CONTEXTO ──────────────────────────────
+//
+// Desde o banco único, a sub-pipeline do `$lookup` escreve o cliente à mão — é o
+// único lugar do sistema que faz isso, porque `lib/escopo.js` não alcança dentro
+// de um `$lookup`. Então o modelo passou a exigir contexto de instância aqui,
+// como todo o resto já exigia em produção: nenhuma rota fechada roda fora de um.
+//
+// `chamar()` embrulha as chamadas em vez de cada teste lembrar do `run`.
+// Toda chamada ao modelo passa por aqui: em produção o middleware já
+// estabeleceu o cliente antes de qualquer handler.
+function chamar(fn) {
+  return instanceContext.run("marlon", fn);
+}
+
 function fakeModel({ pessoas = 3 } = {}) {
   const pipelines = [];
   const pedidos = [];
@@ -62,7 +78,7 @@ const texto = (estagios) => JSON.stringify(estagios);
 
 test("a junção com o vínculo acontece depois do corte", async () => {
   const { model, pipelines } = fakeModel();
-  await model.pageStudents(TRAINER, { page: 1, limit: 15 });
+  await chamar(() => model.pageStudents(TRAINER, { page: 1, limit: 15 }));
 
   assert.ok(!texto(antesDoCorte(pipelines[0].pipeline)).includes("$lookup"));
   assert.ok(texto(dasLinhas(pipelines[0].pipeline)).includes("$lookup"), "mas ela acontece");
@@ -74,7 +90,7 @@ test("filtrar por ativo acontece no VÍNCULO, não no pipeline", async () => {
   // pipeline obrigaria a juntar o vínculo das 215 pessoas antes de escolher
   // quinze — os 30ms que este caminho existe para não pagar.
   const { model, pipelines, pedidos } = fakeModel();
-  await model.pageStudents(TRAINER, { active: "0" });
+  await chamar(() => model.pageStudents(TRAINER, { active: "0" }));
 
   assert.deepEqual(pedidos[0], { active: "0" });
   assert.ok(!texto(antesDoCorte(pipelines[0].pipeline)).includes("$lookup"));
@@ -83,14 +99,14 @@ test("filtrar por ativo acontece no VÍNCULO, não no pipeline", async () => {
 
 test("sem filtro de status, o vínculo é pedido sem filtro", async () => {
   const { model, pedidos } = fakeModel();
-  await model.pageStudents(TRAINER, {});
+  await chamar(() => model.pageStudents(TRAINER, {}));
 
   assert.deepEqual(pedidos[0], { active: undefined });
 });
 
 test("ordenar por ativo também sobe a junção", async () => {
   const { model, pipelines } = fakeModel();
-  await model.pageStudents(TRAINER, { sort: "status", dir: "asc" });
+  await chamar(() => model.pageStudents(TRAINER, { sort: "status", dir: "asc" }));
 
   assert.ok(texto(antesDoCorte(pipelines[0].pipeline)).includes("$lookup"));
   assert.equal(JSON.stringify(pipelines[0].pipeline).split("$lookup").length - 1, 1, "uma vez só");
@@ -100,22 +116,40 @@ test("ordenar por nome NÃO sobe a junção", async () => {
   // O caso comum, e o que a tela abre: não há razão para juntar o vínculo de
   // duzentas pessoas para mostrar quinze.
   const { model, pipelines } = fakeModel();
-  await model.pageStudents(TRAINER, { sort: "name", dir: "asc" });
+  await chamar(() => model.pageStudents(TRAINER, { sort: "name", dir: "asc" }));
 
   assert.ok(!texto(antesDoCorte(pipelines[0].pipeline)).includes("$lookup"));
 });
 
 test("hasAccess fica antes do corte — é ordenação e não custa junção", async () => {
   const { model, pipelines } = fakeModel();
-  await model.pageStudents(TRAINER, { sort: "access" });
+  await chamar(() => model.pageStudents(TRAINER, { sort: "access" }));
 
   assert.ok(texto(antesDoCorte(pipelines[0].pipeline)).includes("hasAccess"));
+});
+
+test("`access=1` filtra no BANCO, e antes do corte", async () => {
+  // Filtrar quem tem login no NAVEGADOR foi o defeito que este filtro conserta:
+  // a tela pedia uma página de pessoas e descartava metade dela, o que faz uma
+  // página de vinte virar uma lista de três — e a de trás não existir.
+  const { model, pipelines } = fakeModel();
+  await chamar(() => model.pageStudents(TRAINER, { access: "1" }));
+
+  const antes = antesDoCorte(pipelines[0].pipeline);
+  assert.ok(texto(antes).includes('"hasAccess":true'), "o filtro entra antes do $sort");
+});
+
+test("sem `access`, ninguém é descartado por não ter login", async () => {
+  const { model, pipelines } = fakeModel();
+  await chamar(() => model.pageStudents(TRAINER, {}));
+
+  assert.ok(!texto(pipelines[0].pipeline).includes('"hasAccess":true'));
 });
 
 test("senha e salt nunca saem, ordene por onde ordenar", async () => {
   for (const sort of ["name", "status", "access", "contact"]) {
     const { model, pipelines } = fakeModel();
-    await model.pageStudents(TRAINER, { sort });
+    await chamar(() => model.pageStudents(TRAINER, { sort }));
 
     const projecao = dasLinhas(pipelines[0].pipeline).find((e) => e.$project);
     assert.equal(projecao.$project.password, 0, sort);
@@ -126,7 +160,7 @@ test("senha e salt nunca saem, ordene por onde ordenar", async () => {
 
 test("sem ninguém na lista, nem consulta o banco", async () => {
   const { model, pipelines } = fakeModel({ pessoas: 0 });
-  const saida = await model.pageStudents(TRAINER, {});
+  const saida = await chamar(() => model.pageStudents(TRAINER, {}));
 
   assert.deepEqual(saida, { rows: [], total: 0 });
   assert.equal(pipelines.length, 0);
@@ -186,7 +220,7 @@ test("string vazia não é filtro — é o que a tela manda quando o filtro est�
 test("a ordenação usa a collation do português", async () => {
   // É ela que faz "Ávila" cair perto de "Avila", e não depois de "Zanetti".
   const { model, pipelines } = fakeModel();
-  await model.pageStudents(TRAINER, { sort: "name" });
+  await chamar(() => model.pageStudents(TRAINER, { sort: "name" }));
 
   assert.equal(pipelines[0].opcoes.collation.locale, "pt");
 });

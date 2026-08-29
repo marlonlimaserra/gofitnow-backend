@@ -66,7 +66,10 @@ module.exports = function (app) {
     // exatamente quando alguém está conferindo se o cadastro funcionou.
     app.api.center.forget(nome);
 
-    res.send({ ok: true, instance: nome, db: app.mongodb.dbNameFor(nome) });
+    // `db` continua na resposta porque o painel a mostra, mas agora é o mesmo
+    // nome para todo cliente: o que separa um do outro é o campo `instance`, não
+    // o banco.
+    res.send({ ok: true, instance: nome, db: app.mongodb.nomeDoBanco() });
   });
 
   // O PRIMEIRO ACESSO de uma instância.
@@ -143,7 +146,11 @@ module.exports = function (app) {
     const registro = await app.api.center.byInstance(nome);
     if (!registro) return res.status(404).send({ msg: "instance_not_registered" });
 
-    const db = await app.mongodb.instanceDb(nome);
+    // `comoCliente()` e não `connectToServer()`: esta rota é do PAINEL, atende
+    // uma requisição que não é de cliente nenhum, e precisa contar o de um
+    // cliente dito por nome. O escopo vem do argumento, e a contagem sai
+    // filtrada pelo `instance` do mesmo jeito que sairia para o próprio cliente.
+    const db = await app.mongodb.comoCliente(nome);
     const conta = async (nomeCol, filtro = {}) => {
       try {
         return await db.collection(nomeCol).countDocuments(filtro);
@@ -184,5 +191,36 @@ module.exports = function (app) {
     if (!autorizado(req, res)) return;
 
     res.send(await app.api.userCategory.contagens());
+  });
+
+  // ── MOVER UM CLIENTE DE BANCO ────────────────────────────────────────────
+  //
+  // É o que o painel chama quando alguém marca um cliente como "dedicado". O
+  // trabalho está em `lib/moverCliente.js`; aqui é só a porta.
+  //
+  // Síncrona de propósito, e não uma fila: com os volumes de hoje a cópia é de
+  // segundos, e quem clicou está olhando a tela. Uma fila esconderia a falha da
+  // conferência num log que ninguém abre. Se um cliente crescer ao ponto de a
+  // cópia passar do timeout do painel, aí vale a fila — e o sintoma vai ser
+  // claro.
+  app.post("/internal/instances/:instance/mover-banco", async function (req, res) {
+    if (!autorizado(req, res)) return;
+
+    const nome = instanceContext.normalize(req.params.instance);
+    if (!nome) return res.status(400).send({ msg: "invalid_instance" });
+
+    const destinoId = req.body?.database;
+    if (!destinoId) return res.status(400).send({ msg: "database_ausente" });
+
+    const moverCliente = require("../lib/moverCliente.js");
+    const r = await moverCliente.mover(app, { instancia: nome, destinoId });
+
+    if (r.erro === "instancia_nao_registrada") return res.status(404).send({ msg: r.erro });
+    // A conferência falhando volta 409 e com a LISTA: "não deu" sem dizer o que
+    // não bateu manda a pessoa abrir o banco à mão.
+    if (r.erro === "conferencia_falhou") return res.status(409).send({ msg: r.erro, problemas: r.problemas });
+    if (r.erro) return res.status(400).send({ msg: r.erro });
+
+    res.send(r);
   });
 };

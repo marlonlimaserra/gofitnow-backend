@@ -4,6 +4,7 @@ const tempo = require("../lib/tempo.js");
 
 const theme = require("../lib/theme.js");
 const domainLib = require("../lib/domain.js");
+const photoSides = require("../lib/assessmentPhotoSides.js");
 
 // A CONFIGURAÇÃO DA CASA: o endereço, a marca, o vocabulário, a moeda, o fuso e
 // o assistente. Um documento por instância, na collection `configurations`.
@@ -366,7 +367,24 @@ Tenant_model.prototype.wordsOfInstance = async function () {
   };
 };
 
-// Grava no documento do DONO, venha de quem vier. Ver `ownerId` acima.
+// Grava no documento ÚNICO da instância — o mesmo que `wordsOfInstance` lê.
+//
+// ── O DEFEITO QUE MOROU AQUI ───────────────────────────────────────────────
+//
+// Isto gravava em `{ user: dono }`, da época da chave por usuário. Quando o
+// documento virou único (`{ chave: "instancia" }`), a LEITURA foi migrada e a
+// escrita não: salvar o vocabulário passou a criar um segundo documento em
+// `configurations` que ninguém lê.
+//
+// E foi um defeito calado, o pior tipo. A tela dizia "salvo", a rota respondia
+// 200 com as palavras certas, e a interface continuava mostrando as antigas —
+// porque o degrau de compatibilidade do leitor (`users.peopleSingular`, o lugar
+// de antes) seguia respondendo. Quem trocasse "aluno" por "paciente" veria a
+// confirmação e nenhuma mudança, sem erro em lugar nenhum.
+//
+// Daí `gravar()`, e não um `updateOne` próprio: é a função que já sabe onde é o
+// documento da casa, e passar por ela é o que impede a próxima configuração de
+// repetir isto.
 Tenant_model.prototype.saveWords = async function (entrada) {
   const singular = limparPalavra(entrada?.peopleSingular);
   const plural = limparPalavra(entrada?.peoplePlural);
@@ -375,19 +393,7 @@ Tenant_model.prototype.saveWords = async function (entrada) {
   // "cliente" no singular e "pessoas" no plural, na mesma tela.
   if (!singular || !plural) return null;
 
-  const dono = await this.ownerId();
-  if (!dono) return null;
-
-  const col = await this.collection();
-
-  await col.updateOne(
-    { user: new ObjectId(dono) },
-    {
-      $set: { peopleSingular: singular, peoplePlural: plural, updatedAt: new Date() },
-      $setOnInsert: { user: new ObjectId(dono), status: "none", createdAt: new Date() },
-    },
-    { upsert: true }
-  );
+  await this.gravar({ peopleSingular: singular, peoplePlural: plural });
 
   return { singular, plural };
 };
@@ -417,19 +423,9 @@ Tenant_model.prototype.saveLanguage = async function (idioma) {
   const alvo = String(idioma || "").trim();
   if (!LANGUAGES.includes(alvo)) return null;
 
-  const dono = await this.ownerId();
-  if (!dono) return null;
-
-  const col = await this.collection();
-
-  await col.updateOne(
-    { user: new ObjectId(dono) },
-    {
-      $set: { language: alvo, updatedAt: new Date() },
-      $setOnInsert: { user: new ObjectId(dono), status: "none", createdAt: new Date() },
-    },
-    { upsert: true }
-  );
+  // Documento único, como o vocabulário e pelo mesmo motivo: `languageOfInstance`
+  // lê daqui. Ver a nota em `saveWords`.
+  await this.gravar({ language: alvo });
 
   return alvo;
 };
@@ -484,6 +480,29 @@ Tenant_model.prototype.vestirComAConta = async function (usuario) {
     console.error("[tenant] não consegui vestir o usuário com a conta:", error.message);
   }
 
+  // ── O ASSISTENTE ESTÁ LIGADO? ─────────────────────────────────────────────
+  //
+  // Viaja no `user` pelo mesmo motivo do vocabulário: a BOLINHA do assistente é
+  // desenhada em toda tela, e uma decisão que ela precisa saber no boot não pode
+  // custar uma requisição por navegação.
+  //
+  // Num `try` PRÓPRIO, e não junto do resto. Ele nasceu dentro daquele
+  // `Promise.all` e os testes mostraram o preço na hora: uma leitura que falha
+  // ali derruba as três irmãs, e a pessoa perde o VOCABULÁRIO por causa de um
+  // campo de bolinha. O menos importante não pode custar o mais importante.
+  //
+  // Ligado é a AUSÊNCIA: só um `false` gravado desliga. Ler ausência como
+  // desligado tiraria o assistente de todas as contas no instante do deploy.
+  try {
+    const doc = await this.dataOfInstance();
+    payload.aiEnabled = doc?.ai?.enabled !== false;
+  } catch (error) {
+    // Sem resposta, a bolinha aparece: é o estado de sempre, e esconder o
+    // assistente por causa de uma leitura que falhou seria tirar da pessoa uma
+    // coisa que ela tem.
+    payload.aiEnabled = true;
+  }
+
   return payload;
 };
 
@@ -516,6 +535,34 @@ Tenant_model.prototype.currencyFor = async function (pedida) {
 Tenant_model.prototype.publicTheme = function (doc) {
   const t = theme.sanitize(doc?.theme);
   return { theme: t, scale: theme.scale(t.brand) };
+};
+
+// ── OS ÂNGULOS DA FOTO DE EVOLUÇÃO ─────────────────────────────────────────
+//
+// Da CASA, como o vocabulário: a avaliação física de uma clínica de nutrição e a
+// de quem prepara atleta para palco não fotografam a mesma coisa, e antes disto
+// as duas eram obrigadas aos mesmos quatro ângulos.
+//
+// A leitura distingue "nunca configurou" de "configurou e apagou tudo" — a
+// primeira quer os quatro de fábrica, a segunda quer nenhum. Quem separa os dois
+// é `lib/assessmentPhotoSides.js`; aqui só se busca o documento.
+Tenant_model.prototype.assessmentPhotoSides = async function () {
+  const doc = await this.dataOfInstance();
+  return photoSides.daInstancia(doc?.assessmentPhotoSides);
+};
+
+// Grava no documento ÚNICO da instância (`gravar`), e não em `{ user: dono }`.
+//
+// A distinção não é estilo: `saveWords` e `saveLanguage` ainda escrevem pela
+// chave antiga, e os leitores já leem o documento único — é dívida de uma
+// migração que passou pela leitura e não pela escrita, e copiá-la aqui seria
+// criar um segundo lugar onde salvar não salva.
+Tenant_model.prototype.saveAssessmentPhotoSides = async function (entrada) {
+  const lista = photoSides.normalizar(entrada);
+  if (!lista) return null;
+
+  await this.gravar({ assessmentPhotoSides: lista });
+  return lista;
 };
 
 module.exports = Tenant_model;

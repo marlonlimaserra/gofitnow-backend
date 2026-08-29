@@ -4,6 +4,7 @@ const themeLib = require("../lib/theme.js");
 const cloudflare = require("../lib/cloudflare.js");
 const dnscheck = require("../lib/dnscheck.js");
 const instanceContext = require("../lib/instance.js");
+const assessmentPhotoSides = require("../lib/assessmentPhotoSides.js");
 
 // O domínio e a aparência do profissional.
 //
@@ -14,7 +15,12 @@ const instanceContext = require("../lib/instance.js");
 // Lido a cada chamada em vez de uma vez no boot, para o teste poder mexer no
 // ambiente sem recarregar o módulo. São duas comparações de string.
 function portais() {
-  const bruto = process.env.PORTAL_HOSTS || "app.gofitnow.fit";
+  // SÃO DOIS desde 25/08/2026, um por domínio nosso: `shapeapp.fit` é a marca
+  // nova e `gofitnow.fit` continua sendo o endereço que os clientes têm salvo.
+  // Sem `app.shapeapp.fit` aqui, quem digitasse a porta de entrada do domínio
+  // novo recebia "domínio não identificado" — que é o mesmo defeito que este
+  // trecho já tinha consertado uma vez, no domínio antigo.
+  const bruto = process.env.PORTAL_HOSTS || "app.gofitnow.fit,app.shapeapp.fit";
   return bruto
     .split(",")
     .map((h) => h.trim().toLowerCase())
@@ -168,6 +174,8 @@ module.exports = function (app) {
       motionSpeedRange: { min: themeLib.MIN_MOTION_SPEED, max: themeLib.MAX_MOTION_SPEED },
       overlayRange: { min: themeLib.MIN_OVERLAY, max: themeLib.MAX_OVERLAY },
       presets: themeLib.PRESETS,
+      looks: themeLib.LOOKS,
+      menuLogoBgs: themeLib.MENU_LOGO_BGS,
       gradients: themeLib.GRADIENTS,
       buttonShadows: themeLib.BUTTON_SHADOWS,
       buttonHovers: themeLib.BUTTON_HOVERS,
@@ -489,6 +497,51 @@ module.exports = function (app) {
     });
 
     res.send(salvas);
+  });
+
+  // ── OS ÂNGULOS DA FOTO DE EVOLUÇÃO ──────────────────────────────────────
+  //
+  // Os quatro de fábrica (frente, direita, esquerda, costas) viraram o PADRÃO da
+  // instância em vez do limite dela: quem prepara atleta fotografa pose, não
+  // lado, e estava preso a quatro vagas com o nome errado.
+  //
+  // Ler exige `assessments.view` e não a permissão de administrar: a tela da
+  // avaliação precisa da lista para desenhar as vagas, e quem só consulta ficha
+  // também a abre.
+  app.get("/me/tenant/assessment-photo-sides", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "assessments.view");
+    if (user === false) return;
+
+    res.send({
+      sides: await app.api.tenant.assessmentPhotoSides(),
+      max: assessmentPhotoSides.MAXIMO,
+      defaults: assessmentPhotoSides.PADRAO,
+    });
+  });
+
+  // `assessments.manage` — a mesma que o servidor exige para gravar uma coleta.
+  //
+  // Não é `users.manage` como o vocabulário e o tema: aqueles mudam a tela de
+  // TODO mundo, inclusive de quem nunca abriu uma avaliação. Este muda uma tela
+  // só, e quem manda nela é quem avalia.
+  app.put("/me/tenant/assessment-photo-sides", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "assessments.manage");
+    if (user === false) return;
+
+    const salvo = await app.api.tenant.saveAssessmentPhotoSides((req.body || {}).sides);
+    if (!salvo) {
+      return res
+        .status(400)
+        .send({ msg: req.t("errors.invalidPhotoSides"), code: "invalid_photo_sides" });
+    }
+
+    app.insertUserActionHistory(req, user, "update_assessment_photo_sides", {
+      category: "admin",
+      local: { target_type: "tenants", target_id: String(user._id) },
+      extra: { sides: salvo.map((l) => l.key).join(", ") },
+    });
+
+    res.send({ sides: salvo });
   });
 
   // ── AS PREFERÊNCIAS: vocabulário e idioma ───────────────────────────────

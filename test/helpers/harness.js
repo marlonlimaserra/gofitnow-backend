@@ -97,6 +97,15 @@ async function call(
       resposta.enviou = true;
       return res;
     },
+    // Rota que termina em REDIRECIONAMENTO não tem corpo para afirmar sobre — o
+    // que ela decide está no destino. A volta do Google é toda assim: ela sempre
+    // devolve o navegador para uma tela, com o resultado no fragmento da URL.
+    redirect(destino) {
+      resposta.status = 302;
+      resposta.redirect = String(destino);
+      resposta.enviou = true;
+      return res;
+    },
   };
 
   await instanceContext.run(instance, () => rota.handler(req, res));

@@ -81,6 +81,7 @@
     "unknownInstance": "Adresse non reconnue. Cette adresse n’est liée à aucun client enregistré.",
     "invalidName": "Indiquez votre nom.",
     "invalidWords": "Écrivez les deux mots : singulier et pluriel.",
+    "invalidPhotoSides": "Liste d'angles invalide.",
     "signupRateLimited": "Trop d’inscriptions depuis cet ordinateur. Réessayez dans une heure.",
     "emailAlreadyHasAccess": "Cet e-mail a déjà accès à GoFitNow. Connectez-vous au lieu de créer un compte.",
     "usernameInUse": "Ce nom d’utilisateur est déjà pris.",
@@ -125,6 +126,7 @@
     "aiInvalidKey": "Une clé Anthropic commence par sk-ant-. Vérifiez ce qui a été collé.",
     "aiNoOwner": "Cette instance n’a encore aucun professionnel enregistré.",
     "aiNotConfigured": "L’assistant n’est pas encore configuré. Ajoutez la clé dans Réglages.",
+    "aiDisabled": "L'assistant est désactivé pour ce compte.",
     "aiUnreachable": "Impossible de joindre Anthropic. Réessayez dans un instant.",
     "aiBadKey": "Anthropic a refusé la clé. Vérifiez-la dans Réglages.",
     "aiRateLimited": "Anthropic a demandé de patienter un peu. Réessayez dans un instant.",
@@ -168,7 +170,12 @@
     "invalidLanguage": "Langue non reconnue.",
     "invalidCategory": "Cette catégorie n'est pas dans la liste. Rechargez la page et choisissez à nouveau.",
     "emailIsTeamUser": "Cet e-mail appartient à un utilisateur de l'équipe, pas à un client. Voir Configuration → Utilisateurs.",
-    "emailOfAnotherProfessional": "Cet e-mail est déjà enregistré dans ce compte, avec un autre professionnel. Demandez-lui de le partager, ou utilisez un autre e-mail."
+    "emailOfAnotherProfessional": "Cet e-mail est déjà enregistré dans ce compte, avec un autre professionnel. Demandez-lui de le partager, ou utilisez un autre e-mail.",
+    "pdfUnavailable": "La génération de PDF n'est pas disponible sur ce serveur. Utilisez l'option d'impression.",
+    "pdfFailed": "Impossible de générer le PDF. Réessayez.",
+    "studentWithoutEmail": "Cette personne n'a pas d'adresse e-mail enregistrée.",
+    "captcha_required": "Confirmez que vous n'êtes pas un robot pour continuer.",
+    "captcha_failed": "La vérification a échoué. Réessayez."
   },
   "ok": {
     "passwordChanged": "Mot de passe modifié.",
@@ -200,7 +207,9 @@
     "paymentRemoved": "Paiement supprimé.",
     "bookingPageRemoved": "Page de réservation supprimée.",
     "paymentMethodSaved": "Moyen de paiement enregistré.",
-    "paymentMethodRemoved": "Moyen de paiement supprimé."
+    "paymentMethodRemoved": "Moyen de paiement supprimé.",
+    "assessmentEmailed": "Bilan envoyé par e-mail.",
+    "dietEmailed": "Plan alimentaire envoyé par e-mail."
   },
   "permissions": {
     "groups": {
@@ -515,7 +524,9 @@
     "create_payment_method": "A créé un moyen de paiement",
     "update_payment_method": "A modifié un moyen de paiement",
     "delete_payment_method": "A supprimé un moyen de paiement",
-    "update_timezone": "A changé le fuseau horaire"
+    "update_timezone": "A changé le fuseau horaire",
+    "email_assessment": "A envoyé un bilan physique par e-mail",
+    "email_diet": "A envoyé un plan alimentaire par e-mail"
   },
   "categories": {
     "auth": "Accès",
@@ -655,6 +666,12 @@
       "button": "Voir et répondre à la demande",
       "footer": "Vous ne savez pas qui demande ? Ignorez cet e-mail — sans votre confirmation personne ne voit rien.",
       "text": "{{name}}, {{professionalName}} ({{professionalEmail}}) souhaite vous suivre sur GoFitNow.\n\nSi vous acceptez, cette personne verra votre historique. Vous pouvez retirer l’accès quand vous voulez.\n\nOuvrez cette adresse pour répondre (valable {{days}} jours) :\n{{url}}\n\nVous ne savez pas qui demande ? Ignorez cet e-mail — sans votre confirmation personne ne voit rien."
+    },
+    "assessment": {
+      "subject": "Votre bilan physique"
+    },
+    "diet": {
+      "subject": "Votre plan alimentaire"
     }
   },
   "apiDocs": {

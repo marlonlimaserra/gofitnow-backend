@@ -3,6 +3,9 @@ const routes = {};
 
 routes.Index = require("./controllers/Index.js");
 routes.Auth = require("./controllers/Auth.js");
+// O "entrar com ___" — Google e Facebook pelo mesmo controlador. Separado de
+// Auth porque o assunto é outro: aqui a prova de identidade vem de fora.
+routes.Oauth = require("./controllers/Oauth.js");
 routes.User = require("./controllers/User.js");
 routes.AdminUser = require("./controllers/AdminUser.js");
 routes.Role = require("./controllers/Role.js");

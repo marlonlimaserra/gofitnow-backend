@@ -11,6 +11,7 @@ const clusterLib = require("./lib/cluster.js");
 const tempoReal = require("./lib/tempoReal.js");
 const instanceGate = require("./lib/instanceGate.js");
 const rateLimit = require("./lib/rateLimit.js");
+const tentativasDeLogin = require("./lib/tentativasDeLogin.js");
 const appRoutes = require("./appRoutes.js");
 const appModels = require("./appModels.js");
 const appHelpers = require("./appHelpers.js");
@@ -223,7 +224,13 @@ clusterLib.start({
   servir,
   // O primário é o dono do contador de limite de chamadas: um por worker faria o
   // limite valer N vezes o prometido.
-  aoNascerWorker: (worker) => rateLimit.atenderWorker(worker),
+  aoNascerWorker: (worker) => {
+    rateLimit.atenderWorker(worker);
+    // O contador de senha errada tem o mesmo problema do limite de chamadas: um
+    // Map por worker faria o limiar de 3 valer 3 × número de workers. Quem conta
+    // é o primário, e é aqui que ele passa a atender.
+    tentativasDeLogin.atenderWorker(worker);
+  },
 });
 
 process.on("uncaughtException", function (error) {

@@ -65,6 +65,15 @@ Role_model.prototype.list = async function () {
     ...d,
     totalUsers: byRole.get(String(d._id)) || 0,
     isClient: d.system === true && d.name === CLIENT_NAME,
+    // `isAdmin` dito pelo servidor, pelo MESMO motivo do `isClient` acima.
+    //
+    // É o único papel que o `PUT` recusa (ele é o caminho de volta: se pudesse
+    // perder permissão, uma edição infeliz deixaria o sistema com uma tela que
+    // ninguém abre e nenhuma conta capaz de consertar). A tela precisa saber
+    // disso para não oferecer um formulário que sempre falha — e deduzir pelo
+    // nome, ou contando permissões, quebraria no dia em que o nome fosse
+    // traduzido ou o catálogo crescesse.
+    isAdmin: d.system === true && d.name === ADMIN_NAME,
   }));
 };
 

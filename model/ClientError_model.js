@@ -49,13 +49,22 @@ function corta(v, n) {
 
 // De QUAL tela veio o erro.
 //
-//   app     — o sistema que o cliente usa (e o app instalado, que é o mesmo código)
-//   painel  — a central, que só nós abrimos
+//   app        — o sistema que o cliente usa no navegador (e o Electron, que é
+//                o mesmo código)
+//   painel     — a central, que só nós abrimos
+//   aplicativo — o app de iPhone/iPad/Android (Expo), que é OUTRO código
 //
-// Os dois relatam para cá de propósito: um lugar só para olhar quando algo
-// quebrou, em vez de dois painéis e a dúvida de em qual procurar. O que separa é
+// Os três relatam para cá de propósito: um lugar só para olhar quando algo
+// quebrou, em vez de três painéis e a dúvida de em qual procurar. O que separa é
 // este campo — e ele entra na assinatura, ver abaixo.
-const ORIGENS = ["app", "painel"];
+//
+// `aplicativo` nasceu em 26/08/2026, quando o app começou a fechar sozinho no
+// iPad do Marlon e não havia como saber por quê: o console do celular é ainda
+// mais inalcançável que o do navegador. Ele é uma origem SEPARADA de `app`
+// porque são dois programas diferentes — o mesmo texto de erro tem pilha e
+// conserto distintos em cada um, e juntá-los faria alguém marcar como resolvido
+// um bug que continua de pé do outro lado.
+const ORIGENS = ["app", "painel", "aplicativo"];
 
 ClientError_model.prototype.collection = async function () {
   const db = await this.app.mongodb.centralDb();

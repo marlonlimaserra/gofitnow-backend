@@ -1,5 +1,6 @@
 const { ObjectId } = require("mongodb");
 const { MIMES, parseImageDataUri } = require("../lib/imageDataUri.js");
+const instanceContext = require("../lib/instance.js");
 
 // A collection `avatars` — a foto de perfil de cada conta.
 //
@@ -56,7 +57,44 @@ Avatar_model.prototype.save = async function (userId, mime, buffer) {
   const users = await this.app.api.user.collection();
   await users.updateOne({ _id: new ObjectId(userId) }, { $set: { avatarAt: now } });
 
+  await this.espelhar(userId, { mime, data: buffer, size: buffer.length, avatarAt: now });
+
   return now;
+};
+
+// ── A CÓPIA NA CENTRAL ────────────────────────────────────────────────────
+//
+// A foto desta instância continua sendo a desta instância — é ela que o web e
+// o app mostram. O que sobe para a central é uma cópia, para o painel conseguir
+// pôr rosto no e-mail.
+//
+// NUNCA derruba a operação principal. Espelho é conveniência: se a central
+// estiver fora, a foto foi salva do mesmo jeito e quem olha o painel vê a
+// anterior. Falhar aqui e devolver erro faria a pessoa achar que a troca não
+// funcionou, quando funcionou.
+Avatar_model.prototype.espelhar = async function (userId, { mime, data, size, avatarAt }) {
+  try {
+    const users = await this.app.api.user.collection();
+    const dono = await users.findOne({ _id: new ObjectId(userId) }, { projection: { email: 1 } });
+    if (!dono || !dono.email) return;
+
+    const instancia = instanceContext.current();
+
+    if (data) {
+      await this.app.api.allUser.espelharFoto(dono.email, { mime, data, size, instance: instancia });
+    } else {
+      await this.app.api.allUser.apagarFotoEspelhada(dono.email, instancia);
+    }
+
+    // O carimbo entra no índice também: é por ele que o painel sabe que a
+    // pessoa tem foto sem precisar carregar a imagem para descobrir.
+    await this.app.api.allUser.espelhar(dono.email, {
+      avatarAt: avatarAt ?? null,
+      instance: instancia,
+    });
+  } catch (erro) {
+    console.error("[avatar] não consegui espelhar na central:", erro.message);
+  }
 };
 
 Avatar_model.prototype.data = async function (userId) {
@@ -73,6 +111,8 @@ Avatar_model.prototype.delete = async function (userId) {
 
   const users = await this.app.api.user.collection();
   await users.updateOne({ _id: new ObjectId(userId) }, { $unset: { avatarAt: "" } });
+
+  await this.espelhar(userId, { data: null, avatarAt: null });
 
   return r.deletedCount > 0;
 };

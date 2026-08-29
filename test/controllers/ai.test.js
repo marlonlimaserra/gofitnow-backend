@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const { fakeApp, call } = require("../helpers/harness.js");
 const AiController = require("../../controllers/Ai.js");
 const ai = require("../../lib/ai.js");
+const mcpTools = require("../../lib/mcpTools.js");
 
 // Nenhuma ferramenta de TELA vai no catálogo.
 //
@@ -27,6 +28,8 @@ const USER = {
 // parte destes testes provar a mesma coisa por ângulos diferentes — que ela sai
 // daqui para a Anthropic e para lugar nenhum mais.
 function monta({
+  // O assistente LIGADO é o padrão, como na conta de verdade.
+  ligado = true,
   configurado = true,
   model = "claude-opus-5",
   key = "sk-ant-api03-CHAVESECRETA0000",
@@ -99,7 +102,12 @@ function monta({
       },
       ai: {
         async settings() {
-          return { configured: configurado, model, hint: configurado ? "sk-ant-…0000" : "" };
+          return {
+            enabled: ligado,
+            configured: configurado,
+            model,
+            hint: configurado ? "sk-ant-…0000" : "",
+          };
         },
         async credentials() {
           if (!configurado) return null;
@@ -107,11 +115,16 @@ function monta({
         },
         async save(entrada) {
           salvos.push(entrada);
-          return { configured: true, model: ai.normalizeModel(entrada.model), hint: "sk-ant-…0000" };
+          return {
+            enabled: entrada.enabled !== false,
+            configured: true,
+            model: ai.normalizeModel(entrada.model),
+            hint: "sk-ant-…0000",
+          };
         },
         async remove() {
           removidos.push(true);
-          return { configured: false, model, hint: "" };
+          return { enabled: ligado, configured: false, model, hint: "" };
         },
       },
     },
@@ -1232,4 +1245,189 @@ test("a porta /ai/tool existe para o turno misto", async () => {
   });
 
   assert.equal(r.status, 200);
+});
+
+// ── A INSTRUÇÃO NÃO PODE DESMENTIR O CATÁLOGO ───────────────────────────────
+//
+// O catálogo se monta sozinho (`DO_SERVIDOR` sai de `mcpTools.FERRAMENTAS`); a
+// instrução é texto escrito à mão. Quando as dezesseis ferramentas de agenda,
+// financeiro e avaliação entraram, ninguém voltou na instrução — e ela continuou
+// mandando responder "isso eu ainda não faço" para as três áreas.
+//
+// Instrução vence catálogo: o modelo tinha a ferramenta na mão e recusava. E o
+// defeito não tinha sintoma nenhum além da recusa — nada errava, nada logava, e
+// de fora parecia decisão de produto.
+//
+// Este teste é a costura que faltava: para CADA área com ferramenta, a instrução
+// não pode dizer que ela não existe.
+test("a instrução não manda recusar área que TEM ferramenta", async () => {
+  const instrucao = ai.systemPrompt({
+    words: { singular: "aluno", plural: "alunos" },
+    language: "pt-BR",
+    user: { name: "Marlon" },
+  });
+
+  const nomes = mcpTools.FERRAMENTAS.map((f) => f.nome);
+  const areas = [
+    { prefixos: ["avaliacao_"], palavra: "avaliação" },
+    { prefixos: ["compromisso_", "agenda_"], palavra: "agenda" },
+    { prefixos: ["cobranca_", "pagamento_", "financeiro_"], palavra: "financeiro" },
+  ];
+
+  for (const area of areas) {
+    const tem = nomes.some((n) => area.prefixos.some((p) => n.startsWith(p)));
+    if (!tem) continue;
+
+    // A frase que recusa é "X ... não tem/têm ferramenta". Se a palavra da área
+    // aparece perto dela, a instrução está desmentindo o catálogo.
+    const recusa = new RegExp(`${area.palavra}[^.]{0,80}não tê?m ferramenta`, "i");
+    assert.ok(
+      !recusa.test(instrucao),
+      `${area.palavra} tem ferramenta, mas a instrução manda recusar`
+    );
+  }
+});
+
+test("a instrução continua honesta sobre o que NÃO tem ferramenta", async () => {
+  // O contrário também é defeito: prometer configuração da conta faria o modelo
+  // tentar um caminho que não existe e terminar dizendo que fez.
+  const instrucao = ai.systemPrompt({
+    words: { singular: "aluno", plural: "alunos" },
+    language: "pt-BR",
+    user: { name: "Marlon" },
+  });
+
+  const nomes = mcpTools.FERRAMENTAS.map((f) => f.nome);
+  assert.ok(!nomes.some((n) => n.startsWith("configuracao_") || n.startsWith("tema_")));
+  assert.match(instrucao, /não tem ferramenta/i);
+});
+
+// ── O TETO DE PASSOS DO SERVIDOR ────────────────────────────────────────────
+//
+// Seis idas ao modelo por turno. Quando o modelo AINDA pede ferramenta na
+// sexta, o laço termina por esgotamento — e é o caso que estava errado, calado e
+// caro:
+//
+//   `dados.content` era um turno de `tool_use` que o servidor JÁ executou, e
+//   saía como resposta normal com `stop_reason: "tool_use"`. A tela adotava
+//   `messages` (que já continha esse turno), anexava `content` de novo — o mesmo
+//   `tool_use_id` duas vezes na conversa — e, vendo "tool_use", executava OUTRA
+//   VEZ tudo. Ferramenta de dados escreve: "cria a Bruna e monta o treino"
+//   podia criar duas Brunas.
+//
+// Agora o teto tem resposta própria, e é ela que estes testes fixam.
+test("estourando os passos, não sai turno para a tela anexar", async () => {
+  // Sete respostas iguais pedindo ferramenta: o laço nunca vê texto.
+  const { app } = comFerramentas([PEDE_FERRAMENTA]);
+
+  const r = await call(app, "post", "/ai/chat", { body: { messages: CONVERSA } });
+
+  assert.equal(r.status, 200);
+  assert.equal(r.body.stop_reason, "max_tool_steps");
+  // Vazio é o ponto: com `content` cheio a tela anexaria um turno que já está
+  // dentro de `messages`, e reexecutaria o que já rodou.
+  assert.deepEqual(r.body.content, []);
+});
+
+test("a conversa que volta do teto já traz os resultados, sem repetir o turno", async () => {
+  // Um id DIFERENTE por passo, como a Anthropic manda. Repetir o mesmo id no
+  // dublê esconderia justamente a duplicação que este teste procura.
+  const pedidos = Array.from({ length: 8 }, (_, i) => ({
+    ...PEDE_FERRAMENTA,
+    content: [{ type: "tool_use", id: `t${i}`, name: "pessoa_buscar", input: { termo: "bruna" } }],
+  }));
+  const { app } = comFerramentas(pedidos);
+
+  const r = await call(app, "post", "/ai/chat", { body: { messages: CONVERSA } });
+  const mensagens = r.body.messages || [];
+
+  // Cada passo deixou um par: o pedido do assistente e o resultado.
+  const doAssistente = mensagens.filter((m) => m.role === "assistant");
+  const resultados = mensagens.filter(
+    (m) => m.role === "user" && Array.isArray(m.content) && m.content[0]?.type === "tool_result"
+  );
+
+  assert.equal(doAssistente.length, resultados.length);
+  assert.ok(doAssistente.length > 0);
+
+  // E nenhum `tool_use_id` aparece duas vezes: era a assinatura do defeito, e é
+  // o que a Anthropic recusa no turno seguinte.
+  const ids = mensagens
+    .filter((m) => m.role === "assistant")
+    .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
+    .filter((b) => b.type === "tool_use")
+    .map((b) => b.id);
+
+  assert.equal(ids.length, new Set(ids).size, "tool_use repetido na conversa");
+});
+
+test("parando por TEXTO, o turno sai normal — o teto não muda o caminho bom", async () => {
+  const { app } = comFerramentas([PEDE_FERRAMENTA, RESPONDE_TEXTO]);
+
+  const r = await call(app, "post", "/ai/chat", { body: { messages: CONVERSA } });
+
+  assert.equal(r.body.stop_reason, "end_turn");
+  assert.equal(r.body.content[0].text, "Achei a Bruna.");
+});
+
+// ── O ASSISTENTE DESLIGADO ──────────────────────────────────────────────────
+//
+// Pedido: "bote opção de desativar o assistente, aí a bolinha some". A bolinha
+// sumir é a tela; estes testes são a outra metade, a que a tela não pode fazer
+// sozinha — o menu ESCONDE e o backend RECUSA. Sem isto, desligar seria só tirar
+// a bolinha: uma aba antiga aberta, uma chave de API ou um `curl` continuariam
+// gastando a chave da conta.
+test("desligado, as quatro portas do assistente recusam", async () => {
+  const { app, enviados } = monta({ ligado: false });
+
+  for (const [metodo, rota, corpo] of [
+    ["post", "/ai/chat", { messages: CONVERSA }],
+    ["post", "/ai/tool", { name: "pessoa_buscar", input: {} }],
+    ["post", "/ai/realtime/session", {}],
+    ["post", "/ai/speak", { text: "oi" }],
+  ]) {
+    const r = await call(app, metodo, rota, { body: corpo });
+    assert.equal(r.status, 403, `${rota} devia recusar`);
+    assert.equal(r.body.code, "ai_disabled");
+  }
+
+  // E nada saiu para a Anthropic: recusar depois de pagar não é recusar.
+  assert.equal(enviados.length, 0);
+});
+
+test("ligado é a AUSÊNCIA do campo — conta que nunca configurou continua com assistente", async () => {
+  // O campo nasceu hoje: nenhuma conta o tem. Ler ausência como "desligado"
+  // apagaria o assistente de todo mundo no instante do deploy — e foi o erro que
+  // eu escrevi primeiro (`if (enabled)`), pego pelos testes no mesmo minuto.
+  const app = fakeApp({
+    helpers: { ReqProtected: { async can() { return { _id: "u1", peopleSingular: "aluno" }; } } },
+    api: {
+      ai: {
+        async settings() {
+          return { configured: true, model: "claude-opus-5" }; // sem `enabled`
+        },
+        async credentials() {
+          return null; // para a rota parar logo depois do portão
+        },
+      },
+    },
+  });
+  AiController(app);
+
+  const r = await call(app, "post", "/ai/chat", { body: { messages: CONVERSA } });
+
+  // Passou do portão: o 400 é de "sem chave configurada", não o 403 de desligado.
+  assert.equal(r.status, 400);
+  assert.notEqual(r.body.code, "ai_disabled");
+});
+
+test("desligar é decisão da CONTA, e chega no salvar", async () => {
+  const { app, salvos } = monta();
+
+  await call(app, "put", "/me/ai", { body: { model: "claude-opus-5", enabled: false } });
+  assert.equal(salvos[0].enabled, false);
+
+  // Quem só troca o modelo não religa sem querer: `undefined` significa manter.
+  await call(app, "put", "/me/ai", { body: { model: "claude-haiku-4-5" } });
+  assert.equal(salvos[1].enabled, undefined);
 });

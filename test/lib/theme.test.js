@@ -580,3 +580,62 @@ test("apagar o fundo é contido, e o teto não é 100", () => {
   assert.equal(theme.sanitize({ appBgFade: -1 }).appBgFade, 0);
   assert.equal(theme.sanitize({}).appBgFade, 0);
 });
+
+// ── OS LOOKS COMPLETOS ────────────────────────────────────────────────────
+//
+// Eles mexem em fundo, menu, faixa e botão de uma vez. O risco de um conjunto
+// pronto é justamente ser um conjunto: um campo errado no meio passa
+// desapercebido, porque a pessoa olha a tela inteira e não o campo.
+function luminancia(hex) {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function contraste(a, b) {
+  const [x, y] = [luminancia(a), luminancia(b)];
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
+test("todo look sobrevive ao saneamento sem perder um campo", () => {
+  for (const look of theme.LOOKS) {
+    const limpo = theme.sanitize(look.tema);
+    for (const [campo, valor] of Object.entries(look.tema)) {
+      assert.equal(String(limpo[campo]), String(valor), `${look.key}.${campo}`);
+    }
+  }
+});
+
+test("em todo look o texto do botão é legível — o de verdade, não o suposto", () => {
+  // O front escolhe o texto do botão comparando contraste (`--brand-fg`). Aqui
+  // a conta é a mesma: o vencedor tem de passar de 4,5:1, senão o look nasce com
+  // botão ilegível e ninguém percebe até um cliente reclamar.
+  for (const look of theme.LOOKS) {
+    const botao = theme.scale(look.tema.brand)["600"];
+    const melhor = Math.max(contraste("#16200c", botao), contraste("#ffffff", botao));
+    assert.ok(melhor >= 4.5, `${look.key}: melhor contraste no botão é ${melhor.toFixed(2)}:1`);
+  }
+});
+
+test("em todo look a faixa da logo é escura o bastante para a nossa marca", () => {
+  // O wordmark tem "SHAPE" BRANCO. Faixa clara ali apagaria metade do nome —
+  // e a faixa é justamente onde a logo mora.
+  for (const look of theme.LOOKS) {
+    const faixa = look.tema.menuLogoBgFrom || look.tema.menuLogoBgTo;
+    assert.ok(faixa, `${look.key} não tem fundo de faixa`);
+    assert.ok(
+      contraste("#ffffff", faixa) >= 4.5,
+      `${look.key}: o branco da logo dá ${contraste("#ffffff", faixa).toFixed(2)}:1 na faixa`
+    );
+  }
+});
+
+test("nenhum look repete o conjunto de outro", () => {
+  const vistos = new Set();
+  for (const look of theme.LOOKS) {
+    const assinatura = JSON.stringify(look.tema);
+    assert.ok(!vistos.has(assinatura), `${look.key} é igual a outro look`);
+    vistos.add(assinatura);
+  }
+});

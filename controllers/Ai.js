@@ -118,6 +118,10 @@ module.exports = function (app) {
       realtimeKey: chaveVoz,
       realtimeModel: req.body?.realtimeModel,
       realtimeVoice: req.body?.realtimeVoice,
+      // Desligar o assistente é decisão da CONTA, como a chave: é a chave dela
+      // que ele gasta. Por isso vem por aqui, atrás de `ai.manage`, e não nas
+      // preferências de quem está logado.
+      enabled: req.body?.enabled,
     });
     if (!salvo) return res.status(400).send({ msg: req.t("errors.aiNoOwner") });
 
@@ -206,14 +210,35 @@ module.exports = function (app) {
   app.post("/ai/tool", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "ai.use");
     if (user === false) return;
+    if (!(await ligado(req, res))) return;
 
     const saida = await executarFerramenta(req, user, req.body?.name, req.body?.input);
     res.send(saida);
   });
 
+  // O ASSISTENTE DESLIGADO recusa no servidor, e não só desaparece da tela.
+  //
+  // A regra de sempre: o menu esconde e o backend recusa. Sem isto, desligar
+  // seria só tirar a bolinha — quem soubesse a rota (uma aba antiga aberta, uma
+  // chave de API, um `curl`) continuaria gastando a chave da conta.
+  async function ligado(req, res) {
+    const { enabled } = await app.api.ai.settings();
+
+    // `!== false` e não `if (enabled)`: a regra do campo é "ausência é LIGADO",
+    // e ela tem de valer em toda leitura. Escrito como `if (enabled)`, uma
+    // resposta sem o campo — conta antiga, dublê de teste, um `settings` que
+    // ganhe um caminho de saída novo — desligaria o assistente sem ninguém
+    // pedir. Foi o que os testes pegaram no primeiro minuto.
+    if (enabled !== false) return true;
+
+    res.status(403).send({ msg: req.t("errors.aiDisabled"), code: "ai_disabled" });
+    return false;
+  }
+
   app.post("/ai/chat", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "ai.use");
     if (user === false) return;
+    if (!(await ligado(req, res))) return;
 
     const credenciais = await app.api.ai.credentials();
     if (!credenciais) {
@@ -238,6 +263,9 @@ module.exports = function (app) {
     let conversa = messages;
     let dados = null;
     let usoTotal = null;
+    // Se o laço terminou por ESGOTAR os passos, e não por o modelo ter parado.
+    // A diferença muda o que sai daqui — ver a nota no fim do laço.
+    let estourou = true;
 
     for (let passo = 0; passo < MAX_PASSOS_DE_FERRAMENTA; passo++) {
     const body = ai.requestBody({
@@ -345,7 +373,10 @@ module.exports = function (app) {
     // metade: o protocolo exige uma resposta para cada pedido, e as do
     // navegador só ele tem. Nesse caso a tela recebe o turno inteiro e pede as
     // nossas por `/ai/tool`.
-    if (!doServidor.length || doServidor.length !== pedidos.length) break;
+    if (!doServidor.length || doServidor.length !== pedidos.length) {
+      estourou = false;
+      break;
+    }
 
     const resultados = [];
     for (const pedido of doServidor) {
@@ -363,6 +394,33 @@ module.exports = function (app) {
       { role: "assistant", content: dados.content },
       { role: "user", content: resultados },
     ];
+    }
+
+    // ── O TETO DE PASSOS, quando é ele que termina o laço ─────────────────
+    //
+    // Aqui o modelo ainda estava pedindo ferramenta quando os seis passos
+    // acabaram. `dados.content` é um turno de `tool_use` que NÓS JÁ EXECUTAMOS —
+    // e devolvê-lo como resposta normal fazia duas coisas erradas, as duas
+    // caladas:
+    //
+    //   1. a tela adota `messages` (que já contém esse turno) e depois anexa
+    //      `content` outra vez: o mesmo turno duas vezes na conversa, com os
+    //      mesmos `tool_use_id`;
+    //   2. `stop_reason` era "tool_use", então a tela EXECUTAVA de novo tudo o
+    //      que já rodou — e ferramenta de dados escreve. Pedir "cria a Bruna e
+    //      monta o treino" podia criar duas Brunas.
+    //
+    // Então o teto tem resposta própria: a conversa completa (com os resultados),
+    // nenhum `content` para anexar, e um `stop_reason` que a tela reconhece.
+    if (estourou) {
+      return res.send({
+        content: [],
+        stop_reason: "max_tool_steps",
+        model: dados?.model || credenciais.model,
+        usage: usoTotal || null,
+        messages: conversa !== messages ? conversa : undefined,
+        sessionId: req.body?.sessionId || null,
+      });
     }
 
     // ── A partir daqui a resposta é boa; o que falta é guardar ────────────
@@ -440,6 +498,7 @@ module.exports = function (app) {
   app.post("/ai/realtime/session", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "ai.use");
     if (user === false) return;
+    if (!(await ligado(req, res))) return;
 
     const credenciais = await app.api.ai.realtimeCredentials();
     if (!credenciais) {
@@ -576,6 +635,7 @@ module.exports = function (app) {
   app.post("/ai/speak", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "ai.use");
     if (user === false) return;
+    if (!(await ligado(req, res))) return;
 
     const credenciais = await app.api.ai.realtimeCredentials();
     if (!credenciais) {

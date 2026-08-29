@@ -49,6 +49,24 @@ const POR_INSTANCIA = [
   "roles",
   "user_action_history",
   "workout_templates",
+  // `diet_templates` estava FALTANDO nesta lista, e por isso nunca teve índice:
+  // ela existia só porque o Mongo cria a collection na primeira inserção. Achei
+  // no ensaio da migração — a soma de documentos deu 2 a menos que a contagem
+  // direta do servidor, e os 2 eram os templates de dieta do `will`.
+  //
+  // Com um banco por cliente a falta custava pouco (uma varredura numa collection
+  // de dois documentos). Num banco só, custaria varrer os templates de todos os
+  // clientes a cada abertura da tela.
+  "diet_templates",
+  // `recipe_categories` estava faltando pelo mesmo motivo do `diet_templates`, e
+  // achei no mesmo ensaio. Ela vive nos DOIS bancos de propósito: as nossas
+  // categorias no central, as que o cliente criou (e as que ele escondeu) aqui.
+  // Só a metade do cliente é responsabilidade desta lista.
+  //
+  // Não tinha dado em nenhum cliente ainda, então a migração não perdeu nada —
+  // mas na primeira inserção o Mongo criaria a collection sem índice, e a leitura
+  // varreria as categorias de todos os clientes.
+  "recipe_categories",
   "payment_methods",
   "auto_fill_values",
   "avatars",
@@ -177,8 +195,12 @@ async function indicesEssenciais(db) {
   // duas são contas diferentes. Foi o que tornou o pedido de acesso
   // desnecessário — "essa pessoa já tem conta em outro lugar" deixou de ser um
   // problema que a gente precise resolver.
+  // Único POR CLIENTE, e não é teoria: na migração, dois e-mails já existiam em
+  // duas academias cada — brunasampaio1611@gmail.com em `bruna` e `marlon`,
+  // marlon.20rj@gmail.com em `marlon` e `will`. Único global recusaria a segunda
+  // conta de cada um, e a criação do índice falharia na hora da migração.
   await db.collection("users").createIndex(
-    { email: 1 },
+    { instance: 1, email: 1 },
     { unique: true, partialFilterExpression: { email: { $type: "string" } }, name: "email_unique" }
   );
 
@@ -189,8 +211,9 @@ async function indicesEssenciais(db) {
   // PARCIAL de novo, e aqui é ainda mais necessário: quase ninguém tem nome de
   // usuário. Sem o filtro, a segunda conta sem o campo colidiria com a primeira —
   // `null` é um valor como qualquer outro para um índice único.
+  // Mesmo raciocínio do e-mail: o apelido é escolhido dentro de uma academia.
   await db.collection("users").createIndex(
-    { username: 1 },
+    { instance: 1, username: 1 },
     {
       unique: true,
       partialFilterExpression: { username: { $type: "string" } },
@@ -199,147 +222,164 @@ async function indicesEssenciais(db) {
   );
 
   // A lista de admin e a tela de Usuários: tudo de um tipo, mais novo primeiro.
-  await db.collection("users").createIndex({ type: 1, createdAt: -1 }, { name: "by_type_created" });
-  await db.collection("users").createIndex({ type: 1, name: 1 }, { name: "by_type_name" });
-  await db.collection("users").createIndex({ admin: 1 }, { name: "by_admin" });
-  await db.collection("users").createIndex({ role: 1 }, { name: "by_role" });
+  await db.collection("users").createIndex({ instance: 1, type: 1, createdAt: -1 }, { name: "by_type_created" });
+  await db.collection("users").createIndex({ instance: 1, type: 1, name: 1 }, { name: "by_type_name" });
+  await db.collection("users").createIndex({ instance: 1, admin: 1 }, { name: "by_admin" });
+  await db.collection("users").createIndex({ instance: 1, role: 1 }, { name: "by_role" });
 
   // user_tokens — consultado por token em toda requisição; o TTL varre os
   // expirados.
-  await db.collection("user_tokens").createIndex({ token: 1 }, { unique: true, name: "token_unique" });
+  await db.collection("user_tokens").createIndex({ instance: 1, token: 1 }, { unique: true, name: "token_unique" });
   await db
     .collection("user_tokens")
     .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "token_ttl" });
-  await db.collection("user_tokens").createIndex({ user: 1 }, { name: "by_user" });
+  await db.collection("user_tokens").createIndex({ instance: 1, user: 1 }, { name: "by_user" });
   // anamnesis — um documento por (profissional, pessoa), e o índice é ÚNICO: é
   // ele que garante que duas abas abertas na mesma ficha não criem duas
   // anamneses da mesma pessoa.
   await db
     .collection("anamnesis")
-    .createIndex({ trainer: 1, student: 1 }, { unique: true, name: "por_pessoa_unico" });
+    .createIndex({ instance: 1, trainer: 1, student: 1 }, { unique: true, name: "por_pessoa_unico" });
 
   // anamnesis_links — o link público é procurado pelo TOKEN, que é único; e o
   // TTL varre os vencidos sozinho, senão a collection cresceria para sempre com
   // endereços que já não abrem nada.
   await db
     .collection("anamnesis_links")
-    .createIndex({ token: 1 }, { unique: true, name: "token_unico" });
+    .createIndex({ instance: 1, token: 1 }, { unique: true, name: "token_unico" });
   await db
     .collection("anamnesis_links")
     .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "link_ttl" });
   await db
     .collection("anamnesis_links")
-    .createIndex({ trainer: 1, student: 1 }, { name: "por_pessoa" });
+    .createIndex({ instance: 1, trainer: 1, student: 1 }, { name: "por_pessoa" });
 
   // supplements — a suplementação é lida SEMPRE por (profissional, pessoa), e a
   // ordem de exibição é montada na memória (por momento do dia), então o índice
   // só precisa do par.
   await db
     .collection("supplements")
-    .createIndex({ trainer: 1, student: 1 }, { name: "by_trainer_student" });
+    .createIndex({ instance: 1, trainer: 1, student: 1 }, { name: "by_trainer_student" });
 
   // exams — o par de sempre mais a data da coleta: a lista abre da mais
   // recente para trás, e é a coleta que ordena a tabela de evolução.
   await db
     .collection("exams")
-    .createIndex({ trainer: 1, student: 1, collectedAt: -1 }, { name: "by_trainer_student_collected" });
+    .createIndex({ instance: 1, trainer: 1, student: 1, collectedAt: -1 }, { name: "by_trainer_student_collected" });
 
   // prescriptions — mesmo par, mais a data: a lista abre pela mais recente, que
   // é a que vale.
   await db
     .collection("prescriptions")
-    .createIndex({ trainer: 1, student: 1, date: -1 }, { name: "by_trainer_student_date" });
+    .createIndex({ instance: 1, trainer: 1, student: 1, date: -1 }, { name: "by_trainer_student_date" });
 
   // password_resets — consultado por hash do token; o TTL varre os expirados.
   await db
     .collection("password_resets")
-    .createIndex({ tokenHash: 1 }, { unique: true, name: "token_hash_unique" });
+    .createIndex({ instance: 1, tokenHash: 1 }, { unique: true, name: "token_hash_unique" });
   await db
     .collection("password_resets")
     .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "reset_ttl" });
-  await db.collection("password_resets").createIndex({ user: 1 }, { name: "by_user" });
+  await db.collection("password_resets").createIndex({ instance: 1, user: 1 }, { name: "by_user" });
   // roles — os tipos de usuário. Poucas linhas, lidas em toda requisição
   // autenticada, então o nome é único para dois "Administrador" nunca
   // coexistirem.
-  await db.collection("roles").createIndex({ name: 1 }, { unique: true, name: "role_name_unique" });
-  await db.collection("roles").createIndex({ permissions: 1 }, { name: "by_permission" });
+  await db.collection("roles").createIndex({ instance: 1, name: 1 }, { unique: true, name: "role_name_unique" });
+  await db.collection("roles").createIndex({ instance: 1, permissions: 1 }, { name: "by_permission" });
 
   // user_action_history — muita escrita, lido por "quem fez isto" e "o que
   // aconteceu com este registro". Sem TTL: uma trilha de auditoria que se apaga
   // sozinha não é uma. Se um dia precisar de poda, que seja decisão explícita e
   // não uma varredura que ninguém lembra de ter configurado.
-  await db.collection("user_action_history").createIndex({ createdAt: -1 }, { name: "by_date" });
+  await db.collection("user_action_history").createIndex({ instance: 1, createdAt: -1 }, { name: "by_date" });
   await db
     .collection("user_action_history")
-    .createIndex({ user: 1, createdAt: -1 }, { name: "by_user_date" });
+    .createIndex({ instance: 1, user: 1, createdAt: -1 }, { name: "by_user_date" });
   await db
     .collection("user_action_history")
-    .createIndex({ "target.type": 1, "target.id": 1, createdAt: -1 }, { name: "by_target" });
+    .createIndex({ instance: 1, "target.type": 1, "target.id": 1, createdAt: -1 }, { name: "by_target" });
   await db
     .collection("user_action_history")
-    .createIndex({ action: 1, createdAt: -1 }, { name: "by_action" });
+    .createIndex({ instance: 1, action: 1, createdAt: -1 }, { name: "by_action" });
 }
 
-async function ensureInstanceEssencial(app, instance) {
-  const nome = instanceContext.normalize(instance);
-  if (!nome) throw new Error("invalid_instance: " + instance);
+// ── OS DADOS: um banco só, para todos os clientes ──────────────────────────
+//
+// Collections e índices são do BANCO, não do cliente. Nascem uma vez, no boot.
+//
+// Era por cliente até 24/08/2026: cada um ganhava 35 collections e ~99 índices no
+// próprio banco. A conta que derrubou aquilo está no cabeçalho de
+// `config/mongodb.js` — em resumo, mil clientes já davam ~134 mil arquivos no
+// WiredTiger, e o catálogo do Mongo mora em RAM.
+//
+// O banco vem CRU, sem escopo, porque criar índice é justamente a operação que
+// não pode ser escopada: `lib/escopo.js` recusa `createIndex` de propósito, para
+// a decisão de pôr `instance` como primeiro campo ficar visível AQUI e não
+// escondida atrás de um proxy.
+async function ensureDados(app) {
+  // ── EM CADA BANCO REGISTRADO ──────────────────────────────────────────────
+  //
+  // Desde que o painel pode registrar mais de um banco (um padrão e os dedicados
+  // dos clientes grandes), collections e índices têm de existir em TODOS. Um
+  // banco recém-registrado sem as 37 collections é um cliente que não abre — e o
+  // erro apareceria como "sumiu tudo", longe da causa.
+  //
+  // Idempotente por construção: `criarFaltantes` só cria o que falta e
+  // `createIndex` com a mesma chave e o mesmo nome é no-op.
+  const bancos = await app.mongodb.bancosRegistrados();
 
-  const db = await app.mongodb.instanceDb(nome);
-  await criarFaltantes(db, ESSENCIAIS, nome);
-  await indicesEssenciais(db);
+  for (const destino of bancos) {
+    console.log(`[schema] dados: preparando "${destino.nome}" (${destino.banco})`);
+    await ensureUmBanco(await app.mongodb.bancoCruSemEscopo(destino.uri));
+  }
 
-  // Os papéis do sistema entram aqui, e não no resto: sem eles a tela de
-  // Usuários abre vazia e o primeiro convite não tem o que oferecer.
-  await instanceContext.run(nome, () => app.api.role.ensureSystemRoles());
-
-  return db;
+  console.log(`[schema] dados: ${bancos.length} banco(s) pronto(s)`);
 }
 
-async function ensureInstance(app, instance) {
-  const nome = instanceContext.normalize(instance);
-  if (!nome) throw new Error("invalid_instance: " + instance);
+// As collections e os índices de UM banco. Separado do laço acima para o corpo
+// não ganhar um nível de indentação e para a migração poder preparar um banco
+// recém-registrado sozinha.
+async function ensureUmBanco(db) {
+  await criarFaltantes(db, POR_INSTANCIA, "dados");
 
-  const db = await app.mongodb.instanceDb(nome);
-  await criarFaltantes(db, POR_INSTANCIA, nome);
-
-  // Os índices que os primeiros minutos usam (entrar, criar senha, papéis,
-  // auditoria) estão em `indicesEssenciais`: o cadastro cria só eles antes de
-  // responder, e o resto vem depois. Aqui a chamada é para o caso de a instância
-  // ser antiga — a função é idempotente.
+  // Os índices que os primeiros minutos de um cliente usam (entrar, criar senha,
+  // papéis, auditoria). Separados por herança da época em que o cadastro criava
+  // só eles antes de responder; hoje rodam juntos, e a separação continua
+  // documentando quais são os críticos.
   await indicesEssenciais(db);
 
   // workouts — sempre listados por (trainer, student), na ordem do período.
   await db
     .collection("workouts")
-    .createIndex({ trainer: 1, student: 1, startDate: -1 }, { name: "by_trainer_student" });
+    .createIndex({ instance: 1, trainer: 1, student: 1, startDate: -1 }, { name: "by_trainer_student" });
 
   // A tela geral de treinos: todos os do profissional, do mais novo para o mais
   // antigo. É a ordem padrão da lista e a primeira etapa da agregação que a
   // pagina — sem este índice, cada abertura varre a collection inteira.
   await db
     .collection("workouts")
-    .createIndex({ trainer: 1, createdAt: -1 }, { name: "by_trainer_created" });
+    .createIndex({ instance: 1, trainer: 1, createdAt: -1 }, { name: "by_trainer_created" });
 
   // Ordenar por nome do treino, também dentro do escopo do profissional.
-  await db.collection("workouts").createIndex({ trainer: 1, name: 1 }, { name: "by_trainer_name" });
+  await db.collection("workouts").createIndex({ instance: 1, trainer: 1, name: 1 }, { name: "by_trainer_name" });
 
   // diets — sempre listados por (trainer, student), do mais novo para o mais
   // antigo, que é a ordem da aba Dieta dentro da pessoa.
   await db
     .collection("diets")
-    .createIndex({ trainer: 1, student: 1, createdAt: -1 }, { name: "by_trainer_student" });
+    .createIndex({ instance: 1, trainer: 1, student: 1, createdAt: -1 }, { name: "by_trainer_student" });
 
   // assessments — sempre lidas por (trainer, student), da coleta mais nova para
   // a mais antiga: é a ordem da linha do tempo e a do gráfico de evolução.
   await db
     .collection("assessments")
-    .createIndex({ trainer: 1, student: 1, date: -1 }, { name: "by_trainer_student" });
+    .createIndex({ instance: 1, trainer: 1, student: 1, date: -1 }, { name: "by_trainer_student" });
 
   // assessment_photos — sempre buscada pelo par (coleta, ângulo), que é também
   // o que a torna única: subir de novo o mesmo lado substitui, nunca acumula.
   await db
     .collection("assessment_photos")
-    .createIndex({ assessment: 1, side: 1 }, { unique: true, name: "by_assessment_side" });
+    .createIndex({ instance: 1, assessment: 1, side: 1 }, { unique: true, name: "by_assessment_side" });
 
 
   // appointments — a agenda. Lida de duas formas: a semana do profissional
@@ -347,36 +387,36 @@ async function ensureInstance(app, instance) {
   // antigo). Um índice para cada, porque são consultas diferentes.
   await db
     .collection("appointments")
-    .createIndex({ trainer: 1, date: 1 }, { name: "by_trainer_date" });
+    .createIndex({ instance: 1, trainer: 1, date: 1 }, { name: "by_trainer_date" });
   await db
     .collection("appointments")
-    .createIndex({ trainer: 1, student: 1, date: -1 }, { name: "by_trainer_student" });
+    .createIndex({ instance: 1, trainer: 1, student: 1, date: -1 }, { name: "by_trainer_student" });
 
   // services — poucos por cliente, sempre lidos inteiros e em ordem de
   // apresentação. O índice é só para a ordenação não ler a collection toda.
-  await db.collection("services").createIndex({ order: 1, name: 1 }, { name: "by_order" });
+  await db.collection("services").createIndex({ instance: 1, order: 1, name: 1 }, { name: "by_order" });
 
   // availability — uma grade por profissional, lida pelo id dele.
   await db
     .collection("availability")
-    .createIndex({ professional: 1 }, { unique: true, name: "professional_unique" });
+    .createIndex({ instance: 1, professional: 1 }, { unique: true, name: "professional_unique" });
 
   // booking_pages — a página é achada pelo APELIDO da URL, e dois apelidos
   // iguais fariam a mesma rota responder coisas diferentes conforme a ordem do
   // banco. O índice é quem garante; a checagem no modelo é só pela mensagem.
   await db
     .collection("booking_pages")
-    .createIndex({ slug: 1 }, { unique: true, name: "slug_unique" });
+    .createIndex({ instance: 1, slug: 1 }, { unique: true, name: "slug_unique" });
 
   // charges e payments — sempre lidos de uma pessoa, do mais recente para o
   // mais antigo, que é a ordem da aba Financeiro.
-  await db.collection("charges").createIndex({ student: 1, dueDate: -1 }, { name: "by_student" });
+  await db.collection("charges").createIndex({ instance: 1, student: 1, dueDate: -1 }, { name: "by_student" });
   // E pelo compromisso, que é como a cobrança automática confere se já existe.
-  await db.collection("charges").createIndex({ appointment: 1 }, { name: "by_appointment" });
-  await db.collection("payments").createIndex({ student: 1, date: -1 }, { name: "by_student" });
+  await db.collection("charges").createIndex({ instance: 1, appointment: 1 }, { name: "by_appointment" });
+  await db.collection("payments").createIndex({ instance: 1, student: 1, date: -1 }, { name: "by_student" });
   await db
     .collection("payment_files")
-    .createIndex({ payment: 1 }, { unique: true, name: "payment_unique" });
+    .createIndex({ instance: 1, payment: 1 }, { unique: true, name: "payment_unique" });
 
   // conversations — a lista de quem fala com quem.
   //
@@ -407,78 +447,89 @@ async function ensureInstance(app, instance) {
 
   await db
     .collection("conversations")
-    .createIndex({ pairKey: 1 }, { unique: true, name: "pair_unique" });
+    .createIndex({ instance: 1, pairKey: 1 }, { unique: true, name: "pair_unique" });
   await db
     .collection("conversations")
-    .createIndex({ members: 1, lastAt: -1 }, { name: "by_member_recent" });
+    .createIndex({ instance: 1, members: 1, lastAt: -1 }, { name: "by_member_recent" });
 
   // messages — sempre lidas de uma conversa, da mais nova para a mais antiga.
   await db
     .collection("messages")
-    .createIndex({ conversation: 1, createdAt: -1 }, { name: "by_conversation" });
+    .createIndex({ instance: 1, conversation: 1, createdAt: -1 }, { name: "by_conversation" });
 
   // message_files — buscado pelo id da mensagem; um anexo por mensagem.
   await db
     .collection("message_files")
-    .createIndex({ message: 1 }, { unique: true, name: "message_unique" });
+    .createIndex({ instance: 1, message: 1 }, { unique: true, name: "message_unique" });
   // E pela conversa, que é como a exclusão em cascata os encontra.
-  await db.collection("message_files").createIndex({ conversation: 1 }, { name: "by_conversation" });
+  await db.collection("message_files").createIndex({ instance: 1, conversation: 1 }, { name: "by_conversation" });
 
   // professional_links — lido constantemente (toda lista de pessoas começa
   // aqui) e nos dois sentidos. O par único é o que faz vincular ser idempotente.
   await db
     .collection("professional_links")
-    .createIndex({ professional: 1, person: 1 }, { unique: true, name: "link_unique" });
-  await db.collection("professional_links").createIndex({ person: 1 }, { name: "by_person" });
+    .createIndex({ instance: 1, professional: 1, person: 1 }, { unique: true, name: "link_unique" });
+  await db.collection("professional_links").createIndex({ instance: 1, person: 1 }, { name: "by_person" });
 
   // payment_methods — lidos SEMPRE na ordem escolhida, e a chave é única: ela é
   // o que fica gravado no pagamento, e duas formas com a mesma chave seriam a
   // mesma forma com dois nomes.
-  await db.collection("payment_methods").createIndex({ order: 1 }, { name: "by_order" });
-  await db.collection("payment_methods").createIndex({ key: 1 }, { unique: true, name: "key_unique" });
+  await db.collection("payment_methods").createIndex({ instance: 1, order: 1 }, { name: "by_order" });
+  await db.collection("payment_methods").createIndex({ instance: 1, key: 1 }, { unique: true, name: "key_unique" });
 
   // workout_templates — sempre lidos por profissional, em ordem alfabética.
+  // recipe_categories — lida inteira, em ordem de nome: são poucas por cliente.
+  await db
+    .collection("recipe_categories")
+    .createIndex({ instance: 1, name: 1 }, { name: "by_name" });
+
+  // diet_templates — a lista da tela é "os meus, em ordem de nome", e é a única
+  // consulta que existe sobre ela.
+  await db
+    .collection("diet_templates")
+    .createIndex({ instance: 1, professional: 1, name: 1 }, { name: "by_professional_name" });
+
   await db
     .collection("workout_templates")
-    .createIndex({ professional: 1, name: 1 }, { name: "by_professional_name" });
+    .createIndex({ instance: 1, professional: 1, name: 1 }, { name: "by_professional_name" });
 
   // auto_fill_values — sempre lidos por (profissional, campo). O trio único
   // impede a mesma frase virar duas opções iguais na lista.
   await db
     .collection("auto_fill_values")
-    .createIndex({ professional: 1, field: 1, value: 1 }, { unique: true, name: "value_unique" });
+    .createIndex({ instance: 1, professional: 1, field: 1, value: 1 }, { unique: true, name: "value_unique" });
 
   // avatars — uma por usuário, sempre lida por dono.
-  await db.collection("avatars").createIndex({ user: 1 }, { unique: true, name: "avatar_user_unique" });
+  await db.collection("avatars").createIndex({ instance: 1, user: 1 }, { unique: true, name: "avatar_user_unique" });
 
   // brand_images — a logo e as fotos da tela de entrada. O índice é por dono
   // porque as duas operações que existem são "quantas esta conta tem" e "apaga
   // as desta conta que o tema não usa mais".
-  await db.collection("brand_images").createIndex({ user: 1 }, { name: "user" });
+  await db.collection("brand_images").createIndex({ instance: 1, user: 1 }, { name: "user" });
 
   // api_keys — a busca de cada requisição é POR HASH, então o índice é nele.
   // Único: dois documentos com o mesmo hash significariam a mesma chave valendo
   // duas vezes, e revogar uma deixaria a outra viva.
-  await db.collection("api_keys").createIndex({ hash: 1 }, { unique: true, name: "hash_unique" });
+  await db.collection("api_keys").createIndex({ instance: 1, hash: 1 }, { unique: true, name: "hash_unique" });
   await db
     .collection("api_keys")
-    .createIndex({ user: 1, revokedAt: 1, createdAt: -1 }, { name: "by_user_state" });
+    .createIndex({ instance: 1, user: 1, revokedAt: 1, createdAt: -1 }, { name: "by_user_state" });
 
   // ai_sessions — a lista do histórico é sempre "as minhas, a mais recente
   // primeiro". `updatedAt` e não `createdAt`: uma conversa retomada volta ao
   // topo, que é onde quem a retomou espera achá-la.
   await db
     .collection("ai_sessions")
-    .createIndex({ user: 1, updatedAt: -1 }, { name: "by_user_date" });
+    .createIndex({ instance: 1, user: 1, updatedAt: -1 }, { name: "by_user_date" });
   // O resumo de gasto varre por período, sem filtrar por conta: é a conta do
   // cliente inteiro.
-  await db.collection("ai_sessions").createIndex({ createdAt: -1 }, { name: "by_date" });
+  await db.collection("ai_sessions").createIndex({ instance: 1, createdAt: -1 }, { name: "by_date" });
 
   // api_calls — a tela lê sempre por conta e por data decrescente.
-  await db.collection("api_calls").createIndex({ user: 1, createdAt: -1 }, { name: "by_user_date" });
+  await db.collection("api_calls").createIndex({ instance: 1, user: 1, createdAt: -1 }, { name: "by_user_date" });
   await db
     .collection("api_calls")
-    .createIndex({ user: 1, prefix: 1, createdAt: -1 }, { name: "by_user_key_date" });
+    .createIndex({ instance: 1, user: 1, prefix: 1, createdAt: -1 }, { name: "by_user_key_date" });
   {
     // TTL: o log de tráfego cresce rápido e não tem valor histórico depois de
     // um tempo. O de auditoria é outro e não expira.
@@ -506,43 +557,23 @@ async function ensureInstance(app, instance) {
   // um segundo documento é recusado pelo Mongo.
   await db
     .collection("configurations")
-    .createIndex({ chave: 1 }, { unique: true, name: "chave_unica" });
-
-  // A MIGRAÇÃO, aqui e não num script à parte: `ensureInstance` roda no boot
-  // para toda instância registrada, então subir o código já move o dado. É
-  // idempotente — com a configuração já criada, não faz nada.
-  const jaTem = await db.collection("configurations").findOne({ chave: "instancia" });
-  if (!jaTem) {
-    // O `tenants` de verdade tinha UM documento por instância (conferido nas
-    // quatro em produção); se houver mais de um, o do dono mais antigo é o que
-    // vale, pela mesma regra que `dataOfInstance` sempre usou.
-    const antigo = await db.collection("tenants").findOne({}, { sort: { createdAt: 1 } });
-
-    if (antigo) {
-      const { _id, user, ...resto } = antigo;
-      await db.collection("configurations").insertOne({
-        chave: "instancia",
-        ...resto,
-        // Quem criou fica como HISTÓRICO, não como chave: é a diferença entre
-        // "esta casa foi montada por fulano" e "esta configuração é do fulano".
-        criadoPor: user || null,
-        migradoDe: _id,
-        migradoEm: new Date(),
-      });
-      console.log(`[schema] configuração migrada de tenants (${nome})`);
-    } else {
-      // Instância sem tenant nenhum (nasceu e ninguém configurou nada): o
-      // documento nasce vazio, para as gravações seguintes terem onde cair.
-      await db
-        .collection("configurations")
-        .insertOne({ chave: "instancia", createdAt: new Date() });
-    }
-  }
+    .createIndex({ instance: 1, chave: 1 }, { unique: true, name: "chave_unica" });
 
   // tenants — LEGADO. Os índices continuam enquanto a collection existir: ela
   // é a cópia de segurança da migração acima, e some quando o dado novo tiver
   // rodado tempo suficiente em produção.
-  await db.collection("tenants").createIndex({ user: 1 }, { unique: true, name: "user_unique" });
+  await db.collection("tenants").createIndex({ instance: 1, user: 1 }, { unique: true, name: "user_unique" });
+  // ── ESTES DOIS NÃO LEVAM `instance`, e é de propósito ────────────────────
+  //
+  // Todo outro índice daqui ganhou `instance` na frente. Endereço, não: duas
+  // academias não podem ocupar `bruna.gofitnow.fit`, então a unicidade é GLOBAL.
+  // Pôr o cliente na frente autorizaria justamente a colisão que o índice existe
+  // para impedir.
+  //
+  // Com um banco por cliente estes índices não protegiam nada — um documento por
+  // banco, e a colisão só era barrada pelo registro no central. Num banco só eles
+  // passam a valer. Conferido antes de criar: um único cliente tem subdomínio
+  // gravado e nenhum tem domínio próprio, então não há colisão para tropeçar.
   await db
     .collection("tenants")
     .createIndex(
@@ -556,13 +587,78 @@ async function ensureInstance(app, instance) {
       { unique: true, partialFilterExpression: { customDomain: { $type: "string" } }, name: "custom_domain_unique" }
     );
 
-  // Os tipos de usuário padrão. Rodam DENTRO do contexto da instância porque
-  // `roles` é dela — fora do contexto, o modelo estouraria de propósito.
-  await instanceContext.run(nome, () => app.api.role.ensureSystemRoles());
-
-  console.log(`[schema] instância pronta — ${nome}`);
   return db;
 }
+
+// ── PROVISIONAR UM CLIENTE ─────────────────────────────────────────────────
+//
+// Isto criava 35 collections e ~99 índices. Era tão caro que precisou ser partido
+// em dois — `ensureInstanceEssencial` fazia o mínimo para o cadastro responder
+// rápido, e o resto vinha depois, em segundo plano.
+//
+// Com um banco só, não há DDL nenhum por cliente: sobrou semear os papéis do
+// sistema. De ~134 operações de schema para dois inserts.
+//
+// Os dois nomes continuam existindo porque são o contrato de duas rotas do painel
+// (`/internal/instances/:instance/provision` e o cadastro). Fundi-los agora
+// misturaria a troca de armazenamento com uma troca de API.
+async function ensureInstanceEssencial(app, instance) {
+  const nome = instanceContext.normalize(instance);
+  if (!nome) throw new Error("invalid_instance: " + instance);
+
+  // Tudo aqui roda DENTRO do contexto do cliente: é o que faz o
+  // `connectToServer()` dos modelos escopar no cliente certo.
+  await instanceContext.run(nome, async () => {
+    // Sem os papéis do sistema a tela de Usuários abre vazia e o primeiro
+    // convite não tem o que oferecer.
+    await app.api.role.ensureSystemRoles();
+
+    // ── A MIGRAÇÃO `tenants` → `configurations`, POR CLIENTE ────────────────
+    //
+    // Estava no fim do antigo `ensureInstance`, junto dos índices. Quando movi os
+    // índices para `ensureDados` (que é do banco, não do cliente), ela veio de
+    // carona — e ali estaria ERRADA: lê UM documento de `tenants` e escreve UM de
+    // `configurations`, então num banco compartilhado pegaria o `tenants` de
+    // qualquer cliente e gravaria a configuração dele para outro.
+    //
+    // Aqui ela volta a ser por cliente, e o escopo é quem garante isso: as duas
+    // consultas abaixo já saem filtradas por `instance`.
+    const db = await app.mongodb.connectToServer();
+
+    const jaTem = await db.collection("configurations").findOne({ chave: "instancia" });
+    if (jaTem) return;
+
+    // O `tenants` de verdade tinha UM documento por instância (conferido nas
+    // quatro em produção); se houver mais de um, o do dono mais antigo é o que
+    // vale, pela mesma regra que `dataOfInstance` sempre usou.
+    const antigo = await db.collection("tenants").findOne({}, { sort: { createdAt: 1 } });
+
+    if (antigo) {
+      const { _id, user, instance: _i, ...resto } = antigo;
+      await db.collection("configurations").insertOne({
+        chave: "instancia",
+        ...resto,
+        // Quem criou fica como HISTÓRICO, não como chave: é a diferença entre
+        // "esta casa foi montada por fulano" e "esta configuração é do fulano".
+        criadoPor: user || null,
+        migradoDe: _id,
+        migradoEm: new Date(),
+      });
+      console.log(`[schema] configuração migrada de tenants (${nome})`);
+    } else {
+      // Cliente sem tenant nenhum (nasceu e ninguém configurou nada): o
+      // documento nasce vazio, para as gravações seguintes terem onde cair.
+      await db.collection("configurations").insertOne({ chave: "instancia", createdAt: new Date() });
+    }
+  });
+
+  console.log(`[schema] cliente pronto — ${nome}`);
+}
+
+async function ensureInstance(app, instance) {
+  return ensureInstanceEssencial(app, instance);
+}
+
 
 // ── O boot ─────────────────────────────────────────────────────────────────
 
@@ -576,8 +672,11 @@ module.exports = async function ensureSchema(app) {
     throw new Error(`[schema] instância semente inválida: ${SEED_INSTANCE} (${r.erro})`);
   }
 
-  // Toda instância registrada ganha as collections e os índices. É o que faz um
-  // deploy alcançar clientes criados depois da última versão.
+  // As collections e os índices, uma vez: eles são do banco.
+  await ensureDados(app);
+
+  // E os papéis de cada cliente registrado — é o que faz um deploy alcançar
+  // clientes criados depois da última versão.
   for (const doc of await app.api.center.list()) {
     await ensureInstance(app, doc.instance);
   }
@@ -586,6 +685,8 @@ module.exports = async function ensureSchema(app) {
 };
 
 module.exports.ensureCentral = ensureCentral;
+module.exports.ensureDados = ensureDados;
+module.exports.ensureUmBanco = ensureUmBanco;
 module.exports.ensureInstance = ensureInstance;
 module.exports.ensureInstanceEssencial = ensureInstanceEssencial;
 module.exports.ESSENCIAIS = ESSENCIAIS;

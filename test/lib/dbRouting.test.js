@@ -5,6 +5,11 @@ const instanceContext = require("../../lib/instance.js");
 
 // Para qual BANCO cada coisa vai.
 //
+// São DOIS bancos no total, e não dois por cliente: `gofitnow` guarda os dados de
+// todos os clientes, com o campo `instance` em cada documento, e `gofitnow_center`
+// guarda o que é igual para todo mundo. Era um banco por cliente até 24/08/2026 —
+// ver o cabeçalho de `config/mongodb.js` para a aritmética que derrubou aquilo.
+//
 // O módulo lê MONGODB_URI na carga, então ele é exigido depois de a variável
 // existir. Nenhum teste aqui abre conexão: o que se prova é o roteamento, que é
 // decidido antes de qualquer ida ao servidor.
@@ -18,15 +23,25 @@ test("o banco central é o `_center` — o do compartilhado", () => {
   assert.equal(mongodb.centralName(), "gofitnow_center");
 });
 
-test("cada instância é um banco com prefixo do central", () => {
-  assert.equal(mongodb.dbNameFor("marlon"), "gofitnow_marlon");
-  assert.equal(mongodb.dbNameFor("outro"), "gofitnow_outro");
+test("todo cliente mora no MESMO banco", () => {
+  // O nome da URI, que antes era só a base dos outros dois, agora é o banco dos
+  // dados. O que separa um cliente do outro é o campo, não o banco.
+  assert.equal(mongodb.nomeDoBanco(), "gofitnow");
 });
 
-test("nome inválido não vira nome de banco", () => {
-  // Sem isto, um nome vindo de fora escolheria em qual banco escrever.
+test("nome de cliente inválido é recusado por comoCliente", async () => {
+  // Antes um nome ruim não virava nome de banco. Agora não vira ESCOPO — e o
+  // perigo aumentou: um escopo vazio leria todos os clientes em vez de um banco
+  // inexistente.
+  //
+  // `await` em cada um: `assert.rejects` devolve promessa, e sem esperar o teste
+  // passaria mesmo que nada fosse recusado.
   for (const ruim of ["../admin", "com.ponto", "", "admin", null]) {
-    assert.equal(mongodb.dbNameFor(ruim), null, JSON.stringify(ruim));
+    await assert.rejects(
+      () => mongodb.comoCliente(ruim),
+      /invalid_instance/,
+      JSON.stringify(ruim)
+    );
   }
 });
 
@@ -63,11 +78,9 @@ test("contas e treinos são da instância, nunca do central", () => {
   }
 });
 
-test("são DOIS bancos por cliente-mais-um, e os nomes se leem em conjunto", () => {
-  // O nome da URI (`gofitnow`) é só a base: nenhuma collection mora nele.
+test("são dois bancos, e os nomes se leem em conjunto", () => {
+  assert.equal(mongodb.nomeDoBanco(), "gofitnow");
   assert.equal(mongodb.centralName(), "gofitnow_center");
-  assert.equal(mongodb.dbNameFor("marlon"), "gofitnow_marlon");
-  assert.equal(mongodb.dbNameFor("outro"), "gofitnow_outro");
 });
 
 test("`access_requests` não existe mais em lugar nenhum", () => {
@@ -146,12 +159,112 @@ test("um modelo comum lê o banco da INSTÂNCIA", async () => {
   assert.deepEqual(chamadas, ["instancia"]);
 });
 
-test("dentro do escopo, o nome do banco é o da instância do escopo", () => {
-  // Confere que o roteamento acompanha o contexto, e não uma variável global.
-  instanceContext.run("marlon", () => {
-    assert.equal(mongodb.dbNameFor(instanceContext.required()), "gofitnow_marlon");
-  });
-  instanceContext.run("outro", () => {
-    assert.equal(mongodb.dbNameFor(instanceContext.required()), "gofitnow_outro");
-  });
+test("o comentário de `access_requests` já não vale pelo motivo antigo", () => {
+  // Ficava escrito que "com um banco por cliente, a conta de outra instância é
+  // outra conta". O banco por cliente acabou; a collection continua não
+  // existindo, e agora o motivo é o produto, não o armazenamento.
+  assert.ok(!schema.CENTRAL.includes("access_requests"));
+  assert.ok(!schema.POR_INSTANCIA.includes("access_requests"));
+});
+
+test("só os modelos DECLARADOS usam o banco cru, sem escopo", () => {
+  // O cru vê todos os clientes. Um modelo que o chamasse por descuido desfaria o
+  // isolamento inteiro sem erro nenhum — a tela mostraria dado alheio e nada
+  // acenderia.
+  //
+  // Mas a proibição total seria mentira: existem duas leituras que são, por
+  // definição, sobre todos os clientes ao mesmo tempo — as contagens que o painel
+  // mostra. Então a regra é uma LISTA, e não um "nunca": um uso novo quebra este
+  // teste e obriga quem escreveu a vir aqui declarar por quê.
+  //
+  // O que autoriza estas duas: as duas devolvem AGREGADO (contagem por categoria,
+  // lista de chaves e de quem usa), nunca documento de ninguém, e as duas
+  // alimentam o painel, que é nosso.
+  const AUTORIZADOS = {
+    "UserCategory_model.js": "contagens() — quantas pessoas por categoria, somando os clientes ativos",
+    "RecipeCategory_model.js": "dosClientes() — quais categorias os clientes inventaram",
+  };
+
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const dir = path.join(__dirname, "..", "..", "model");
+
+  const usam = fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith(".js"))
+    .filter((f) => fs.readFileSync(path.join(dir, f), "utf8").includes("bancoCruSemEscopo"));
+
+  const naoDeclarados = usam.filter((f) => !AUTORIZADOS[f]);
+  assert.deepEqual(
+    naoDeclarados,
+    [],
+    "modelo lendo TODOS os clientes sem estar declarado em AUTORIZADOS"
+  );
+
+  // E o contrário: um nome que saiu da lista mas continua declarado esconde que
+  // a autorização deixou de ser usada.
+  const declaradosSemUso = Object.keys(AUTORIZADOS).filter((f) => !usam.includes(f));
+  assert.deepEqual(declaradosSemUso, [], "autorização sobrando em AUTORIZADOS");
+});
+
+test("as duas leituras cruzadas filtram pelos clientes ATIVOS", () => {
+  // Ler o banco cru sem `$match` nenhum contaria cliente desativado — e, pior,
+  // contaria um cliente que foi apagado do registro mas cujos documentos ainda
+  // estão lá. O `$in` na lista de ativos é o que mantém a resposta igual à do
+  // laço por banco que existia antes.
+  const fs = require("node:fs");
+  const path = require("node:path");
+
+  for (const arquivo of ["UserCategory_model.js", "RecipeCategory_model.js"]) {
+    const texto = fs.readFileSync(path.join(__dirname, "..", "..", "model", arquivo), "utf8");
+    assert.ok(
+      texto.includes("instance: { $in: ativos }"),
+      `${arquivo} lê o banco cru sem filtrar pelos clientes ativos`
+    );
+  }
+});
+
+test("toda collection de cliente que um modelo toca está DECLARADA", () => {
+  // ── O DEFEITO QUE ISTO FECHA ───────────────────────────────────────────────
+  //
+  // `diet_templates` e `recipe_categories` eram usadas por modelos e não estavam
+  // em `POR_INSTANCIA`. Existiam só porque o Mongo cria a collection na primeira
+  // inserção — e por isso nunca ganharam índice.
+  //
+  // Com um banco por cliente o preço era baixo: varrer uma collection de dois
+  // documentos. Num banco só, é varrer os documentos de TODOS os clientes a cada
+  // abertura de tela. E a migração deixaria os dados para trás, porque ela copia
+  // o que está declarado.
+  //
+  // Achei as duas conferindo uma diferença de 2 documentos no ensaio da migração.
+  // Não quero depender de eu conferir: aqui a lista é comparada com o uso.
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const dir = path.join(__dirname, "..", "..", "model");
+
+  // Collections do PAINEL: quem cria e indexa é o outro sistema, e este backend
+  // só as lê pelo `centralDb()`. A fronteira está no cabeçalho de
+  // `config/mongodb.js` — duas fontes criando o mesmo índice daria dois lugares
+  // para manter, um sempre atrasado.
+  const DO_PAINEL = new Set([
+    "instances", "plans", "settings", "admins", "sessions", "groups",
+    "client_errors", "commissions", "oauth_states", "food_images",
+    "exercise_clips", "user_categories", "all_users", "all_avatars",
+  ]);
+
+  const declaradas = new Set([...schema.POR_INSTANCIA, ...schema.CENTRAL, ...DO_PAINEL]);
+  const faltando = new Map();
+
+  for (const arquivo of fs.readdirSync(dir).filter((f) => f.endsWith(".js"))) {
+    const texto = fs.readFileSync(path.join(dir, arquivo), "utf8");
+    for (const m of texto.matchAll(/\.collection\("([a-z_]+)"/g)) {
+      if (!declaradas.has(m[1])) faltando.set(m[1], arquivo);
+    }
+  }
+
+  assert.deepEqual(
+    [...faltando.entries()],
+    [],
+    "collection usada por modelo e não declarada em POR_INSTANCIA/CENTRAL/DO_PAINEL"
+  );
 });

@@ -1,3 +1,6 @@
+const { documentoDieta } = require("../lib/documentoDieta.js");
+const { registrarRotasDeDocumento } = require("../lib/rotasDeDocumento.js");
+
 module.exports = function (app) {
   // Os planos alimentares de uma pessoa.
   //
@@ -166,5 +169,50 @@ module.exports = function (app) {
     });
 
     res.send(atualizada);
+  });
+
+  // ── O DOCUMENTO DO PLANO ALIMENTAR ────────────────────────────────────
+  //
+  // As mesmas três rotas da avaliação física, pela mesma fábrica. Pedido do
+  // Marlon: *"faça o mesmo para o plano alimentar, todas essas opções, coloque
+  // no app e web também"*.
+  registrarRotasDeDocumento(app, {
+    base: "diets",
+    prefixoDoArquivo: "plano-alimentar",
+    chaveDoAssunto: "email.diet.subject",
+    chaveDeOk: "ok.dietEmailed",
+    acao: "email_diet",
+
+    montar: async function (req, res) {
+      const trainer = await app.helpers.ReqProtected.can(req, res, "diets.view");
+      if (trainer === false) return null;
+
+      // `data` já devolve o plano com as refeições ordenadas pelo horário e com
+      // os totais calculados — inclusive a regra de que só a primeira opção de
+      // cada grupo conta. A folha não recalcula nada disso: recalcular seria
+      // criar uma segunda verdade sobre o mesmo plano.
+      const diet = await app.api.diet.data(trainer._id, req.params.id);
+      if (!diet) {
+        res.status(404).send({ msg: req.t("errors.dietNotFound") });
+        return null;
+      }
+
+      const [student, fuso] = await Promise.all([
+        app.api.user.dataStudent(trainer._id, diet.student),
+        app.api.tenant.timezoneOfInstance(),
+      ]);
+
+      const html = documentoDieta({
+        diet,
+        person: student,
+        lang: trainer.lang || req.language,
+        fuso,
+      });
+
+      // A data do arquivo é a de INÍCIO do plano, não a de hoje: dois planos
+      // baixados em dias diferentes ficariam com nomes diferentes para o mesmo
+      // conteúdo, e o de ontem pareceria outro documento.
+      return { trainer, pessoa: student, html, nome: student?.name, data: diet.startDate };
+    },
   });
 };

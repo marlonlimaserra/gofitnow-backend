@@ -1,3 +1,6 @@
+const { documentoAvaliacao } = require("../lib/documentoAvaliacao.js");
+const { registrarRotasDeDocumento } = require("../lib/rotasDeDocumento.js");
+
 module.exports = function (app) {
   // As avaliações físicas de uma pessoa.
   //
@@ -30,7 +33,39 @@ module.exports = function (app) {
         sex: student.sex || "",
         birthDate: student.birthDate || "",
       },
+      // Os ângulos configurados vão JUNTO, e não numa chamada à parte.
+      //
+      // A tela precisa dos dois ao mesmo tempo — sem a lista ela não sabe
+      // quantas vagas desenhar —, e buscar em separado só acrescentaria um
+      // instante em que as vagas piscam de quatro para o que a casa escolheu.
+      photoSides: await app.api.tenant.assessmentPhotoSides(),
     });
+  });
+
+  // ── A TELA "AVALIAÇÕES": as últimas coletas de TODAS as pessoas ──────────
+  //
+  // Irmã de `/workouts`, e pela mesma razão de existir: dentro da ficha não há
+  // como ver que faz seis meses que ninguém é medido. Esta responde "quem eu
+  // avaliei ultimamente"; a da ficha responde "como esta pessoa está".
+  //
+  // `assessments.view` — a mesma permissão da aba. A tela é a mesma informação,
+  // ordenada por outra pergunta.
+  app.get("/assessments", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "assessments.view");
+    if (trainer === false) return;
+
+    const { rows, total } = await app.api.assessment.pageAll(trainer._id, {
+      search: req.query.search,
+      studentId: req.query.personId,
+      sort: req.query.sort,
+      dir: req.query.dir,
+      page: req.query.page,
+      limit: req.query.limit,
+    });
+
+    // Os ângulos configurados vão junto, como na aba: é o que deixa a coluna de
+    // fotos dizer "3 de 4" em vez de um número solto.
+    res.send({ rows, total, photoSides: await app.api.tenant.assessmentPhotoSides() });
   });
 
   // Abre uma coleta. Ela nasce RASCUNHO e vazia.
@@ -57,7 +92,25 @@ module.exports = function (app) {
       return;
     }
 
+    // ── PESO E ALTURA JÁ VÊM PREENCHIDOS ──────────────────────────────────
+    //
+    // Do CADASTRO da pessoa, quando ele os tem. São os dois únicos campos da
+    // coleta que já existem em outro lugar do sistema, e digitá-los de novo em
+    // toda avaliação é trabalho que o produto já tinha como poupar.
+    //
+    // Vêm ANTES do corpo do pedido, e não depois: quem manda peso na criação
+    // (uma integração, o app) está dizendo o número daquele dia, e o número
+    // daquele dia vence o do cadastro.
+    //
+    // A altura do cadastro está em CENTÍMETROS e a da coleta em metros — quem
+    // converte é `alturaEmMetros`, na entrada do model, que já aceita as duas
+    // grafias porque o campo da tela também aceita.
+    //
+    // Preencher NÃO é medir: o número aparece no campo, editável, e é o
+    // profissional que confirma. O peso do cadastro pode ser de um ano atrás.
     const id = await app.api.assessment.insert(trainer._id, student._id, {
+      ...(typeof student.weight === "number" ? { weight: student.weight } : {}),
+      ...(typeof student.height === "number" ? { height: student.height } : {}),
       ...(req.body || {}),
       draft: true,
     });
@@ -65,6 +118,22 @@ module.exports = function (app) {
     res.status(201).send(await app.api.assessment.data(trainer._id, id));
   });
 
+  // UMA coleta, com o que a tela dela precisa em volta.
+  //
+  // A rota existia devolvendo o documento cru e sem nenhum consumidor. Ganhou
+  // forma quando a tela de uma avaliação nasceu — pedido do Marlon: clicar num
+  // cartão da lista levava à aba da pessoa, que mostra TODAS, e "acho que deveria
+  // ter uma tela detalhada só dessa avaliação".
+  //
+  // Vão junto três coisas, e nenhuma é enfeite:
+  //
+  //   `person`   sexo e nascimento, porque quem calcula gordura e IMC é a TELA
+  //              (as fórmulas moram no front, onde o formulário as usa ao vivo).
+  //              O nome e a foto, porque fora da ficha "78 kg" não é de ninguém.
+  //   `previous` a coleta anterior da mesma pessoa: um número sozinho não diz
+  //              nada, e é o que permite mostrar a variação sem pedir a lista.
+  //   `photoSides` os ângulos configurados, para desenhar as vagas certas.
+  //   `series`   a linha do tempo da pessoa, para os gráficos de evolução.
   app.get("/assessments/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "assessments.view");
     if (trainer === false) return;
@@ -75,7 +144,34 @@ module.exports = function (app) {
       return;
     }
 
-    res.send(assessment);
+    // A pessoa vem pelo caminho de sempre — `dataStudent` confere que ela é
+    // acompanhada por QUEM PERGUNTOU. A coleta já pertence ao profissional (o
+    // `data` filtra por ele), e esta é a segunda tranca.
+    const student = await app.api.user.dataStudent(trainer._id, assessment.student);
+
+    const [previous, photoSides, series] = await Promise.all([
+      app.api.assessment.previousOf(trainer._id, assessment.student, assessment.date, assessment._id),
+      app.api.tenant.assessmentPhotoSides(),
+      // A linha do tempo desta pessoa, para os gráficos de evolução. Campos
+      // crus e sem foto — ver `seriesOf`.
+      app.api.assessment.seriesOf(trainer._id, assessment.student),
+    ]);
+
+    res.send({
+      assessment,
+      person: student
+        ? {
+            _id: student._id,
+            name: student.name,
+            sex: student.sex || "",
+            birthDate: student.birthDate || "",
+            avatarAt: student.avatarAt || null,
+          }
+        : null,
+      previous: previous || null,
+      photoSides,
+      series,
+    });
   });
 
   app.put("/assessments/:id", async function (req, res) {
@@ -132,8 +228,9 @@ module.exports = function (app) {
 
   // ── Fotos de evolução ───────────────────────────────────────────────────
   //
-  // Uma rota por LADO, e só quatro lados existem: frente, direita, esquerda e
-  // costas. Não há rota que acrescente foto — subir de novo no mesmo lado
+  // Uma rota por ÂNGULO, e os ângulos válidos são os que a casa configurou — de
+  // fábrica os quatro de sempre (frente, direita, esquerda, costas), no máximo
+  // doze. Não há rota que acrescente foto: subir de novo no mesmo ângulo
   // substitui aquela.
   //
   // É o que impede a avaliação de virar álbum: o teto não é uma contagem que
@@ -143,7 +240,7 @@ module.exports = function (app) {
     const trainer = await app.helpers.ReqProtected.can(req, res, permissao);
     if (trainer === false) return false;
 
-    if (!app.api.assessmentPhoto.isSide(req.params.side)) {
+    if (!(await app.api.assessmentPhoto.isSide(req.params.side))) {
       res.status(404).send({ msg: req.t("errors.assessmentNotFound") });
       return false;
     }
@@ -245,5 +342,76 @@ module.exports = function (app) {
     }
 
     res.send({ msg: req.t("ok.assessmentRemoved") });
+  });
+
+  // ── O DOCUMENTO DA AVALIAÇÃO ──────────────────────────────────────────
+  //
+  // As três rotas (ver, baixar em PDF, mandar por e-mail) são iguais às do plano
+  // alimentar e moram em `lib/rotasDeDocumento.js`. Aqui fica só o que é da
+  // avaliação: como carregá-la e como montar a folha.
+  //
+  // Pedido do Marlon, e o motivo dele: *"o ideal seria esse PDF ser um html
+  // gerado direto no backend, assim garantimos que vai ser igual no web e no
+  // app"*.
+  registrarRotasDeDocumento(app, {
+    base: "assessments",
+    prefixoDoArquivo: "avaliacao",
+    chaveDoAssunto: "email.assessment.subject",
+    chaveDeOk: "ok.assessmentEmailed",
+    acao: "email_assessment",
+
+    montar: async function (req, res) {
+      // Mesma trava da rota que mostra a avaliação: a permissão, e depois o
+      // vínculo — `data` já filtra pelo profissional dono.
+      const trainer = await app.helpers.ReqProtected.can(req, res, "assessments.view");
+      if (trainer === false) return null;
+
+      const assessment = await app.api.assessment.data(trainer._id, req.params.id);
+      if (!assessment) {
+        res.status(404).send({ msg: req.t("errors.assessmentNotFound") });
+        return null;
+      }
+
+      const student = await app.api.user.dataStudent(trainer._id, assessment.student);
+
+      const [previous, photoSides, fuso] = await Promise.all([
+        app.api.assessment.previousOf(trainer._id, assessment.student, assessment.date, assessment._id),
+        app.api.tenant.assessmentPhotoSides(),
+        app.api.tenant.timezoneOfInstance(),
+      ]);
+
+      // ── AS FOTOS VÃO EMBUTIDAS, e é isso que faz a folha viajar ───────
+      //
+      // `data:` URI, e não uma URL para a rota da foto. Aquela exige sessão: um
+      // `<img>` apontando para ela sai em branco no e-mail, no `expo-print` e no
+      // PDF. Embutida, a folha funciona em qualquer lugar — inclusive salva em
+      // disco, meses depois.
+      //
+      // O custo é o tamanho: cada foto infla ~33% em base64. São no máximo os
+      // ângulos configurados, e é o preço de a folha existir fora do app.
+      const imagens = {};
+      await Promise.all(
+        (photoSides || []).map(async (lado) => {
+          if (!assessment.photos?.[lado.key]) return;
+          const foto = await app.api.assessmentPhoto.data(req.params.id, lado.key);
+          if (!foto) return;
+          const bytes = foto.data?.buffer ? Buffer.from(foto.data.buffer) : foto.data;
+          imagens[lado.key] = `data:${foto.mime};base64,${bytes.toString("base64")}`;
+        })
+      );
+
+      const html = documentoAvaliacao({
+        assessment,
+        person: student,
+        previous,
+        photoSides,
+        imagens,
+        // O idioma é o de quem PEDIU — é ele que vai ler ou entregar a folha.
+        lang: trainer.lang || req.language,
+        fuso,
+      });
+
+      return { trainer, pessoa: student, html, nome: student?.name, data: assessment.date };
+    },
   });
 };

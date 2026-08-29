@@ -1,11 +1,33 @@
 const { passwordReset } = require("../lib/emailTemplates.js");
+const clientIp = require("../lib/clientIp.js");
+const desafio = require("../lib/desafio.js");
+const tentativas = require("../lib/tentativasDeLogin.js");
 
 module.exports = function (app) {
   // Self-signup — always creates a plain PROFISSIONAL. The role is looked up
   // here and never read from the body: otherwise anyone could sign up asking
   // to be an Administrador.
   app.post("/auth/register", async function (req, res) {
-    const { name, email, password } = req.body || {};
+    const { name, email, password, captchaToken } = req.body || {};
+
+    // No cadastro o desafio é liga-desliga: não há "errar N vezes" que faça
+    // sentido — um robô que cria contas acerta de primeira.
+    const configCadastro = await desafio.configuracao(app);
+    if (configCadastro.ligado && configCadastro.noCadastro) {
+      const recusa = await desafio.conferir(app, {
+        config: configCadastro,
+        token: captchaToken,
+        ip: clientIp(req),
+      });
+      if (recusa) {
+        res.status(recusa.status).send({
+          msg: req.t("errors." + recusa.code),
+          code: recusa.code,
+          siteKey: configCadastro.siteKey,
+        });
+        return;
+      }
+    }
 
     if (!name || String(name).trim().length < 2) {
       res.status(400).send({ msg: req.t("errors.requireOwnName") });
@@ -54,11 +76,37 @@ module.exports = function (app) {
   // Login — professional and person come through the same door; the frontend
   // decides what to show from `type` and the permission list.
   app.post("/auth", async function (req, res) {
-    const { email, password } = req.body || {};
+    const { email, password, captchaToken } = req.body || {};
 
     if (!email || !password) {
       res.status(400).send({ msg: req.t("errors.requireEmailAndPassword") });
       return;
+    }
+
+    const ip = clientIp(req);
+    const chaves = tentativas.chavesDe(email, ip);
+
+    // ── O DESAFIO, quando as falhas passam do limiar ────────────────────
+    //
+    // Ele vem ANTES de conferir a senha, e isso é o ponto: depois de N erros, a
+    // senha só é testada de novo por quem provou não ser um robô. Conferir
+    // primeiro e desafiar depois deixaria a força bruta seguir funcionando — o
+    // atacante saberia que acertou pela resposta, e o desafio só atrasaria a
+    // comemoração.
+    const { exigido, config } = await desafio.exigidoNoLogin(app, { email, ip });
+
+    if (exigido) {
+      const recusa = await desafio.conferir(app, { config, token: captchaToken, ip });
+      if (recusa) {
+        res.status(recusa.status).send({
+          msg: req.t("errors." + recusa.code),
+          code: recusa.code,
+          // A tela precisa da chave para desenhar o widget. Ela é pública por
+          // natureza — vai no HTML de qualquer página que use Turnstile.
+          siteKey: config.siteKey,
+        });
+        return;
+      }
     }
 
     const user = await app.api.user.authenticate(email, password);
@@ -74,17 +122,59 @@ module.exports = function (app) {
         extra: { email: String(email).trim().toLowerCase() },
       });
 
-      res.status(401).send({ msg: req.t("errors.badCredentials") });
+      // Conta a falha — é ela que faz o desafio aparecer na próxima.
+      tentativas.registrarFalha(chaves);
+
+      // `captchaNext` diz à tela se o PRÓXIMO envio vai precisar do widget, para
+      // ele já aparecer junto com a mensagem de senha errada. Sem isto, a pessoa
+      // erraria de novo só para descobrir que agora tem um desafio.
+      const proxima = await desafio.exigidoNoLogin(app, { email, ip });
+
+      res.status(401).send({
+        msg: req.t("errors.badCredentials"),
+        captchaNext: proxima.exigido,
+        siteKey: proxima.exigido ? proxima.config.siteKey : undefined,
+      });
       return;
     }
 
     const token = await app.api.auth.registerToken(user._id);
+
+    // Entrou: zera a contagem. Sem isto, quem errou duas vezes, acertou, e
+    // voltou dez minutos depois pegaria o desafio sem ter errado nada.
+    tentativas.limparFalhas(chaves);
 
     app.insertUserActionHistory(req, user, "login", { category: "auth" });
 
     res.send({
       session: token,
       user: await app.api.tenant.vestirComAConta(await app.api.user.withRole(user)),
+    });
+  });
+
+  // ── O QUE A TELA DE ENTRADA PRECISA SABER ANTES DE DESENHAR ───────────
+  //
+  // Pública, e tem de ser: acontece antes de existir sessão. Não vaza nada — a
+  // `siteKey` é feita para ficar no HTML, e a `secretKey` nunca sai daqui.
+  //
+  // `email` é opcional: com ele a resposta diz se AQUELA conta já passou do
+  // limiar, e a tela desenha o widget de saída. Sem ele, responde só a
+  // configuração geral.
+  app.get("/auth/challenge", async function (req, res) {
+    const ip = clientIp(req);
+    const email = req.query?.email;
+
+    const { exigido, config } = await desafio.exigidoNoLogin(app, { email, ip });
+
+    // Sem cache: a resposta depende de quantas vezes ESTE ip errou agora há
+    // pouco. Guardada num proxy, ela mentiria para a próxima pessoa.
+    res.setHeader("Cache-Control", "no-store");
+    res.send({
+      ligado: Boolean(config.ligado),
+      siteKey: config.ligado ? config.siteKey : "",
+      exigidoAgora: exigido,
+      noCadastro: Boolean(config.ligado && config.noCadastro),
+      noEsqueci: Boolean(config.ligado && config.noEsqueci),
     });
   });
 
@@ -113,11 +203,32 @@ module.exports = function (app) {
   // Always answers 200, even when the e-mail has no account. A different
   // answer would turn this into a way to discover which addresses exist.
   app.post("/auth/forgot-password", async function (req, res) {
-    const { email } = req.body || {};
+    const { email, captchaToken } = req.body || {};
 
     const generic = {
       msg: req.t("ok.resetLinkSent"),
     };
+
+    // Aqui o desafio protege uma coisa específica: esta rota MANDA E-MAIL, e sem
+    // freio ela vira uma máquina de encher a caixa de alguém — ou de queimar a
+    // cota da Resend. Também é liga-desliga: a resposta é genérica de propósito,
+    // então não há "falha" para contar.
+    const configEsqueci = await desafio.configuracao(app);
+    if (configEsqueci.ligado && configEsqueci.noEsqueci) {
+      const recusa = await desafio.conferir(app, {
+        config: configEsqueci,
+        token: captchaToken,
+        ip: clientIp(req),
+      });
+      if (recusa) {
+        res.status(recusa.status).send({
+          msg: req.t("errors." + recusa.code),
+          code: recusa.code,
+          siteKey: configEsqueci.siteKey,
+        });
+        return;
+      }
+    }
 
     if (!email || !app.validator.isEmail(String(email).trim())) {
       res.send(generic);

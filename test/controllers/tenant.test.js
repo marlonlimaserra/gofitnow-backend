@@ -290,6 +290,29 @@ test("app.gofitnow.fit não é de ninguém, e isso é de propósito", async () =
   const r = await call(app, "get", "/public/theme", { query: { host: "app.gofitnow.fit" } });
 
   assert.equal(r.body.known, false, "app.gofitnow.fit não pode ser reconhecido como cliente");
+  // ...mas é PORTAL, e é isso que faz a tela mostrar a porta de entrada em vez de
+  // "domínio não identificado".
+  assert.equal(r.body.portal, true);
+});
+
+test("a porta de entrada existe nos DOIS domínios nossos", async () => {
+  // `shapeapp.fit` entrou em 25/08/2026 ao lado de `gofitnow.fit`. Sem
+  // `app.shapeapp.fit` na lista de portais, quem digitasse a porta do domínio
+  // novo via "domínio não identificado" — o mesmo defeito que já foi consertado
+  // uma vez no domínio antigo.
+  const { app } = monta({ tenant: { subdomain: "marlon", theme: {} } });
+
+  for (const host of ["app.gofitnow.fit", "app.shapeapp.fit"]) {
+    const r = await call(app, "get", "/public/theme", { query: { host } });
+    assert.equal(r.body.portal, true, host);
+    assert.equal(r.body.known, false, host);
+  }
+
+  // E um subdomínio qualquer do domínio novo continua sendo desconhecido: portal
+  // é lista, não sufixo.
+  const outro = await call(app, "get", "/public/theme", { query: { host: "qualquer.shapeapp.fit" } });
+  assert.equal(outro.body.portal, undefined);
+  assert.equal(outro.body.known, false);
 });
 
 test("o tema público vem com a escala pronta", async () => {
@@ -712,4 +735,94 @@ test("salvar a aparência exige users.manage — ela muda a tela de todo mundo",
 
   assert.equal(r.status, 403);
   assert.deepEqual(pedidas, ["users.manage"]);
+});
+
+// ── OS ÂNGULOS DA FOTO DE EVOLUÇÃO ──────────────────────────────────────────
+//
+// Os quatro de fábrica viraram o PADRÃO da instância em vez do limite dela. O
+// que estes testes seguram é a permissão de cada lado da porta: ler é para quem
+// abre uma ficha, gravar é para quem avalia.
+function montaAngulos({ guardados, permissoes = [] } = {}) {
+  const salvos = [];
+  const pedidas = [];
+  const photoSides = require("../../lib/assessmentPhotoSides.js");
+
+  const app = fakeApp({
+    helpers: {
+      ReqProtected: {
+        async verify() {
+          return USER;
+        },
+        async can(req, res, permissao) {
+          pedidas.push(permissao);
+          if (permissoes.length && !permissoes.includes(permissao)) {
+            res.status(403).send({ msg: "sem permissão" });
+            return false;
+          }
+          return USER;
+        },
+      },
+    },
+    api: {
+      tenant: {
+        async assessmentPhotoSides() {
+          return photoSides.daInstancia(guardados);
+        },
+        async saveAssessmentPhotoSides(entrada) {
+          const limpo = photoSides.normalizar(entrada);
+          if (limpo) salvos.push(limpo);
+          return limpo;
+        },
+      },
+    },
+  });
+
+  TenantController(app);
+  return { app, salvos, pedidas };
+}
+
+test("quem nunca configurou lê os quatro de fábrica, e o teto vem junto", async () => {
+  const { app, pedidas } = montaAngulos();
+  const r = await call(app, "get", "/me/tenant/assessment-photo-sides");
+
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body.sides.map((l) => l.key), ["front", "right", "left", "back"]);
+  assert.equal(r.body.max, 12);
+  // Ler é `assessments.view`: a tela da avaliação precisa da lista para desenhar
+  // as vagas, e quem só consulta ficha também a abre.
+  assert.deepEqual(pedidas, ["assessments.view"]);
+});
+
+test("gravar exige a permissão de quem avalia, não a de quem administra", async () => {
+  const { app, salvos, pedidas } = montaAngulos({ permissoes: ["assessments.manage"] });
+
+  const r = await call(app, "put", "/me/tenant/assessment-photo-sides", {
+    body: { sides: [{ key: "front" }, { label: "Duplo bíceps" }] },
+  });
+
+  assert.equal(r.status, 200);
+  assert.deepEqual(pedidas, ["assessments.manage"]);
+  assert.deepEqual(r.body.sides, [
+    { key: "front", label: "" },
+    { key: "duplo-biceps", label: "Duplo bíceps" },
+  ]);
+  assert.equal(salvos.length, 1);
+});
+
+test("corpo que não é lista é recusado — gravar vazio apagaria os ângulos da casa", async () => {
+  const { app, salvos } = montaAngulos({ permissoes: ["assessments.manage"] });
+  const r = await call(app, "put", "/me/tenant/assessment-photo-sides", { body: {} });
+
+  assert.equal(r.status, 400);
+  assert.equal(r.body.code, "invalid_photo_sides");
+  assert.deepEqual(salvos, []);
+});
+
+test("lista vazia de propósito PASSA — é a conta que não fotografa", async () => {
+  const { app, salvos } = montaAngulos({ permissoes: ["assessments.manage"] });
+  const r = await call(app, "put", "/me/tenant/assessment-photo-sides", { body: { sides: [] } });
+
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body.sides, []);
+  assert.deepEqual(salvos, [[]]);
 });

@@ -1,4 +1,5 @@
 const instanceContext = require("../lib/instance.js");
+const dominio = require("../lib/domain.js");
 const alias = require("../lib/alias.js");
 
 // A collection `instances`, no banco do PAINEL (`gofitnow_center`) — o registro
@@ -83,11 +84,25 @@ Center_model.prototype.collection = async function () {
 // atravessa clientes por natureza.
 //
 // NÃO VAI: uma linha da conversa. Nem a fala, nem o título, nem o nome de quem
-// foi cadastrado, nem o id do usuário. O sistema inteiro é construído sobre um
-// banco por cliente, sem `tenant_id` em lugar nenhum, justamente para não haver
-// um lugar onde o dado de todo mundo se encontra. Seria uma ironia furar isso
-// pela porta da IA, que é onde passa o dado mais sensível — a conversa em que
-// alguém dita o telefone e o objetivo de um paciente.
+// foi cadastrado, nem o id do usuário. Seria uma ironia furar isso pela porta da
+// IA, que é onde passa o dado mais sensível — a conversa em que alguém dita o
+// telefone e o objetivo de um paciente.
+//
+// ── O ARGUMENTO MUDOU, A REGRA NÃO ─────────────────────────────────────────
+//
+// Aqui estava escrito que "o sistema inteiro é construído sobre um banco por
+// cliente, sem `tenant_id` em lugar nenhum, justamente para não haver um lugar
+// onde o dado de todo mundo se encontra". Isso deixou de ser verdade em
+// 24/08/2026: os clientes passaram a dividir banco, com o campo `instance` em
+// cada documento (a aritmética que forçou isso está em `config/mongodb.js`).
+//
+// Então a propriedade que o desenho antigo dava DE GRAÇA hoje é sustentada por
+// `lib/escopo.js`, que filtra toda consulta pelo cliente e recusa método que não
+// saiba escopar. É uma garantia de código no lugar de uma garantia de
+// armazenamento — mais frágil por natureza, e por isso testada à parte.
+//
+// A regra desta collection continua valendo, e por um motivo que não dependia
+// daquele: conteúdo de conversa não pertence ao painel, em banco nenhum.
 //
 // `sessionId` viaja como texto opaco: serve para o painel contar sessões
 // distintas e para uma auditoria conseguir cruzar com a instância se precisar.
@@ -252,11 +267,35 @@ Center_model.prototype.byEmail = async function (email) {
 
 // De quem é este endereço. É o que a tela de login pergunta antes de qualquer
 // sessão.
+//
+// ── DOIS DOMÍNIOS NOSSOS, uma lista de `hosts` só ──────────────────────────
+//
+// Desde 25/08/2026 o produto responde em `shapeapp.fit` (marca nova) e em
+// `gofitnow.fit` (o endereço que os clientes têm salvo). O cadastro de cada
+// cliente guarda o endereço CANÔNICO — `bruna.gofitnow.fit` —, e é assim que
+// fica: migrar a coleção para guardar os dois seria duplicar a mesma informação
+// em milhares de documentos e criar a chance de eles divergirem.
+//
+// Então a normalização acontece na LEITURA: `bruna.shapeapp.fit` procura também
+// por `bruna.gofitnow.fit`. Uma consulta, nenhum dado novo, e um cliente que
+// nasce amanhã já funciona nos dois endereços sem ninguém lembrar de nada.
+//
+// O host de FORA (o domínio próprio do cliente, `treinos.marlon.com.br`) não
+// ganha candidato nenhum: `subdomainOf` devolve null para o que não é nosso, e
+// ele continua sendo procurado exatamente como veio.
 Center_model.prototype.byHost = async function (host) {
   const limpo = String(host || "").trim().toLowerCase().split(":")[0];
   if (!limpo) return undefined;
+
+  const candidatos = [limpo];
+  const rotulo = dominio.subdomainOf(limpo);
+  if (rotulo) {
+    const canonico = dominio.hostOf(rotulo);
+    if (canonico && canonico !== limpo) candidatos.push(canonico);
+  }
+
   const col = await this.collection();
-  return (await col.findOne({ hosts: limpo })) || undefined;
+  return (await col.findOne({ hosts: { $in: candidatos } })) || undefined;
 };
 
 Center_model.prototype.list = async function () {

@@ -160,9 +160,9 @@ test("passando de 20 por minuto, para de gravar — mas continua respondendo 204
   assert.equal(gravados.length, 20);
 });
 
-// ── A ORIGEM: painel ou app ───────────────────────────────────────────────
+// ── A ORIGEM: painel, app ou aplicativo ───────────────────────────────────
 //
-// Os dois relatam para a mesma collection, para haver UM lugar de olhar quando
+// Os três relatam para a mesma collection, para haver UM lugar de olhar quando
 // algo quebra. O que os separa é este campo.
 test("a origem chega ao modelo", async () => {
   const { app, gravados } = monta();
@@ -182,6 +182,26 @@ test("o mesmo erro no painel e no app são DOIS registros", () => {
     assinatura({ ...base, origem: "app" }),
     assinatura({ ...base, origem: "painel" })
   );
+});
+
+// O APLICATIVO é uma terceira origem, e precisa ser: o app de celular é outro
+// programa. "undefined is not a function" acontece nos dois, com pilhas e
+// consertos distintos — assinatura junta faria alguém marcar como resolvido um
+// bug que continua de pé do outro lado.
+test("aplicativo é uma origem válida e separada das outras duas", async () => {
+  const { app, gravados } = monta();
+
+  await relatar(app, { ...ERRO, origem: "aplicativo" });
+  await respira();
+
+  assert.equal(gravados[0].origem, "aplicativo");
+});
+
+test("aplicativo não compartilha assinatura com app nem com painel", () => {
+  const base = { message: "undefined is not a function", source: "", line: 0, tipo: "js" };
+  const tres = ["app", "painel", "aplicativo"].map((origem) => assinatura({ ...base, origem }));
+
+  assert.equal(new Set(tres).size, 3);
 });
 
 // A origem vem de código que roda na máquina de outra pessoa e vai direto para o

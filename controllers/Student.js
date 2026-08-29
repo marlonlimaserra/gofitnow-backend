@@ -20,6 +20,9 @@ module.exports = function (app) {
       await app.api.user.pageStudents(trainer._id, {
         search: req.query.search,
         active: req.query.active,
+        // `access=1` — só quem entra no app. Quem pergunta é o seletor de
+        // "iniciar conversa": conversar com quem não tem login não existe.
+        access: req.query.access,
         sort: req.query.sort,
         dir: req.query.dir,
         page: req.query.page,
