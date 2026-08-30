@@ -1,3 +1,4 @@
+const sessaoGuardada = require("../lib/sessaoGuardada.js");
 const { ObjectId } = require("mongodb");
 
 // The `user_tokens` collection — sessions for any user (trainer or student).
@@ -45,14 +46,24 @@ Auth_model.prototype.verify = async function (token) {
   return doc;
 };
 
+// ── APAGAR O TOKEN APAGA O CACHE JUNTO ───────────────────────────────────
+//
+// A sessão guardada (`lib/sessaoGuardada.js`) vale um minuto. Sem esta linha, um
+// token deslogado continuaria autenticando por até sessenta segundos — e é
+// justamente para o logout ser IMEDIATO que a chave do cache carrega o token.
+//
+// Mora aqui, no modelo, e não nos controladores: são seis lugares que derrubam
+// token, e um esquecido é uma sessão revogada que continua valendo, em silêncio.
 Auth_model.prototype.deleteToken = async function (token) {
   const col = await this.collection();
   await col.deleteOne({ token: String(token) });
+  await sessaoGuardada.esquecerToken(String(token));
 };
 
 Auth_model.prototype.deleteAllTokensByUser = async function (userId) {
   const col = await this.collection();
   await col.deleteMany({ user: new ObjectId(userId) });
+  await sessaoGuardada.esquecerUsuario(userId);
 };
 
 module.exports = Auth_model;

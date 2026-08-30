@@ -1,3 +1,4 @@
+const sessaoGuardada = require("../lib/sessaoGuardada.js");
 const { ObjectId } = require("mongodb");
 const permissionCatalog = require("../lib/permissions.js");
 const instanceContext = require("../lib/instance.js");
@@ -748,7 +749,9 @@ User_model.prototype.insertStudent = async function (trainerId, obj) {
   return r.insertedId;
 };
 
+// Mexeu na pessoa: a sessão guardada dela morre agora. Ver Auth_model.
 User_model.prototype.updateStudent = async function (trainerId, id, obj) {
+  await sessaoGuardada.esquecerUsuario(id);
   if (!ObjectId.isValid(id)) return false;
   if (!(await this.app.api.link.exists(trainerId, id))) return false;
   const col = await this.collection();
@@ -867,7 +870,9 @@ User_model.prototype.savePreferences = async function (id, prefs) {
 };
 
 // Updates the user's own account data (name/email) or password.
+// Mexeu na conta (senha, idioma, vocabulário): a sessão guardada morre.
 User_model.prototype.updateSelf = async function (id, obj) {
+  await sessaoGuardada.esquecerUsuario(id);
   if (!ObjectId.isValid(id)) return false;
   const col = await this.collection();
 
@@ -1050,7 +1055,10 @@ User_model.prototype.listAll = async function (filter) {
 
 // Admin edit of ANY user. Separate from updateTrainer/updateStudent because
 // those two pin `type` in the query — here type itself can change.
+// O painel mexeu na conta — papel, permissões, ativo/inativo. É o caso que
+// MAIS importa: desativar alguém não pode demorar um minuto para valer.
 User_model.prototype.updateAny = async function (id, obj) {
+  await sessaoGuardada.esquecerUsuario(id);
   if (!ObjectId.isValid(id)) return false;
   const col = await this.collection();
 
@@ -1097,7 +1105,9 @@ User_model.prototype.updateAny = async function (id, obj) {
   return r.matchedCount > 0;
 };
 
+// A conta morreu. A sessão guardada não pode sobreviver a ela.
 User_model.prototype.deleteAny = async function (id) {
+  await sessaoGuardada.esquecerUsuario(id);
   if (!ObjectId.isValid(id)) return false;
   const col = await this.collection();
 

@@ -1,3 +1,4 @@
+const sessaoGuardada = require("../lib/sessaoGuardada.js");
 // Gateway for authenticated routes: validates the session, loads the user who
 // owns it together with the permissions of their role, and leaves everything
 // on req._user. When it returns false the response has already been sent — the
@@ -24,6 +25,24 @@ ReqProtected.prototype.verify = async function (req, res) {
     return await this.app.helpers.apiKeyAuth.protect(req, res);
   }
 
+  // ── A SESSÃO GUARDADA ──────────────────────────────────────────────────
+  //
+  // Três idas ao Mongo (sessão, usuário, papel) viram uma leitura no Redis pelo
+  // prazo de um minuto. O token é a chave: ele já prova que a sessão era válida
+  // quando foi guardada, e um minuto é o teto de tudo que isto pode errar.
+  //
+  // O acerto pula o `authSession.protect` inteiro, que é onde mora a primeira
+  // das três idas — cachear depois dela economizaria um terço do que se pode
+  // economizar.
+  const tokenDoCabecalho = this.app.helpers.authSession.tokenDe(req);
+  const guardado = tokenDoCabecalho ? await sessaoGuardada.ler(tokenDoCabecalho) : null;
+
+  if (guardado) {
+    req._user = guardado;
+    req._token = tokenDoCabecalho;
+    return req._user;
+  }
+
   const session = await this.app.helpers.authSession.protect(req, res);
   if (session === false) return false;
 
@@ -38,6 +57,10 @@ ReqProtected.prototype.verify = async function (req, res) {
 
   req._user = await this.app.api.user.withRole(user);
   req._token = session.token;
+
+  // Guardado DEPOIS de tudo conferido: só entra no cache a sessão que passou
+  // pela validação inteira, inclusive o teste de conta desativada acima.
+  sessaoGuardada.guardar(session.token, req._user);
 
   return req._user;
 };

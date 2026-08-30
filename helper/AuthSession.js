@@ -5,10 +5,21 @@ function AuthSession(app) {
   this.app = app;
 }
 
-AuthSession.prototype.protect = async function (req, res) {
-  const token = req.headers.session;
+// O token do cabeçalho, sem validar nada.
+//
+// Existe para a sessão guardada poder montar a chave ANTES de ir ao banco — é o
+// token que identifica a entrada no cache. Separado do `protect` de propósito:
+// ler o cabeçalho e VALIDAR são coisas diferentes, e quem chama esta aqui não
+// está autorizando ninguém.
+AuthSession.prototype.tokenDe = function (req) {
+  const token = req?.headers?.session;
+  return typeof token === "string" && token !== "" ? token : "";
+};
 
-  if (token === undefined || token === "") {
+AuthSession.prototype.protect = async function (req, res) {
+  const token = this.tokenDe(req);
+
+  if (!token) {
     res.status(401).send({ msg: req.t("errors.noSession") });
     return false;
   }

@@ -1,3 +1,4 @@
+const sessaoGuardada = require("../lib/sessaoGuardada.js");
 const { ObjectId } = require("mongodb");
 const permissions = require("../lib/permissions.js");
 
@@ -115,8 +116,33 @@ Role_model.prototype.update = async function (id, obj) {
   if (obj.permissions !== undefined) set.permissions = permissions.sanitize(obj.permissions);
 
   const r = await col.updateOne({ _id: new ObjectId(id) }, { $set: set });
+
+  // ── MUDAR O PAPEL MUDA A PERMISSÃO DE TODO MUNDO QUE O TEM ─────────────
+  //
+  // É o caso que mais engana da sessão guardada: apagar a sessão de UM usuário
+  // não basta aqui. Tirar `people.delete` de "Recepção" tem de valer agora para
+  // as cinco pessoas que são recepção, não daqui a um minuto para cada uma.
+  //
+  // A varredura custa uma consulta e vale a pena: mexer em papel é coisa de tela
+  // de configuração, não de caminho quente.
+  if (obj.permissions !== undefined) await esquecerQuemTemOPapel(this.app, id);
+
   return r.matchedCount > 0;
 };
+
+async function esquecerQuemTemOPapel(app, roleId) {
+  try {
+    const users = await app.api.user.collection();
+    const donos = await users
+      .find({ role: new ObjectId(roleId) }, { projection: { _id: 1 } })
+      .toArray();
+
+    for (const u of donos) await sessaoGuardada.esquecerUsuario(u._id);
+  } catch (erro) {
+    // No pior caso a permissão antiga vale até o prazo do cache acabar.
+    console.error("[papel] não consegui limpar as sessões:", erro.message);
+  }
+}
 
 Role_model.prototype.delete = async function (id) {
   if (!ObjectId.isValid(id)) return false;
