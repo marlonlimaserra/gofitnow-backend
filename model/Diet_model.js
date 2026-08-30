@@ -172,6 +172,191 @@ function comTotais(doc) {
   };
 }
 
+// ── AS ORDENS QUE O BANCO SABE FAZER ──────────────────────────────────────
+//
+// Caloria NÃO está aqui, e a ausência é decisão — a mesma que a lista de
+// avaliações tomou com o percentual de gordura.
+//
+// O total de um plano depende da regra de substituição ("pão OU tapioca" conta
+// uma vez só), e essa regra mora em `principais()`, logo abaixo em JavaScript.
+// Reescrevê-la em `$reduce` para poder ordenar seria manter duas versões da
+// mesma matemática, e um dia elas discordariam — em silêncio, num número que
+// ninguém confere. Ordenar só a página seria pior ainda: a tela diria "os mais
+// calóricos" quando são "os mais calóricos entre estes doze".
+const ORDEM_DIETAS = {
+  date: "createdAt",
+  person: "personName",
+  start: "startDate",
+  meals: "mealCount",
+  name: "name",
+};
+
+// ── VIGENTE, FUTURO, ENCERRADO ────────────────────────────────────────────
+//
+// A mesma conta do `statusOf` acima, escrita em consulta. As datas são texto
+// "AAAA-MM-DD", e é por isso que comparar com `<` funciona: nesse formato a
+// ordem alfabética É a ordem do tempo.
+//
+// O `$gt: ""` em `endDate` não é enfeite. Plano sem data de fim guarda string
+// VAZIA, e "" é menor que qualquer data — sem esse teste, todo plano em aberto
+// (que é o caso mais comum) apareceria como encerrado.
+function filtroDeStatus(status, hoje) {
+  const encerrado = { endDate: { $gt: "", $lt: hoje } };
+  const futuro = { startDate: { $gt: hoje } };
+
+  if (status === "past") return encerrado;
+  if (status === "future") return futuro;
+  if (status === "current") return { $nor: [encerrado, futuro] };
+  return null;
+}
+
+// A tela "Dietas": os últimos planos deste profissional, de TODAS as pessoas.
+//
+// Irmã de "Treinos" e de "Avaliações", e existe pela mesma razão: dentro da
+// ficha não há como ver que metade dos planos da casa venceu no mês passado. A
+// da ficha responde "o que esta pessoa come"; esta responde "o que eu montei, e
+// o que ainda está valendo".
+//
+// ── AS REFEIÇÕES NÃO VÊM ──────────────────────────────────────────────────
+//
+// Um plano carrega as refeições dentro, e cada alimento traz uma cópia do nome e
+// da tabela nutricional. Doze planos completos são centenas de kilobytes para
+// desenhar doze cartões que mostram quatro números cada.
+//
+// Então elas são lidas, viram TOTAIS aqui dentro, e são descartadas antes de
+// sair. Quem quer a lista de alimentos abre o plano.
+// A consulta, sozinha. Separada porque a listagem e a contagem por situação
+// precisam EXATAMENTE dos mesmos filtros — e duas cópias divergiriam no dia em
+// que um filtro novo entrasse só numa delas.
+Diet_model.prototype.consultaDe = async function (trainerId, filtros = {}) {
+  const consulta = { trainer: new ObjectId(trainerId) };
+
+  const status = filtroDeStatus(filtros.status, today());
+  if (status) Object.assign(consulta, status);
+
+  if (filtros.studentId && ObjectId.isValid(String(filtros.studentId))) {
+    consulta.student = new ObjectId(String(filtros.studentId));
+  }
+
+  // A busca é pelo nome da PESSOA e pelo nome do PLANO — as duas coisas que
+  // alguém digita procurando um plano. Só por pessoa deixaria "Low carb" sem
+  // resposta, e é assim que o profissional chama o que ele montou.
+  const termo = String(filtros.search || "").trim();
+  if (termo) {
+    const escapado = termo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const users = await this.app.api.user.collection();
+
+    // Teto de 500 para o caso patológico ("a", numa conta com milhares). Uma
+    // busca por uma letra não é uma busca.
+    const pessoas = await users
+      .find({ name: { $regex: escapado, $options: "i" } }, { projection: { _id: 1 }, limit: 500 })
+      .toArray();
+
+    const porPessoa = pessoas.length ? [{ student: { $in: pessoas.map((p) => p._id) } }] : [];
+    consulta.$and = [{ $or: [...porPessoa, { name: { $regex: escapado, $options: "i" } }] }];
+  }
+
+  return consulta;
+};
+
+Diet_model.prototype.pageAll = async function (trainerId, filtros = {}) {
+  const col = await this.collection();
+
+  const limite = Math.min(Math.max(Number(filtros.limit) || 20, 1), 100);
+  const pagina = Math.max(Number(filtros.page) || 1, 1);
+  const campo = ORDEM_DIETAS[filtros.sort] || "createdAt";
+  const direcao = filtros.dir === "asc" ? 1 : -1;
+
+  const consulta = await this.consultaDe(trainerId, filtros);
+
+  const total = await col.countDocuments(consulta);
+
+  // Antes do corte fica só o que decide QUAIS doze linhas são; o nome da pessoa
+  // vem depois, numa junção sobre doze documentos e não sobre os trezentos
+  // planos da conta. Mesma lição das outras duas listas.
+  const juntarPessoa = [
+    // Sem sub-pipeline de propósito: `localField/foreignField` com `pipeline`
+    // junto desliga a junção indexada do Mongo. O preço é o documento inteiro da
+    // pessoa entrar em `pessoa` — inclusive senha e salt —, e por isso ele é
+    // DESCARTADO no `$project` do fim. Tirar aquele `pessoa: 0` vaza hash de
+    // senha para a tela.
+    { $lookup: { from: "users", localField: "student", foreignField: "_id", as: "pessoa" } },
+    {
+      $addFields: {
+        personName: { $ifNull: [{ $arrayElemAt: ["$pessoa.name", 0] }, ""] },
+        personAvatarAt: { $arrayElemAt: ["$pessoa.avatarAt", 0] },
+      },
+    },
+  ];
+
+  const etapas = [
+    { $match: consulta },
+    { $addFields: { mealCount: { $size: { $ifNull: ["$meals", []] } } } },
+  ];
+
+  // Ordenar pelo NOME da pessoa é o único caso em que a junção precisa vir
+  // antes: não dá para escolher as doze primeiras por um campo que ainda não
+  // existe.
+  const ordenaPorPessoa = campo === "personName";
+  if (ordenaPorPessoa) etapas.push(...juntarPessoa);
+
+  // Linha sem o campo vai para o FIM, ordenando para qualquer lado. Um plano sem
+  // data de início encabeçando "os que começam antes" seria a tela dizendo que
+  // ele começa primeiro que todos.
+  etapas.push(
+    { $addFields: { __vazio: { $cond: [{ $in: [`$${campo}`, [null, ""]] }, 1, 0] } } },
+    { $sort: { __vazio: 1, [campo]: direcao, _id: -1 } },
+    { $skip: (pagina - 1) * limite },
+    { $limit: limite }
+  );
+
+  if (!ordenaPorPessoa) etapas.push(...juntarPessoa);
+
+  etapas.push({ $project: { pessoa: 0, __vazio: 0 } });
+
+  const docs = await col.aggregate(etapas).toArray();
+
+  return {
+    total,
+    rows: docs.map(({ personName, personAvatarAt, ...doc }) => {
+      // `comTotais` é quem sabe somar respeitando as substituições. Chamado aqui
+      // sobre doze documentos, e o resultado sai SEM as refeições.
+      const { meals, ...resto } = comTotais(doc);
+
+      return {
+        ...resto,
+        student: {
+          _id: doc.student,
+          name: personName || "",
+          avatarAt: personAvatarAt || null,
+        },
+      };
+    }),
+  };
+};
+
+// QUANTOS EM CADA SITUAÇÃO — para os botões do filtro dizerem o número.
+//
+// Recebe os MESMOS filtros da listagem menos o status, porque é isso que os
+// botões precisam significar: "dos que casam com a busca, quantos estão
+// valendo". Contar sobre a base inteira faria o número mudar sozinho quando
+// alguém digitasse na busca, e não bater com a lista logo abaixo.
+Diet_model.prototype.contarPorStatus = async function (trainerId, filtros = {}) {
+  const col = await this.collection();
+  const hoje = today();
+
+  const base = await this.consultaDe(trainerId, { ...filtros, status: "" });
+
+  const [current, past, future, all] = await Promise.all([
+    col.countDocuments({ ...base, ...filtroDeStatus("current", hoje) }),
+    col.countDocuments({ ...base, ...filtroDeStatus("past", hoje) }),
+    col.countDocuments({ ...base, ...filtroDeStatus("future", hoje) }),
+    col.countDocuments(base),
+  ]);
+
+  return { current, past, future, all };
+};
+
 Diet_model.prototype.list = async function (trainerId, studentId) {
   const col = await this.collection();
 

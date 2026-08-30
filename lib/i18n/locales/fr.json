@@ -109,6 +109,7 @@
     "requireMeals": "Envoyez la liste des repas.",
     "requireFoodName": "Indiquez le nom de l’aliment.",
     "foodNotFound": "Aliment introuvable.",
+    "foodShared": "Cet aliment appartient au catalogue partagé et ne peut pas être modifié ici. Créez le vôtre pour avoir votre version.",
     "requireWeightHeight": "Le poids et la taille sont obligatoires.",
     "assessmentNotFound": "Évaluation introuvable.",
     "conversationNotFound": "Conversation introuvable.",
@@ -712,5 +713,26 @@
       "getMe": "Les données du compte propriétaire de la clé.",
       "duplicateSession": "Copie la séance avec ses exercices et ses séries. Sans `workoutId`, la copie reste dans le même entraînement."
     }
+  },
+  "push": {
+    "diet": {
+      "title": "Nouveau plan alimentaire",
+      "body": "{{profissional}} a préparé un plan alimentaire pour vous."
+    },
+    "workout": {
+      "title": "Nouvel entraînement",
+      "body": "{{profissional}} a préparé un entraînement pour vous."
+    },
+    "assessment": {
+      "title": "Bilan prêt",
+      "body": "{{profissional}} a terminé votre bilan. Voyez où vous en êtes."
+    },
+    "message": {
+      "title": "{{profissional}}",
+      "body": "{{trecho}}"
+    }
+  },
+  "chat": {
+    "attachment": "Pièce jointe"
   }
 }

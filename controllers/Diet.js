@@ -1,6 +1,7 @@
 const { documentoDieta } = require("../lib/documentoDieta.js");
 const { registrarRotasDeDocumento } = require("../lib/rotasDeDocumento.js");
 const { logoDaCasa } = require("../lib/logoDaCasa.js");
+const { avisarSemEsperar } = require("../lib/avisar.js");
 
 module.exports = function (app) {
   // Os planos alimentares de uma pessoa.
@@ -16,6 +17,37 @@ module.exports = function (app) {
     }
     return student;
   }
+
+  // ── A TELA "DIETAS": OS ÚLTIMOS PLANOS, DE TODAS AS PESSOAS ─────────────
+  //
+  // Irmã de `/workouts` e de `/assessments`, com a mesma forma de resposta. Ela
+  // responde a pergunta que a ficha não responde: "o que eu montei ultimamente,
+  // e o que ainda está valendo".
+  //
+  // As contagens por situação vão junto porque os botões do filtro mostram o
+  // número, e elas usam os MESMOS filtros da lista menos o status — senão o
+  // número diria uma coisa e a lista logo abaixo mostraria outra.
+  app.get("/diets", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "diets.view");
+    if (trainer === false) return;
+
+    const filtros = {
+      search: req.query.search,
+      status: req.query.status,
+      studentId: req.query.personId,
+      sort: req.query.sort,
+      dir: req.query.dir,
+      page: req.query.page,
+      limit: req.query.limit,
+    };
+
+    const [{ rows, total }, counts] = await Promise.all([
+      app.api.diet.pageAll(trainer._id, filtros),
+      app.api.diet.contarPorStatus(trainer._id, filtros),
+    ]);
+
+    res.send({ rows, total, counts });
+  });
 
   app.get("/people/:personId/diets", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "diets.view");
@@ -62,6 +94,20 @@ module.exports = function (app) {
       category: "diets",
       local: { target_type: "diets", target_id: id + "" },
       extra: { name: criada.name, person: student.name, personId: student._id + "" },
+    });
+
+    // ── O AVISO, sem esperar ────────────────────────────────────────────
+    //
+    // A pessoa fechou o app; sem push ela descobre a dieta na próxima vez que
+    // abrir, que pode ser semana que vem.
+    //
+    // Não seguramos a resposta: o profissional não deve pagar, no tempo dele, a
+    // ida ao OneSignal. E falha aqui não desfaz a dieta — ver `lib/avisar.js`.
+    avisarSemEsperar(app, "diet", {
+      para: student._id,
+      de: trainer._id,
+      lang: student.lang,
+      vars: { profissional: trainer.name },
     });
 
     res.status(201).send(criada);

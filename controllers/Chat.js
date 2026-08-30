@@ -1,3 +1,5 @@
+const { avisarSemEsperar } = require("../lib/avisar.js");
+
 module.exports = function (app) {
   // As conversas.
   //
@@ -154,6 +156,30 @@ module.exports = function (app) {
     // administração. Uma conversa de trinta linhas viraria trinta entradas e
     // afogaria tudo o mais que a conta fez no dia — e o conteúdo já está
     // guardado, na conversa.
+
+    // ── O AVISO VAI PARA O OUTRO, e o WebSocket não substitui isto ──────
+    //
+    // `lib/tempoReal.js` já entrega a mensagem na hora — para quem está com a
+    // conversa ABERTA. Quem fechou o app não recebe nada, e mensagem que espera
+    // a pessoa lembrar de abrir não é mensagem.
+    //
+    // O TRECHO vai no corpo da notificação, cortado: a tela de bloqueio mostra
+    // duas linhas, e o resto é lido no app. Anexo sem texto vira o rótulo do
+    // anexo — "Mensagem" vazia não diz nada a quem recebe.
+    const outro = app.api.chat.otherOf(ctx.conversa, ctx.user._id);
+    if (outro) {
+      const destino = await app.api.user.data(outro);
+      avisarSemEsperar(app, "message", {
+        para: outro,
+        de: ctx.user._id,
+        lang: destino?.lang,
+        vars: {
+          profissional: ctx.user.name,
+          trecho: String(mensagem.body || "").slice(0, 120) || req.t("chat.attachment"),
+        },
+      });
+    }
+
     res.status(201).send(mensagem);
   });
 

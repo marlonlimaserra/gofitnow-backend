@@ -1,6 +1,7 @@
 const { documentoAvaliacao } = require("../lib/documentoAvaliacao.js");
 const { registrarRotasDeDocumento } = require("../lib/rotasDeDocumento.js");
 const { logoDaCasa } = require("../lib/logoDaCasa.js");
+const { avisarSemEsperar } = require("../lib/avisar.js");
 
 // Os bytes de uma foto, venha ela como vier do banco.
 //
@@ -227,6 +228,22 @@ module.exports = function (app) {
         category: "assessments",
         local: { target_type: "assessments", target_id: req.params.id + "" },
         extra: { personId: antes.student + "", weight: depois.weight },
+      });
+
+      // ── SÓ QUANDO O RASCUNHO VIRA AVALIAÇÃO ─────────────────────────
+      //
+      // A coleta salva a cada campo digitado. Avisar em todo PUT mandaria
+      // trinta notificações por avaliação — e a pessoa desligaria o push no
+      // dia seguinte, para sempre.
+      //
+      // Aqui é o mesmo instante que o histórico considera o nascimento da
+      // coleta: rascunho fechando. Edição posterior não avisa de novo — corrigir
+      // uma vírgula não é notícia para ninguém.
+      avisarSemEsperar(app, "assessment", {
+        para: antes.student,
+        de: trainer._id,
+        lang: (await app.api.user.dataStudent(trainer._id, antes.student))?.lang,
+        vars: { profissional: trainer.name },
       });
     } else if (!antes.draft) {
       app.insertUserActionHistory(req, trainer, "update_assessment", {

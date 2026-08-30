@@ -108,6 +108,19 @@ module.exports = function (app) {
       return;
     }
 
+    // ── O CATÁLOGO COMPARTILHADO É SÓ DE LEITURA AQUI ─────────────────────
+    //
+    // As 10.398 linhas da TACO, do IBGE e da USDA são as MESMAS para todos os
+    // clientes. Editar uma delas daqui mudaria o alimento na tela de todo
+    // mundo — e a rota só pede `foods.manage`, que todo administrador tem.
+    //
+    // 403 e não 404 de propósito: o alimento existe e está à vista na lista.
+    // Um "não encontrado" mandaria a pessoa procurar um defeito que não há.
+    if (!(await app.api.food.ehMinha(req.params.id))) {
+      res.status(403).send({ msg: req.t("errors.foodShared") });
+      return;
+    }
+
     await app.api.food.update(req.params.id, { ...antes, ...body });
     const depois = await app.api.food.data(req.params.id);
 
@@ -128,6 +141,13 @@ module.exports = function (app) {
     const alvo = await app.api.food.data(req.params.id);
     if (!alvo) {
       res.status(404).send({ msg: req.t("errors.foodNotFound") });
+      return;
+    }
+
+    // Ver o PUT acima: apagar do catálogo compartilhado tirava o alimento da
+    // tela de TODOS os clientes de uma vez.
+    if (!(await app.api.food.ehMinha(req.params.id))) {
+      res.status(403).send({ msg: req.t("errors.foodShared") });
       return;
     }
 

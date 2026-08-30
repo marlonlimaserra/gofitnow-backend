@@ -109,6 +109,7 @@
     "requireMeals": "Send the list of meals.",
     "requireFoodName": "Enter the food name.",
     "foodNotFound": "Food not found.",
+    "foodShared": "This food belongs to the shared catalog and cannot be changed here. Create your own to have your version.",
     "requireWeightHeight": "Weight and height are required.",
     "assessmentNotFound": "Assessment not found.",
     "conversationNotFound": "Conversation not found.",
@@ -712,5 +713,26 @@
       "getMe": "The data of the account that owns the key.",
       "duplicateSession": "Copies the session with its exercises and sets. Without `workoutId`, the copy stays in the same workout."
     }
+  },
+  "push": {
+    "diet": {
+      "title": "New meal plan",
+      "body": "{{profissional}} put together a meal plan for you."
+    },
+    "workout": {
+      "title": "New workout",
+      "body": "{{profissional}} put together a workout for you."
+    },
+    "assessment": {
+      "title": "Assessment ready",
+      "body": "{{profissional}} finished your assessment. See how you are doing."
+    },
+    "message": {
+      "title": "{{profissional}}",
+      "body": "{{trecho}}"
+    }
+  },
+  "chat": {
+    "attachment": "Attachment"
   }
 }

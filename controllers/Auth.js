@@ -3,7 +3,27 @@ const { enderecoDaInstancia } = require("../lib/enderecoDaInstancia.js");
 const travaDeEnvio = require("../lib/travaDeEnvio.js");
 const clientIp = require("../lib/clientIp.js");
 const desafio = require("../lib/desafio.js");
+const avisar = require("../lib/avisar.js");
 const tentativas = require("../lib/tentativasDeLogin.js");
+
+// ── O APP ID DO ONESIGNAL VAI JUNTO COM O LOGIN ──────────────────────────
+//
+// O app é um binário só para todos os clientes, e o App ID mora na central — ele
+// não pode estar embutido no pacote. A alternativa seria uma rota só para
+// buscá-lo, e uma viagem de rede a mais em toda abertura do app para um dado que
+// nunca muda entre uma abertura e a outra.
+//
+// Não é segredo: ele viaja dentro de todo aplicativo publicado, à vista de quem
+// abrir o pacote. O que autoriza DISPARAR é a REST API Key, e ela nunca sai do
+// servidor.
+//
+// Devolve `null` quando o push está desligado — e é assim que o app sabe que não
+// deve nem pedir a permissão de notificação. Pedir e não usar é gastar o único
+// "sim" que a pessoa dá.
+async function appIdDoPush(app) {
+  const config = await avisar.configuracao(app);
+  return config.ligado ? config.appId : null;
+}
 
 module.exports = function (app) {
   // Self-signup — always creates a plain PROFISSIONAL. The role is looked up
@@ -151,6 +171,7 @@ module.exports = function (app) {
     res.send({
       session: token,
       user: await app.api.tenant.vestirComAConta(await app.api.user.withRole(user)),
+      pushAppId: await appIdDoPush(app),
     });
   });
 
@@ -187,7 +208,10 @@ module.exports = function (app) {
 
     // Vestido com a conta, como o login e o /me. É ESTA rota que o app usa para
     // botar — era aqui que o F5 ressuscitava o vocabulário fóssil do documento.
-    res.send({ user: await app.api.tenant.vestirComAConta(user) });
+    res.send({
+      user: await app.api.tenant.vestirComAConta(user),
+      pushAppId: await appIdDoPush(app),
+    });
   });
 
   app.post("/auth/logout", async function (req, res) {

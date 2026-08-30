@@ -1,3 +1,5 @@
+const { avisarSemEsperar } = require("../lib/avisar.js");
+
 module.exports = function (app) {
   // Treinos — só profissional. Tudo é escopado ao profissional:
   // the student is always confirmed as belonging to this trainer first.
@@ -65,6 +67,14 @@ module.exports = function (app) {
       category: "workouts",
       local: { target_type: "workouts", target_id: id + "" },
       extra: { name: created.name, person: student.name, personId: student._id + "" },
+    });
+
+    // Mesmo caminho da dieta: avisa a pessoa, sem segurar a resposta.
+    avisarSemEsperar(app, "workout", {
+      para: student._id,
+      de: trainer._id,
+      lang: student.lang,
+      vars: { profissional: trainer.name },
     });
 
     res.status(201).send(created);
