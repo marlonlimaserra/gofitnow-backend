@@ -250,6 +250,12 @@ test("toda collection de cliente que um modelo toca está DECLARADA", () => {
     "instances", "plans", "settings", "admins", "sessions", "groups",
     "client_errors", "commissions", "oauth_states", "food_images",
     "exercise_clips", "user_categories", "all_users", "all_avatars",
+    // O SUPORTE (01/09/2026): o chamado é uma conversa entre um cliente e NÓS.
+    // Quem atende trabalha numa fila só, no painel — no banco de cada instância
+    // ela estaria espalhada em tantos lugares quantos clientes existem. Aqui
+    // este backend escreve nelas (o cliente abre e responde do app dele), e o
+    // `instance` é campo, como em todo o resto do central.
+    "tickets", "ticket_messages", "faq_posts",
   ]);
 
   const declaradas = new Set([...schema.POR_INSTANCIA, ...schema.CENTRAL, ...DO_PAINEL]);

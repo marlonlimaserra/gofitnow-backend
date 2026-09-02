@@ -639,3 +639,27 @@ test("nenhum look repete o conjunto de outro", () => {
     vistos.add(assinatura);
   }
 });
+
+// ── A CASA DE QUEM É ATENDIDO ─────────────────────────────────────────────
+
+test("a casa do aluno nasce CLÁSSICA — layout novo não se instala sozinho", () => {
+  // "Eu gosto da atual." Um desenho novo que chega ligado em todo cliente é uma
+  // tela trocada sem ninguém pedir, e quem descobre é o aluno.
+  assert.equal(theme.sanitize({}).homeAluno, "classica");
+});
+
+test("cartões é a outra escolha, e só existem essas duas", () => {
+  assert.equal(theme.sanitize({ homeAluno: "cartoes" }).homeAluno, "cartoes");
+  assert.equal(theme.sanitize({ homeAluno: "classica" }).homeAluno, "classica");
+
+  // Valor inventado cai no padrão em vez de vazar para a tela do aluno.
+  for (const ruim of ["bonita", "", null, 3, {}]) {
+    assert.equal(theme.sanitize({ homeAluno: ruim }).homeAluno, "classica", String(ruim));
+  }
+});
+
+test("a lista é exportada — a tela de Aparência desenha o que o servidor aceita", () => {
+  // Mesma regra do catálogo de limites: uma lista na tela e outra no servidor é
+  // como nasce um botão que grava um valor ignorado.
+  assert.deepEqual(theme.HOMES_DO_ALUNO, ["classica", "cartoes"]);
+});

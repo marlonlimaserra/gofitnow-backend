@@ -1,3 +1,4 @@
+const arquivos = require("../lib/arquivos.js");
 module.exports = function (app) {
   // A foto de perfil.
   //
@@ -29,7 +30,13 @@ module.exports = function (app) {
       return;
     }
 
-    res.send(avatar.data.buffer ? Buffer.from(avatar.data.buffer) : avatar.data);
+    // Os BYTES podem estar no R2 — ver lib/arquivos.js. Note que isto
+    // acontece DEPOIS do 304: quando o navegador já tem a versão
+    // cacheada, não há ida ao bucket nenhuma.
+    const bytes = await arquivos.bytesDoDocumento(avatar);
+    if (!bytes) return res.status(404).send({ msg: req.t("errors.noPhotoShort") });
+
+    res.send(bytes);
   });
 
   app.post("/me/avatar", async function (req, res) {

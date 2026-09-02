@@ -1,3 +1,4 @@
+const limiteDoPlano = require("../lib/limiteDoPlano.js");
 const ApiKeyModel = require("../model/ApiKey_model.js");
 const apiDocs = require("../lib/apiDocs.js");
 const rateLimit = require("../lib/rateLimit.js");
@@ -24,6 +25,9 @@ module.exports = function (app) {
   app.post("/api-keys", async function (req, res) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;
+
+    // O teto do plano — ver lib/limiteDoPlano.js.
+    if (await limiteDoPlano.barrou(app, req, res, "apiKeys", limiteDoPlano.contarNa(app, "api_keys"))) return;
 
     // Criar chave com chave seria uma credencial se multiplicando sozinha: quem
     // vazasse uma poderia fabricar outras e sobreviver à revogação da primeira.

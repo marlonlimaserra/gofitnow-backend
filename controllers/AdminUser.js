@@ -1,3 +1,4 @@
+const limiteDoPlano = require("../lib/limiteDoPlano.js");
 module.exports = function (app) {
   // The "Users" menu — admin only. Everything the platform has, in one list,
   // with no ownership filter: professionals, people, admins.
@@ -52,6 +53,9 @@ module.exports = function (app) {
   app.post("/users", async function (req, res) {
     const admin = await app.helpers.ReqProtected.can(req, res, "users.manage");
     if (admin === false) return;
+
+    // O teto do plano — ver lib/limiteDoPlano.js.
+    if (await limiteDoPlano.barrou(app, req, res, "professionals", limiteDoPlano.contarNa(app, "users", { type: "trainer" }))) return;
 
     const { name, email, password, phone, active } = req.body || {};
 

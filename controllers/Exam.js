@@ -1,3 +1,4 @@
+const limiteDoPlano = require("../lib/limiteDoPlano.js");
 const { catalogoPara } = require("../lib/examMarkers.js");
 
 module.exports = function (app) {
@@ -41,6 +42,9 @@ module.exports = function (app) {
   app.post("/people/:personId/exams", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "exams.manage");
     if (trainer === false) return;
+
+    // O teto do plano — ver lib/limiteDoPlano.js.
+    if (await limiteDoPlano.barrou(app, req, res, "exams", limiteDoPlano.contarNa(app, "exams"))) return;
 
     const student = await pessoaDoProfissional(req, res, trainer);
     if (student === false) return;

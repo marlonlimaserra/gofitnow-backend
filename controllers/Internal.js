@@ -1,3 +1,5 @@
+const avisar = require("../lib/avisar.js");
+const tempoReal = require("../lib/tempoReal.js");
 const ensureSchema = require("../database/schema.js");
 const instanceContext = require("../lib/instance.js");
 
@@ -70,6 +72,110 @@ module.exports = function (app) {
     // nome para todo cliente: o que separa um do outro é o campo `instance`, não
     // o banco.
     res.send({ ok: true, instance: nome, db: app.mongodb.nomeDoBanco() });
+  });
+
+  // ── PREPARAR UM BANCO REGISTRADO ────────────────────────────────────────
+  //
+  // "Se eu instalar um banco de dados novo, ele vai estar lá."
+  //
+  // Ele estava certo, e este é o buraco que a frase aponta. Registrar um banco
+  // no painel grava a URI e mais nada: as 37 collections, os ~103 índices e os
+  // papéis de sistema dos clientes que moram nele só nascem no `ensureSchema`,
+  // que roda no BOOT. Até o próximo restart, um banco recém-registrado é um
+  // banco vazio — e o primeiro cliente que cair nele não abre.
+  //
+  // Reiniciar o serviço resolvia. Reiniciar o serviço não é ferramenta.
+  //
+  // ── Por que os DOIS passos, e não só o schema ───────────────────────────
+  //
+  // `ensureUmBanco` é do BANCO: collections e índices. `ensureInstance` é do
+  // CLIENTE: os papéis de sistema (sem eles a tela de Usuários abre vazia e o
+  // primeiro convite não tem o que oferecer) e a migração da configuração.
+  //
+  // Um banco preparado sem os clientes dentro dele é metade do serviço, e a
+  // metade que falta só aparece quando alguém tenta convidar a equipe. Como o
+  // botão é um só, ele faz o que a frase "preparar este banco" promete.
+  //
+  // Idempotente pelos dois lados: `criarFaltantes` só cria o que falta,
+  // `createIndex` com a mesma chave é no-op, e `ensureSystemRoles` também.
+  // Rodar de novo num banco pronto não custa nada além do tempo.
+  app.post("/internal/databases/prepare", async function (req, res) {
+    if (!autorizado(req, res)) return;
+
+    // O painel manda a URI porque é ELE quem tem o registro dos bancos: pedir o
+    // id obrigaria este lado a reabrir a collection do painel para traduzir um
+    // id que o outro lado já tinha em mãos.
+    const uri = String((req.body || {}).uri || "").trim();
+    if (!uri) return res.status(400).send({ msg: "invalid_uri" });
+
+    let banco;
+    try {
+      banco = await app.mongodb.bancoCruSemEscopo(uri);
+    } catch (erro) {
+      return res.status(502).send({ msg: "connect_failed", detalhe: String(erro.message || erro) });
+    }
+
+    await ensureSchema.ensureUmBanco(banco);
+
+    // Os clientes QUE MORAM NESTE BANCO, e não todos: preparar um banco não é
+    // motivo para tocar nos clientes dos outros.
+    const nomeDoBanco = banco.databaseName;
+    const clientes = [];
+
+    for (const registro of await app.api.center.list()) {
+      const destino = await app.mongodb.destinoDe(registro.instance).catch(() => null);
+      if (!destino || destino.banco !== nomeDoBanco) continue;
+
+      await ensureSchema.ensureInstance(app, registro.instance);
+      clientes.push(registro.instance);
+    }
+
+    res.send({ ok: true, banco: nomeDoBanco, clientes });
+  });
+
+  // ── O PAINEL RESPONDEU UM CHAMADO ───────────────────────────────────────
+  //
+  // "Quando eu responder atualiza na hora e também recebe notificação, como se
+  // fosse um chat."
+  //
+  // Quem responde é o painel, que é OUTRO processo, com outro banco de sessões e
+  // sem o socket de ninguém. Ele grava a mensagem no central e chama aqui — este
+  // backend é o único que tem as duas coisas que faltam: a sala de tempo real
+  // daquela pessoa e o OneSignal daquele cliente.
+  //
+  // Pela mesma porta interna do provisionamento, com a mesma chave. Redis pub/sub
+  // resolveria também e criaria um segundo caminho entre os dois serviços, com
+  // outro modo de falhar — este já existe, já é testado, e o painel já o usa.
+  //
+  // NUNCA derruba a resposta do painel: quem chama trata a falha como aviso não
+  // entregue, e não como resposta não gravada. A mensagem já está no banco; o
+  // cliente a vê no próximo F5 mesmo sem nada disto funcionar.
+  app.post("/internal/tickets/notify", async function (req, res) {
+    if (!autorizado(req, res)) return;
+
+    const nome = instanceContext.normalize(req.body?.instance);
+    const para = String(req.body?.para || "");
+    if (!nome || !para) return res.status(400).send({ msg: "invalid_payload" });
+
+    const assunto = String(req.body?.assunto || "").slice(0, 140);
+    const ticket = String(req.body?.ticket || "");
+
+    // 1) A TELA ABERTA, na hora. A sala é da PESSOA — ver lib/tempoReal.js.
+    try {
+      tempoReal.avisar(nome, para, "suporte:resposta", { ticket, assunto });
+    } catch (erro) {
+      console.error("[internal:ticket] tempo real falhou:", erro?.message);
+    }
+
+    // 2) O CELULAR, para quem não está com a tela aberta. `sem esperar` porque a
+    // resposta desta rota não deve carregar o tempo do OneSignal.
+    avisar.avisarSemEsperar(app, "ticket", {
+      para,
+      lang: req.body?.lang,
+      vars: { assunto },
+    });
+
+    res.send({ ok: true });
   });
 
   // O PRIMEIRO ACESSO de uma instância.

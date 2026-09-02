@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const arquivos = require("../lib/arquivos.js");
 const instanceContext = require("../lib/instance.js");
 
 // O catálogo de exercícios, no banco central.
@@ -251,14 +252,18 @@ Exercise_model.prototype.clip = async function (slug) {
 
   const db = await this.app.mongodb.centralDb();
   const doc = await db.collection("exercise_clips").findOne({ _id: chave });
-  if (!doc?.webp) return undefined;
+  if (!doc || (!doc.webp && !doc.chave)) return undefined;
 
-  // `Buffer.isBuffer` PRIMEIRO, e o teste é que mostrou por quê: um Buffer do
-  // Node também tem `.buffer` — só que ele aponta para o pool inteiro de 8 KB
-  // que o Node reaproveita. `Buffer.from(b.buffer)` devolveria oito mil zeros no
-  // lugar da imagem. O `Binary` do BSON é que precisa do desembrulho.
-  const bruto = doc.webp;
-  const dados = Buffer.isBuffer(bruto) ? bruto : Buffer.from(bruto.buffer ?? bruto);
+  // Os bytes podem estar no R2 (`gofitnow/clipes/<slug>.webp`) ou ainda no
+  // campo `webp` do documento — ver lib/arquivos.js.
+  //
+  // A lição do `Buffer.isBuffer` PRIMEIRO mora lá agora, num lugar só: um Buffer
+  // do Node também tem `.buffer`, e ele aponta para o pool de 8 KB que o Node
+  // reaproveita. `Buffer.from(b.buffer)` devolveria oito mil bytes de lixo no
+  // lugar da imagem. Estava escrito aqui, e eu reescrevi o erro em outro arquivo
+  // mesmo tendo o exemplo certo na frente — é por isso que agora é um só.
+  const dados = await arquivos.bytesDoDocumento(doc, "webp");
+  if (!dados) return undefined;
 
   return { dados, quando: doc.updatedAt || null };
 };

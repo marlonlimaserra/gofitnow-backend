@@ -1,3 +1,6 @@
+const arquivos = require("../lib/arquivos.js");
+const limiteDoPlano = require("../lib/limiteDoPlano.js");
+const aparenciaGuardada = require("../lib/aparenciaGuardada.js");
 const domainLib = require("../lib/domain.js");
 const currencies = require("../lib/currencies.js");
 const themeLib = require("../lib/theme.js");
@@ -42,6 +45,18 @@ module.exports = function (app) {
   // bonita em qualquer endereço, inclusive num digitado errado.
   app.get("/public/theme", async function (req, res) {
     const host = String(req.query.host || req.headers["x-forwarded-host"] || req.headers.host || "");
+
+    // ── A RESPOSTA PRONTA, GUARDADA POR SEIS HORAS ────────────────────────
+    //
+    // Esta rota é chamada antes de QUALQUER sessão, em toda abertura de tela de
+    // login — e paga duas idas: uma ao central (de quem é este endereço) e uma
+    // ao banco do cliente (qual a cor dele). Guardar a resposta some com as duas.
+    //
+    // Seis horas só é seguro porque a limpeza é estrutural: quem trocar a cor
+    // escreve em `configurations`, e `lib/escopo.js` derruba o cache na hora.
+    // Ver `lib/aparenciaGuardada.js`.
+    const guardada = await aparenciaGuardada.ler(host);
+    if (guardada) return res.send(guardada);
 
     const padrao = { theme: themeLib.defaults(), scale: themeLib.scale(themeLib.defaults().brand) };
 
@@ -114,15 +129,54 @@ module.exports = function (app) {
     //
     // Fora do objeto `theme` de propósito: `theme` é aparência, validada por
     // `theme.sanitize`, e idioma não é aparência.
-    res.send({
+    const resposta = {
       ...app.api.tenant.publicTheme(tenant),
       language: tenant.language || null,
       custom: true,
       ...conhecido,
-    });
+    };
+
+    aparenciaGuardada.guardar(host, resposta, registro.instance);
+    res.send(resposta);
   });
 
   // ── Do profissional ─────────────────────────────────────────────────────
+
+  // ── AS FOTOS DOS CARTÕES DA CASA DO ALUNO ────────────────────────────────
+  //
+  // Uma por destino do menu (`treinos`, `dieta`, `suplementos`, `exames`,
+  // `agenda`), guardadas em `gofitnow/cartoes/<chave>.webp` no R2.
+  //
+  // PÚBLICA, e pelo mesmo motivo da logo: elas pintam a tela inicial e são o
+  // nosso catálogo, iguais para todo cliente — não há nada de ninguém aqui. O
+  // que é privado (foto de avaliação, avatar) continua passando pela sessão.
+  //
+  // ── A LISTA É FECHADA ───────────────────────────────────────────────────
+  //
+  // `:chave` vira nome de arquivo no bucket. Sem a lista, um pedido com
+  // `../../outra-coisa` seria um jeito de ler o que não é para ser lido — e
+  // `lib/arquivos.js` já recusaria, mas defender num lugar só é como se acaba
+  // dependendo de uma defesa que um dia alguém contorna.
+  const CARTOES = ["treinos", "dieta", "suplementos", "exames", "agenda"];
+
+  app.get("/public/home-cards/:chave.webp", async function (req, res) {
+    const chave = String(req.params.chave || "");
+    if (!CARTOES.includes(chave)) return res.status(404).end();
+
+    const achado = await arquivos.ler(arquivos.chaveNossa("cartoes", chave + ".webp"));
+
+    // 404 é o caso NORMAL enquanto as fotos não existem: o app desenha o
+    // degradê da marca quando a imagem não vem, e foi feito para ficar bonito
+    // assim. Nada aqui precisa fingir que a foto existe.
+    if (!achado) return res.status(404).end();
+
+    res.setHeader("Content-Type", achado.mime || "image/webp");
+    // Um ano e `immutable`: é conteúdo nosso que não muda. Trocar a foto de um
+    // cartão vai exigir trocar o nome do arquivo — e é o certo, porque é assim
+    // que o cache de todo mundo solta a antiga.
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.send(achado.bytes);
+  });
 
   app.get("/me/tenant", async function (req, res) {
     const user = await app.helpers.ReqProtected.verify(req, res);
@@ -185,6 +239,8 @@ module.exports = function (app) {
       appBgMotions: themeLib.APP_BG_MOTIONS,
       fonts: themeLib.FONTS,
       menuLayouts: themeLib.MENU_LAYOUTS,
+      // Como a casa de quem é ATENDIDO se parece — ver HOMES_DO_ALUNO.
+      homesDoAluno: themeLib.HOMES_DO_ALUNO,
       tabTitles: themeLib.TAB_TITLES,
       metaCards: themeLib.META_CARDS,
       metaRobots: themeLib.META_ROBOTS,
@@ -315,6 +371,19 @@ module.exports = function (app) {
       res.status(403).send({ msg: req.t("errors.apiKeyCannotManage"), code: "api_key_cannot_manage" });
       return;
     }
+
+    // ── DOMÍNIO PRÓPRIO É WHITELABEL ──────────────────────────────────────
+    //
+    // É a parte do "esconder tudo da GoFitNow" que tem porta no servidor: o
+    // subdomínio `cliente.gofitnow.fit` continua valendo para todo mundo, e o
+    // endereço da casa do cliente é o que se vende.
+    //
+    // A tranca fica em CADASTRAR, e não em verificar nem em remover. Quem já
+    // tem um domínio (porque um dia teve o plano, ou porque nasceu antes disto)
+    // precisa poder consertar o DNS e precisa poder sair — trancar essas duas
+    // deixaria a pessoa presa a um endereço quebrado, que é pior que qualquer
+    // cobrança perdida.
+    if (await limiteDoPlano.barrouChave(app, req, res, "whitelabel")) return;
 
     const host = domainLib.normalizeDomain(req.body?.domain);
     if (!host) return res.status(400).send({ msg: req.t("errors.invalidDomain") });
@@ -625,6 +694,10 @@ module.exports = function (app) {
     // conta inteira. Ninguém tinha feito, mas a porta estava aberta.
     const user = await app.helpers.ReqProtected.can(req, res, "users.manage");
     if (user === false) return;
+
+    // O plano decide se este cliente pode ter cara própria — ver
+    // lib/limiteDoPlano.js. Desligado, ele fica com a aparência padrão.
+    if (await limiteDoPlano.barrouChave(app, req, res, "appearance")) return;
 
     const salvo = await app.api.tenant.saveTheme(user._id, req.body);
 

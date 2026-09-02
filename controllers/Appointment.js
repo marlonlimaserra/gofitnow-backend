@@ -1,3 +1,4 @@
+const limiteDoPlano = require("../lib/limiteDoPlano.js");
 module.exports = function (app) {
   // A agenda do profissional.
   //
@@ -177,6 +178,9 @@ module.exports = function (app) {
   app.post("/people/:personId/appointments", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "schedule.manage");
     if (trainer === false) return;
+
+    // O teto do plano — ver lib/limiteDoPlano.js.
+    if (await limiteDoPlano.barrou(app, req, res, "schedule", limiteDoPlano.contarNa(app, "appointments"))) return;
 
     const student = await pessoaDoProfissional(req, res, trainer);
     if (student === false) return;

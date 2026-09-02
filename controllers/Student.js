@@ -1,3 +1,4 @@
+const limiteDoPlano = require("../lib/limiteDoPlano.js");
 module.exports = function (app) {
   // The people a professional follows — professional only.
   //
@@ -169,6 +170,9 @@ module.exports = function (app) {
   app.post("/people", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "people.create");
     if (trainer === false) return;
+
+    // O teto do plano — ver lib/limiteDoPlano.js.
+    if (await limiteDoPlano.barrou(app, req, res, "people", limiteDoPlano.contarNa(app, "users", { type: "student" }))) return;
 
     const body = req.body || {};
 

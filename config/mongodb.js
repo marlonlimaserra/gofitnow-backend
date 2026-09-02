@@ -146,6 +146,21 @@ module.exports = {
     return escopo.escopar(cliente.db(destino.banco), nome);
   },
 
+  // EM QUE BANCO um cliente mora — nome e URI, sem abrir conexão com ele.
+  //
+  // `comoCliente` já perguntava isso por dentro; o que faltava era perguntar de
+  // fora, e quem precisa é a rota que prepara UM banco: para saber quais clientes
+  // tocar, ela precisa saber quais moram ali. Sem isto ela teria de reimplementar
+  // a regra do padrão — o cliente sem `database` cai no banco padrão —, e duas
+  // cópias dessa regra é como um cliente vai parar no banco errado.
+  destinoDe: async function (instance) {
+    const nome = instanceContext.normalize(instance);
+    if (!nome) throw new Error("invalid_instance");
+
+    const central = (await connect()).db(centerName);
+    return destinos.destinoDe(nome, central, connectionString);
+  },
+
   // ── O BANCO CRU DE UM DESTINO, SEM ESCOPO ──────────────────────────────────
   //
   // Vê os dados de TODOS os clientes que moram naquele banco. Só duas coisas têm

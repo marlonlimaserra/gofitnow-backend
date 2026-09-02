@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const arquivos = require("../lib/arquivos.js");
 const { MIMES, parseImageDataUri } = require("../lib/imageDataUri.js");
 const instanceContext = require("../lib/instance.js");
 
@@ -37,16 +38,25 @@ Avatar_model.prototype.save = async function (userId, mime, buffer) {
   const col = await this.collection();
   const now = new Date();
 
+  // Os bytes vão para `<instancia>/avatares/<usuario>` no R2 — ver
+  // lib/arquivos.js.
+  const onde = await arquivos.ondeGuardar(
+    arquivos.chaveDoCliente("avatares", String(userId)),
+    buffer,
+    mime
+  );
+
   await col.updateOne(
     { user: new ObjectId(userId) },
     {
       $set: {
         user: new ObjectId(userId),
         mime,
-        data: buffer,
         size: buffer.length,
         updatedAt: now,
+        ...onde.set,
       },
+      $unset: onde.unset,
     },
     { upsert: true },
   );
@@ -57,6 +67,8 @@ Avatar_model.prototype.save = async function (userId, mime, buffer) {
   const users = await this.app.api.user.collection();
   await users.updateOne({ _id: new ObjectId(userId) }, { $set: { avatarAt: now } });
 
+  // O espelho na central leva os BYTES, e não a chave: são bancos diferentes, e
+  // uma chave do bucket deste cliente não significa nada do outro lado.
   await this.espelhar(userId, { mime, data: buffer, size: buffer.length, avatarAt: now });
 
   return now;

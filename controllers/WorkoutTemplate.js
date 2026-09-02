@@ -1,3 +1,4 @@
+const limiteDoPlano = require("../lib/limiteDoPlano.js");
 module.exports = function (app) {
   // "Auto preencher": the professional's saved options for a new workout.
   //
@@ -15,6 +16,9 @@ module.exports = function (app) {
   app.post("/workout-templates", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
     if (trainer === false) return;
+
+    // O teto do plano — ver lib/limiteDoPlano.js.
+    if (await limiteDoPlano.barrou(app, req, res, "workoutTemplates", limiteDoPlano.contarNa(app, "workout_templates"))) return;
 
     const body = req.body || {};
 

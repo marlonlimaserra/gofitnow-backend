@@ -1,3 +1,5 @@
+const limiteDoPlano = require("../lib/limiteDoPlano.js");
+const arquivos = require("../lib/arquivos.js");
 const BrandImage = require("../model/BrandImage_model.js");
 const instanceContext = require("../lib/instance.js");
 
@@ -42,7 +44,13 @@ module.exports = function (app) {
 
     if (req.headers["if-none-match"] === etag) return res.status(304).end();
 
-    res.send(img.data.buffer ? Buffer.from(img.data.buffer) : img.data);
+    // Os BYTES podem estar no R2 — ver lib/arquivos.js. Note que isto
+    // acontece DEPOIS do 304: quando o navegador já tem a versão
+    // cacheada, não há ida ao bucket nenhuma.
+    const bytes = await arquivos.bytesDoDocumento(img);
+    if (!bytes) return res.status(404).end();
+
+    res.send(bytes);
   });
 
   app.post("/me/brand/image", async function (req, res) {
@@ -59,30 +67,20 @@ module.exports = function (app) {
     const parsed = app.api.brandImage.parseDataUri((req.body || {}).image);
     if (!parsed) return res.status(400).send({ msg: req.t("errors.invalidBrandImage") });
 
-    // O TETO SAI DO PLANO, que mora no central.
+    // ── O PLANO DECIDE SE PODE, E O PRODUTO DECIDE QUANTAS ────────────────
     //
-    // Um número no plano manda, inclusive o zero: "este plano não inclui imagem
-    // de marca" é uma venda legítima, e quem a assina ainda pode apontar para
-    // uma imagem hospedada fora — o campo de endereço continua na tela.
+    // Era um NÚMERO no plano: "imagens da marca, vazio usa o padrão do sistema,
+    // 24". O Marlon apontou o problema em 30/08/2026 — ninguém escolhe um plano
+    // por 24 imagens. A pergunta que se vende é "posso deixar com a minha
+    // cara?", e ela é sim ou não.
     //
-    // Sem plano, ou com o limite em branco, vale o padrão do produto. É de
-    // propósito que "ilimitado" no painel não vire "sem teto nenhum" aqui: o
-    // tema usa oito imagens, e uma rota de upload aberta é como se enche um
-    // banco por engano.
-    const limites = await app.api.center.limitsFor(req.instance);
-    const doPlano = limites ? limites.brandImages : null;
-    const teto =
-      Number.isInteger(doPlano) && doPlano >= 0 ? doPlano : BrandImage.PADRAO_POR_CONTA;
+    // Então o plano responde só isso, e o TETO volta a ser do produto: 24, para
+    // uma rota de upload aberta não virar um jeito de encher o banco por engano.
+    // Quem tem a chave desligada ainda pode apontar para uma imagem hospedada
+    // fora — o campo de endereço continua na tela.
+    if (await limiteDoPlano.barrouChave(app, req, res, "appearance")) return;
 
-    if (teto === 0) {
-      // Mensagem própria, e não a do teto: "você já tem 0 imagens guardadas,
-      // salve a aparência para liberar" mandaria fazer uma faxina que não
-      // liberaria nada.
-      return res.status(409).send({
-        msg: req.t("errors.brandImagesNotInPlan"),
-        code: "not_in_plan",
-      });
-    }
+    const teto = BrandImage.PADRAO_POR_CONTA;
 
     if ((await app.api.brandImage.count(user._id)) >= teto) {
       return res.status(409).send({

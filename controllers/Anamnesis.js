@@ -1,3 +1,4 @@
+const limiteDoPlano = require("../lib/limiteDoPlano.js");
 const instanceContext = require("../lib/instance.js");
 const clientIp = require("../lib/clientIp.js");
 const tempoReal = require("../lib/tempoReal.js");
@@ -49,6 +50,23 @@ module.exports = function (app) {
     if (student === false) return;
 
     const antes = await app.api.anamnesis.data(trainer._id, student._id);
+
+    // ── O TETO SÓ VALE PARA CRIAR ─────────────────────────────────────────
+    //
+    // Esta rota é um upsert: a mesma chamada preenche a primeira anamnese e
+    // corrige a décima. Barrá-la sem distinguir trancaria a EDIÇÃO de uma
+    // anamnese que já existe — a pessoa perderia o que estava digitando por
+    // causa de um limite que ela não estourou.
+    //
+    // `antes` já responde qual dos dois é. Ele existe aqui desde antes disto,
+    // para o histórico saber se registra "preencheu" ou "alterou"; a pergunta é
+    // a mesma, e a resposta já estava na mão.
+    //
+    // Ver lib/limiteDoPlano.js.
+    if (!antes) {
+      const contar = limiteDoPlano.contarNa(app, "anamnesis");
+      if (await limiteDoPlano.barrou(app, req, res, "anamnesis", contar)) return;
+    }
 
     const { criou } = await app.api.anamnesis.save(trainer._id, student._id, req.body || {});
     const depois = await app.api.anamnesis.data(trainer._id, student._id);

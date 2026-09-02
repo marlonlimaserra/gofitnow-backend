@@ -1,3 +1,4 @@
+const arquivos = require("../lib/arquivos.js");
 module.exports = function (app) {
   // A FOTO do alimento.
   //
@@ -22,7 +23,13 @@ module.exports = function (app) {
 
     if (req.headers["if-none-match"] === etag) return res.status(304).end();
 
-    res.send(img.data.buffer ? Buffer.from(img.data.buffer) : img.data);
+    // Os BYTES podem estar no R2 — ver lib/arquivos.js. Note que isto
+    // acontece DEPOIS do 304: quando o navegador já tem a versão
+    // cacheada, não há ida ao bucket nenhuma.
+    const bytes = await arquivos.bytesDoDocumento(img);
+    if (!bytes) return res.status(404).end();
+
+    res.send(bytes);
   });
 
   // O catálogo de alimentos. Mesma forma do de exercícios — inclusive o aviso

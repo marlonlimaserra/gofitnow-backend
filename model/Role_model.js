@@ -125,7 +125,12 @@ Role_model.prototype.update = async function (id, obj) {
   //
   // A varredura custa uma consulta e vale a pena: mexer em papel é coisa de tela
   // de configuração, não de caminho quente.
-  if (obj.permissions !== undefined) await esquecerQuemTemOPapel(this.app, id);
+  // SEMPRE, e não só quando as permissões mudam.
+  //
+  // O objeto guardado carrega `roleName` — renomear "Recepção" para "Atendimento"
+  // deixaria o nome velho na tela por um minuto. A varredura é barata e mexer em
+  // papel é coisa de tela de configuração, não de caminho quente.
+  await esquecerQuemTemOPapel(this.app, id);
 
   return r.matchedCount > 0;
 };

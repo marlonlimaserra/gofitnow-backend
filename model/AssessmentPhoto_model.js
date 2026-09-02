@@ -1,6 +1,7 @@
 const { ObjectId } = require("mongodb");
 const { parseImageDataUri } = require("../lib/imageDataUri.js");
 const lados = require("../lib/assessmentPhotoSides.js");
+const arquivos = require("../lib/arquivos.js");
 
 // A collection `assessment_photos` — as fotos de evolução de cada coleta.
 //
@@ -55,6 +56,15 @@ AssessmentPhoto_model.prototype.save = async function (assessmentId, side, mime,
   const col = await this.collection();
   const agora = new Date();
 
+  // Os BYTES vão para o R2 (`<instancia>/avaliacoes/<coleta>/<lado>`) e o
+  // documento fica com a chave. Ver lib/arquivos.js — inclusive o porquê de
+  // falhar para o banco em vez de gravar chave sem bytes.
+  const onde = await arquivos.ondeGuardar(
+    arquivos.chaveDoCliente("avaliacoes", String(assessmentId), side),
+    buffer,
+    mime
+  );
+
   // Um documento por (avaliação, lado): trocar a foto de frente substitui
   // aquela, e não mexe nas outras três.
   await col.updateOne(
@@ -64,10 +74,11 @@ AssessmentPhoto_model.prototype.save = async function (assessmentId, side, mime,
         assessment: new ObjectId(assessmentId),
         side,
         mime,
-        data: buffer,
         size: buffer.length,
         updatedAt: agora,
+        ...onde.set,
       },
+      $unset: onde.unset,
     },
     { upsert: true }
   );
@@ -87,7 +98,13 @@ AssessmentPhoto_model.prototype.remove = async function (assessmentId, side) {
   if (!ObjectId.isValid(assessmentId)) return false;
   const col = await this.collection();
 
+  // Lê a chave ANTES de apagar o documento: depois dele não há mais como
+  // descobrir qual arquivo era, e o byte fica pendurado no bucket para sempre.
+  const doc = await col.findOne({ assessment: new ObjectId(assessmentId), side });
+
   const r = await col.deleteOne({ assessment: new ObjectId(assessmentId), side });
+  if (doc?.chave) await arquivos.apagar(doc.chave);
+
   return r.deletedCount > 0;
 };
 
@@ -97,7 +114,13 @@ AssessmentPhoto_model.prototype.deleteAllOfAssessment = async function (assessme
   if (!ObjectId.isValid(assessmentId)) return 0;
   const col = await this.collection();
 
+  const chaves = await col
+    .find({ assessment: new ObjectId(assessmentId) }, { projection: { chave: 1 } })
+    .toArray();
+
   const r = await col.deleteMany({ assessment: new ObjectId(assessmentId) });
+  await arquivos.apagarMuitas(chaves.map((d) => d.chave));
+
   return r.deletedCount || 0;
 };
 
@@ -106,7 +129,14 @@ AssessmentPhoto_model.prototype.deleteAllOfAssessments = async function (ids) {
   if (!validos.length) return 0;
 
   const col = await this.collection();
+
+  const chaves = await col
+    .find({ assessment: { $in: validos } }, { projection: { chave: 1 } })
+    .toArray();
+
   const r = await col.deleteMany({ assessment: { $in: validos } });
+  await arquivos.apagarMuitas(chaves.map((d) => d.chave));
+
   return r.deletedCount || 0;
 };
 

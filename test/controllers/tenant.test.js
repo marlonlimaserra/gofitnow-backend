@@ -17,6 +17,10 @@ function monta({
   pages = false,
   aponta = { ok: false, erro: "not_found" },
   certificado = { ok: true, status: "active" },
+  // O plano deste cliente. Vazio é "sem plano", que não proíbe nada — é o
+  // cenário de quase todo caso daqui. Os que exercitam a tranca passam
+  // `{ appearance: false }` ou `{ whitelabel: false }`.
+  limitesDoPlano = {},
 } = {}) {
   const salvos = [];
   const reservas = [];
@@ -85,6 +89,16 @@ function monta({
       // criação do cliente) e as rotas de domínio deste controller; o documento do
       // profissional não tem voz nenhuma nessa tabela.
       center: {
+        // Este arquivo traz o `center` dele, e com isso o padrão do harness sai
+        // de baixo — inclusive o `limitsFor`. Salvar a aparência e cadastrar um
+        // domínio próprio passaram a perguntar o plano (30/08/2026), e sem esta
+        // linha 28 casos que não têm nada com plano estouravam.
+        //
+        // `{}` é a mesma resposta que a produção dá para cliente sem plano: o
+        // que o plano não diz, ele não proíbe.
+        async limitsFor() {
+          return limitesDoPlano;
+        },
         async byHost(host) {
           return hostsDaInstancia.includes(host) ? { instance: "marlon" } : undefined;
         },

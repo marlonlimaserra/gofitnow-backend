@@ -1,4 +1,5 @@
 const instanceContext = require("../lib/instance.js");
+const arquivos = require("../lib/arquivos.js");
 const rateLimit = require("../lib/rateLimit.js");
 const slots = require("../lib/slots.js");
 const tempo = require("../lib/tempo.js");
@@ -225,7 +226,13 @@ module.exports = function (app) {
     // impede o cache longo de segurar uma foto trocada.
     res.setHeader("Content-Type", foto.mime);
     res.setHeader("Cache-Control", "public, max-age=86400");
-    res.send(foto.data.buffer ? Buffer.from(foto.data.buffer) : foto.data);
+    // Os BYTES podem estar no R2 — ver lib/arquivos.js. Note que isto
+    // acontece DEPOIS do 304: quando o navegador já tem a versão
+    // cacheada, não há ida ao bucket nenhuma.
+    const bytes = await arquivos.bytesDoDocumento(foto);
+    if (!bytes) return res.status(404).send({ msg: "no_photo" });
+
+    res.send(bytes);
   });
 
   app.get("/public/booking/slots", async function (req, res) {

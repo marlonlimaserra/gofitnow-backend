@@ -1,3 +1,4 @@
+const limiteDoPlano = require("../lib/limiteDoPlano.js");
 module.exports = function (app) {
   // As prescrições de uma pessoa: receita, manipulado, exame, encaminhamento,
   // atestado.
@@ -37,6 +38,9 @@ module.exports = function (app) {
   app.post("/people/:personId/prescriptions", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "prescriptions.manage");
     if (trainer === false) return;
+
+    // O teto do plano — ver lib/limiteDoPlano.js.
+    if (await limiteDoPlano.barrou(app, req, res, "prescriptions", limiteDoPlano.contarNa(app, "prescriptions"))) return;
 
     const student = await pessoaDoProfissional(req, res, trainer);
     if (student === false) return;

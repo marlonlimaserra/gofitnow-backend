@@ -1,3 +1,4 @@
+const arquivos = require("../lib/arquivos.js");
 module.exports = function (app) {
   // O financeiro de cada pessoa.
   //
@@ -237,7 +238,13 @@ module.exports = function (app) {
     );
     res.setHeader("Cache-Control", "private, max-age=86400");
 
-    res.send(arquivo.data.buffer ? Buffer.from(arquivo.data.buffer) : arquivo.data);
+    // Os BYTES podem estar no R2 — ver lib/arquivos.js. Note que isto
+    // acontece DEPOIS do 304: quando o navegador já tem a versão
+    // cacheada, não há ida ao bucket nenhuma.
+    const bytes = await arquivos.bytesDoDocumento(arquivo);
+    if (!bytes) return res.status(404).send({ msg: req.t("errors.chargeNotFound") });
+
+    res.send(bytes);
   });
 
   app.delete("/payments/:id/receipt", async function (req, res) {

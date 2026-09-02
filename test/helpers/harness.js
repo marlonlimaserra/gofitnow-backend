@@ -18,7 +18,17 @@ const instanceContext = require("../../lib/instance.js");
 function fakeApp({ api = {}, helpers = {}, ...extras } = {}) {
   const rotas = [];
   const app = {
-    api,
+    // ── O PLANO ENTRA COM O PADRÃO "SEM LIMITE" ───────────────────────────
+    //
+    // Desde 30/08/2026 as rotas de criação perguntam o teto do plano antes de
+    // criar (lib/limiteDoPlano.js), e a resposta vem do registro central. Sem
+    // isto, 62 testes que nada têm a ver com plano estouravam em
+    // `app.api.center.limitsFor is not a function`.
+    //
+    // `{}` é a MESMA resposta que a produção dá quando o cliente não tem plano
+    // ou quando o central não responde: sem limite. O teste que quiser exercitar
+    // um teto passa o `center` dele e este padrão sai de baixo.
+    api: { center: { async limitsFor() { return {}; } }, ...api },
     helpers,
     ...extras,
     validator: require("validator"),
@@ -70,6 +80,12 @@ async function call(
     headers: cabecalhos,
     lang,
     t: translator(lang),
+    // `req.instance` é o que o portão (lib/instanceGate.js) grava antes de
+    // qualquer handler, e várias rotas o leem em vez de perguntar ao contexto.
+    // Sem ele aqui, elas recebiam `undefined` e uma consulta por instância caía
+    // no vazio — sem erro, com resposta errada. O contexto abaixo continua,
+    // porque quem usa `instanceContext.current()` depende dele.
+    instance,
   };
 
   // Os cabeçalhos ficam guardados porque em algumas rotas eles SÃO a regra: o

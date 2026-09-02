@@ -5,6 +5,9 @@ const models = {};
 // que existe mais de um cliente.
 models.center = require("./model/Center_model.js");
 models.affiliate = require("./model/Affiliate_model.js");
+// O suporte que este cliente RECEBE da GoFitNow — chamados, perguntas
+// frequentes e o WhatsApp de quem atende. Tudo mora no central.
+models.support = require("./model/Support_model.js");
 // A identidade que atravessa os clientes: e-mail, senha e foto de cada pessoa,
 // uma vez só. Também na central — ver o comentário do modelo.
 models.allUser = require("./model/AllUser_model.js");

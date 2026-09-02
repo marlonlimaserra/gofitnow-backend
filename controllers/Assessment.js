@@ -1,3 +1,5 @@
+const limiteDoPlano = require("../lib/limiteDoPlano.js");
+const arquivos = require("../lib/arquivos.js");
 const { documentoAvaliacao } = require("../lib/documentoAvaliacao.js");
 const { registrarRotasDeDocumento } = require("../lib/rotasDeDocumento.js");
 const { logoDaCasa } = require("../lib/logoDaCasa.js");
@@ -94,6 +96,9 @@ module.exports = function (app) {
   app.post("/people/:personId/assessments", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "assessments.manage");
     if (trainer === false) return;
+
+    // O teto do plano — ver lib/limiteDoPlano.js.
+    if (await limiteDoPlano.barrou(app, req, res, "assessments", limiteDoPlano.contarNa(app, "assessments"))) return;
 
     const student = await pessoaDoProfissional(req, res, trainer);
     if (student === false) return;
@@ -308,7 +313,13 @@ module.exports = function (app) {
       return;
     }
 
-    res.send(foto.data.buffer ? Buffer.from(foto.data.buffer) : foto.data);
+    // Os BYTES podem estar no R2 — ver lib/arquivos.js. Note que isto
+    // acontece DEPOIS do 304: quando o navegador já tem a versão
+    // cacheada, não há ida ao bucket nenhuma.
+    const bytes = await arquivos.bytesDoDocumento(foto);
+    if (!bytes) return res.status(404).send({ msg: req.t("errors.noPhotoShort") });
+
+    res.send(bytes);
   });
 
   app.put("/assessments/:id/photos/:side", async function (req, res) {
@@ -440,7 +451,11 @@ module.exports = function (app) {
           if (!assessment.photos?.[lado.key]) return;
           const foto = await app.api.assessmentPhoto.data(req.params.id, lado.key);
           if (!foto) return;
-          bytesPorLado[lado.key] = { bytes: bytesDa(foto.data), mime: foto.mime || "image/jpeg" };
+          // `bytesDa` continua servindo o que veio do banco; o helper resolve
+          // as duas pontas durante a migração.
+          const crus = await arquivos.bytesDoDocumento(foto);
+          if (!crus) return;
+          bytesPorLado[lado.key] = { bytes: bytesDa(crus), mime: foto.mime || "image/jpeg" };
         })
       );
 

@@ -1,3 +1,4 @@
+const limiteDoPlano = require("../lib/limiteDoPlano.js");
 const { avisarSemEsperar } = require("../lib/avisar.js");
 
 module.exports = function (app) {
@@ -42,6 +43,9 @@ module.exports = function (app) {
   app.post("/people/:personId/workouts", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
     if (trainer === false) return;
+
+    // O teto do plano — ver lib/limiteDoPlano.js.
+    if (await limiteDoPlano.barrou(app, req, res, "workouts", limiteDoPlano.contarNa(app, "workouts"))) return;
 
     const student = await studentOfTrainer(req, res, trainer);
     if (student === false) return;
@@ -219,6 +223,9 @@ module.exports = function (app) {
   app.post("/workouts/:id/duplicate", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "workouts.manage");
     if (trainer === false) return;
+
+    // O teto do plano — ver lib/limiteDoPlano.js.
+    if (await limiteDoPlano.barrou(app, req, res, "workouts", limiteDoPlano.contarNa(app, "workouts"))) return;
 
     const targetStudent = (req.body || {}).studentId;
     const name = (req.body || {}).name;

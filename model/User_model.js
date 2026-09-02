@@ -371,6 +371,7 @@ User_model.prototype.dataTrainer = async function (id) {
 };
 
 User_model.prototype.updateTrainer = async function (id, obj) {
+  await sessaoGuardada.esquecerUsuario(id);
   if (!ObjectId.isValid(id)) return false;
   const col = await this.collection();
 
@@ -422,6 +423,7 @@ User_model.prototype.updateTrainer = async function (id, obj) {
 };
 
 User_model.prototype.deleteTrainer = async function (id) {
+  await sessaoGuardada.esquecerUsuario(id);
   if (!ObjectId.isValid(id)) return false;
   const col = await this.collection();
   const r = await col.deleteOne({ _id: new ObjectId(id), type: "trainer" });
@@ -467,6 +469,7 @@ User_model.prototype.countAdmins = async function (ignoreUserId) {
 // Mora no documento do profissional em vez de numa collection própria: é UM por
 // conta, sem histórico e sem validade — a revogação é a troca.
 User_model.prototype.inviteToken = async function (trainerId, { renovar = false } = {}) {
+  await sessaoGuardada.esquecerUsuario(trainerId);
   if (!ObjectId.isValid(trainerId)) return null;
 
   const col = await this.collection();
@@ -795,6 +798,7 @@ User_model.prototype.updateStudent = async function (trainerId, id, obj) {
 // lixo permanente. Quem quer só cortar o login da pessoa e manter a ficha usa
 // `revokeStudentAccess`, que é outro botão na tela.
 User_model.prototype.deleteStudent = async function (trainerId, id) {
+  await sessaoGuardada.esquecerUsuario(id);
   if (!ObjectId.isValid(id)) return false;
   if (!(await this.app.api.link.exists(trainerId, id))) return false;
 
@@ -830,6 +834,7 @@ User_model.prototype.deleteStudent = async function (trainerId, id) {
 // access by request must not be able to lock the person out of an account the
 // person owns.
 User_model.prototype.revokeStudentAccess = async function (trainerId, id) {
+  await sessaoGuardada.esquecerUsuario(id);
   if (!ObjectId.isValid(id)) return false;
   const col = await this.collection();
   const r = await col.updateOne(
@@ -851,6 +856,7 @@ User_model.prototype.revokeStudentAccess = async function (trainerId, id) {
 const PREFERENCIAS_MAX = 4000;
 
 User_model.prototype.savePreferences = async function (id, prefs) {
+  await sessaoGuardada.esquecerUsuario(id);
   if (!ObjectId.isValid(id)) return false;
   if (!prefs || typeof prefs !== "object" || Array.isArray(prefs)) return false;
 

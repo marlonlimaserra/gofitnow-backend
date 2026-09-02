@@ -1,3 +1,4 @@
+const limiteDoPlano = require("../lib/limiteDoPlano.js");
 // Os TEMPLATES DE DIETA: planos alimentares prontos, do profissional para ele mesmo.
 //
 // Irmão de `WorkoutTemplate`, com uma diferença que muda tudo: aqui o template
@@ -29,6 +30,9 @@ module.exports = function (app) {
   app.post("/diet-templates", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "diets.manage");
     if (trainer === false) return;
+
+    // O teto do plano — ver lib/limiteDoPlano.js.
+    if (await limiteDoPlano.barrou(app, req, res, "dietTemplates", limiteDoPlano.contarNa(app, "diet_templates"))) return;
 
     const body = req.body || {};
 
@@ -148,6 +152,9 @@ module.exports = function (app) {
   app.post("/people/:personId/diets/from-template/:templateId", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "diets.manage");
     if (trainer === false) return;
+
+    // O teto do plano — ver lib/limiteDoPlano.js.
+    if (await limiteDoPlano.barrou(app, req, res, "diets", limiteDoPlano.contarNa(app, "diets"))) return;
 
     const student = await app.api.user.dataStudent(trainer._id, req.params.personId);
     if (!student) return res.status(404).send({ msg: req.t("errors.studentNotFound") });

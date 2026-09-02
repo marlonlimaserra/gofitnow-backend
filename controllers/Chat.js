@@ -1,4 +1,5 @@
 const { avisarSemEsperar } = require("../lib/avisar.js");
+const arquivos = require("../lib/arquivos.js");
 
 module.exports = function (app) {
   // As conversas.
@@ -222,7 +223,13 @@ module.exports = function (app) {
     // servir para outra pessoa. Imutável porque a mensagem não se edita.
     res.setHeader("Cache-Control", "private, max-age=86400, immutable");
 
-    res.send(arquivo.data.buffer ? Buffer.from(arquivo.data.buffer) : arquivo.data);
+    // Os BYTES podem estar no R2 — ver lib/arquivos.js. Note que isto
+    // acontece DEPOIS do 304: quando o navegador já tem a versão
+    // cacheada, não há ida ao bucket nenhuma.
+    const bytes = await arquivos.bytesDoDocumento(arquivo);
+    if (!bytes) return res.status(404).send({ msg: req.t("errors.noPhotoShort") });
+
+    res.send(bytes);
   });
 
   app.post("/chat/conversations/:id/read", async function (req, res) {

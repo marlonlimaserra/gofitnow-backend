@@ -133,56 +133,48 @@ test("sem plano, o teto é o padrão do produto", async () => {
   assert.deepEqual(salvas, []);
 });
 
-test("o número do plano manda, e a mensagem diz esse número", async () => {
-  // Três é bem menos que o padrão: se o padrão vencesse, a quarta imagem
-  // passaria e o teste falharia por passar, que é o jeito certo de falhar.
-  const { app, salvas } = monta({ quantas: 3, limites: { brandImages: 3 } });
-  const r = await call(app, "post", "/me/brand/image", { body: { image: PNG } });
-
-  assert.equal(r.status, 409);
-  assert.equal(r.body.code, "too_many");
-  assert.match(r.body.msg, /3/);
-  assert.deepEqual(salvas, []);
-});
-
-test("abaixo do número do plano, sobe", async () => {
-  const { app, salvas } = monta({ quantas: 2, limites: { brandImages: 3 } });
-  const r = await call(app, "post", "/me/brand/image", { body: { image: PNG } });
-
-  assert.equal(r.status, 200);
-  assert.equal(salvas.length, 1);
-});
-
-test("um plano acima do padrão vale — o padrão é só de quem não tem número", async () => {
-  const { app, salvas } = monta({
-    quantas: BrandImage.PADRAO_POR_CONTA + 5,
-    limites: { brandImages: 100 },
-  });
-  const r = await call(app, "post", "/me/brand/image", { body: { image: PNG } });
-
-  assert.equal(r.status, 200);
-  assert.equal(salvas.length, 1);
-});
-
-test("plano com zero não sobe nenhuma, e a mensagem não manda fazer faxina", async () => {
-  // Zero é um limite de verdade — um plano sem imagem de marca é venda
-  // legítima. A mensagem do teto ("salve a aparência para liberar as que não
+test("a chave DESLIGADA não sobe nenhuma, e a mensagem não manda fazer faxina", async () => {
+  // A aparência virou sim/não em 30/08/2026: "ninguém escolhe um plano por 24
+  // imagens". A mensagem do teto ("salve a aparência para liberar as que não
   // estão em uso") mandaria limpar o que não existe.
-  const { app, salvas } = monta({ quantas: 0, limites: { brandImages: 0 } });
+  const { app, salvas } = monta({ quantas: 0, limites: { appearance: false } });
   const r = await call(app, "post", "/me/brand/image", { body: { image: PNG } });
 
-  assert.equal(r.status, 409);
+  // 403 e não 409: não é cota cheia, é o contrato. Não há o que apagar aqui
+  // para liberar, e quem lê o código precisa saber disso.
+  assert.equal(r.status, 403);
   assert.equal(r.body.code, "not_in_plan");
-  assert.doesNotMatch(r.body.msg, /aparência/);
+  // A frase do teto manda "salve a aparência para liberar as que não estão em
+  // uso" — uma faxina que aqui não libera nada. É ELA que não pode aparecer, e
+  // não a palavra "aparência", que agora é o nome do recurso.
+  assert.doesNotMatch(r.body.msg, /liberar as que/);
   assert.deepEqual(salvas, []);
 });
 
-test("limite em branco no plano é o padrão, não é torneira aberta", async () => {
-  // `null` na tela do painel se chama "ilimitado". Numa rota de upload, sem
-  // teto nenhum é um caminho de encher o banco em laço.
+test("a chave LIGADA sobe, e o teto passa a ser só o do produto", async () => {
+  const { app, salvas } = monta({ quantas: 2, limites: { appearance: true } });
+  const r = await call(app, "post", "/me/brand/image", { body: { image: PNG } });
+
+  assert.equal(r.status, 200);
+  assert.equal(salvas.length, 1);
+});
+
+test("plano que não conhece a chave AINDA SOBE", async () => {
+  // Um plano criado antes de `appearance` existir não a tem. Tratá-la como
+  // "não" tiraria a aparência de quem já a usava, no dia do deploy e sem aviso.
+  const { app, salvas } = monta({ quantas: 2, limites: { people: 10 } });
+  const r = await call(app, "post", "/me/brand/image", { body: { image: PNG } });
+
+  assert.equal(r.status, 200);
+  assert.equal(salvas.length, 1);
+});
+
+test("com a chave ligada, o teto do PRODUTO continua valendo", async () => {
+  // O plano responde "pode?"; quantas é decisão do produto. Uma rota de upload
+  // sem teto nenhum é um caminho de encher o banco em laço.
   const { app, salvas } = monta({
     quantas: BrandImage.PADRAO_POR_CONTA,
-    limites: { brandImages: null },
+    limites: { appearance: true },
   });
   const r = await call(app, "post", "/me/brand/image", { body: { image: PNG } });
 
@@ -231,6 +223,11 @@ test("apaga o que o tema deixou de usar, e só isso", async () => {
       async connectToServer() {
         return {
           collection: () => ({
+            // A faxina lê as CHAVES antes de apagar, para recolher os bytes no
+            // R2 também — sem isso o arquivo ficaria pendurado no bucket, que é
+            // o mesmo problema que esta função existe para resolver, um andar
+            // abaixo. Aqui não há chave nenhuma: os documentos são antigos.
+            find: () => ({ toArray: async () => [] }),
             async deleteMany(f) {
               filtro = f;
               return { deletedCount: 3 };
@@ -263,6 +260,7 @@ test("URL de fora não vira id — e não faz a faxina apagar tudo", async () =>
       async connectToServer() {
         return {
           collection: () => ({
+            find: () => ({ toArray: async () => [] }),
             async deleteMany(f) {
               filtro = f;
               return { deletedCount: 0 };

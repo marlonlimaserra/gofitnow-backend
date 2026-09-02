@@ -218,6 +218,85 @@ Center_model.prototype.limitsFor = async function (instance) {
   }
 };
 
+// ── O PLANO DESTE CLIENTE, INTEIRO ────────────────────────────────────────
+//
+// `limitsFor` devolve só os números. Isto devolve o plano: nome, preço e a marca
+// de gratuito. É o que o app precisa para dizer, no topo, em que plano a pessoa
+// está — e para levá-la à tela onde estão os outros.
+//
+// Vai pelo MESMO caminho e com o MESMO cache de `limitsFor`, com um prefixo
+// próprio. Guardar o documento inteiro numa chave só e derivar os limites dele
+// seria mais econômico e trocaria um contrato provado por um refator: `limitsFor`
+// está em produção, é chamada em todo upload, e o comportamento dela em cliente
+// sem plano é uma decisão escrita e testada.
+//
+// SEM PLANO devolve `null`, que é diferente de um plano gratuito: "não sei em que
+// plano este cliente está" e "está no plano de entrada" levam a telas diferentes.
+Center_model.prototype.planFor = async function (instance) {
+  const nome = instanceContext.normalize(instance);
+  if (!nome) return null;
+
+  const guardado = lido("pl:" + nome);
+  if (guardado !== undefined) return guardado;
+
+  try {
+    const doc = await this.byInstance(nome);
+    if (!doc || !doc.plan) return guardar("pl:" + nome, null);
+
+    const db = await this.app.mongodb.centralDb();
+    const plano = await db.collection("plans").findOne({ key: String(doc.plan) });
+
+    return guardar("pl:" + nome, plano ? resumoDoPlano(plano) : null);
+  } catch (error) {
+    return null;
+  }
+};
+
+// OS PLANOS À VENDA, para a tela de escolher.
+//
+// Só os que o painel manda exibir (`active`), na ORDEM que ele definiu — é para
+// isso que a ordem existe, e reordenar lá tem que mudar a tela aqui.
+//
+// A chave do cache não leva instância: a vitrine é a mesma para todo mundo. O que
+// muda por cliente é qual deles está marcado como o atual, e isso é decidido por
+// quem chama, com `planFor`.
+Center_model.prototype.plansForSale = async function () {
+  const guardado = lido("pls:");
+  if (guardado !== undefined) return guardado;
+
+  try {
+    const db = await this.app.mongodb.centralDb();
+    const docs = await db
+      .collection("plans")
+      // `active` ausente é ATIVO: os planos criados antes do campo existir não
+      // podem sumir da vitrine por não terem sido tocados desde então.
+      .find({ active: { $ne: false } })
+      .sort({ order: 1, priceCents: 1 })
+      .toArray();
+
+    return guardar("pls:", docs.map(resumoDoPlano));
+  } catch (error) {
+    // Vitrine vazia, e NÃO guardada: a tela mostra "nada por aqui" em vez de
+    // estourar, e o próximo pedido tenta de novo.
+    return [];
+  }
+};
+
+// O que sai do plano para o produto. Uma lista fechada, e não o documento cru:
+// `notes` é anotação interna do painel ("cortesia do fulano até dezembro"), e o
+// que se manda para o app de todo mundo é o que se escolheu mandar.
+function resumoDoPlano(plano) {
+  return {
+    key: String(plano.key || ""),
+    name: String(plano.name || ""),
+    priceCents: Number(plano.priceCents) || 0,
+    currency: String(plano.currency || "BRL"),
+    interval: plano.interval === "year" ? "year" : "month",
+    free: Boolean(plano.free),
+    limits: plano.limits && typeof plano.limits === "object" ? plano.limits : {},
+  };
+}
+
 // De qual instância é este ENDEREÇO — a pergunta que o app do navegador faz.
 //
 // Ele é servido em `marlon.gofitnow.fit` mas chama `backend.gofitnow.fit`, então o
@@ -249,6 +328,9 @@ Center_model.prototype.forget = function (instance) {
   if (!nome) return cache.clear();
 
   cache.delete("i:" + nome);
+  // O plano também, pelo mesmo motivo dos limites logo abaixo.
+  cache.delete("pl:" + nome);
+  cache.delete("pls:");
   // Os limites também: um cliente que acabou de nascer pode ter ganhado plano
   // no mesmo cadastro, e um `{}` guardado o deixaria sem limite nenhum até o
   // prazo virar.

@@ -75,6 +75,13 @@ function monta({ permissao = "anamnesis.manage", existente = null, link = null, 
         },
       },
       center: {
+        // Este teste traz o `center` dele (precisa de `byHost` para a tela
+        // pública), e com isso o padrão do harness sai de baixo — inclusive o
+        // `limitsFor`. Sem esta linha, preencher a primeira anamnese estourava
+        // no teto do plano, que este arquivo não está exercitando.
+        async limitsFor() {
+          return {};
+        },
         async byInstance() {
           return { instance: "marlon", hosts: ["marlon.gofitnow.fit"] };
         },

@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const arquivos = require("../lib/arquivos.js");
 
 // A collection `brand_images` — logo e fotos da tela de entrada.
 //
@@ -63,14 +64,27 @@ BrandImage_model.prototype.save = async function (userId, mime, buffer) {
   const col = await this.collection();
   const now = new Date();
 
+  // A chave precisa do ID, e o ID só existe depois do insert. Então insere
+  // primeiro o documento sem bytes, guarda no R2 com o id que nasceu, e completa.
+  //
+  // Parece um passo a mais e é o contrário: a alternativa seria inventar um id
+  // antes (um uuid nosso), e aí a imagem passaria a ter DOIS nomes — o do bucket
+  // e o do Mongo. Um dia eles divergiriam.
   const r = await col.insertOne({
     user: new ObjectId(userId),
     mime,
-    data: buffer,
     size: buffer.length,
     createdAt: now,
     updatedAt: now,
   });
+
+  const onde = await arquivos.ondeGuardar(
+    arquivos.chaveDoCliente("marca", String(r.insertedId)),
+    buffer,
+    mime
+  );
+
+  await col.updateOne({ _id: r.insertedId }, { $set: onde.set, $unset: onde.unset });
 
   return { id: String(r.insertedId), updatedAt: now };
 };
@@ -96,7 +110,16 @@ BrandImage_model.prototype.pruneUnused = async function (userId, emUso) {
   }
 
   const col = await this.collection();
-  const r = await col.deleteMany({ user: new ObjectId(userId), _id: { $nin: manter } });
+  const filtro = { user: new ObjectId(userId), _id: { $nin: manter } };
+
+  // As chaves ANTES do delete: depois dele não há mais como saber quais arquivos
+  // eram, e os bytes ficariam no bucket para sempre. Era exatamente o problema
+  // que esta função existe para resolver, um andar abaixo.
+  const chaves = await col.find(filtro, { projection: { chave: 1 } }).toArray();
+
+  const r = await col.deleteMany(filtro);
+  await arquivos.apagarMuitas(chaves.map((d) => d.chave));
+
   return r.deletedCount;
 };
 
