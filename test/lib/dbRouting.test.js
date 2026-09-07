@@ -256,6 +256,26 @@ test("toda collection de cliente que um modelo toca está DECLARADA", () => {
     // este backend escreve nelas (o cliente abre e responde do app dele), e o
     // `instance` é campo, como em todo o resto do central.
     "tickets", "ticket_messages", "faq_posts",
+    // AS SOLICITAÇÕES DE EXCLUSÃO (02/09/2026): mesma família dos chamados, e
+    // por um motivo a mais — o pedido tem de SOBREVIVER à exclusão que ele
+    // pede. Guardado no banco do cliente, ele desapareceria junto com a prova
+    // de que alguém pediu, e com o nome e o e-mail de quem pedir.
+    //
+    // Este backend só ESCREVE (a pessoa pedindo, do app dela) e lê o próprio
+    // pedido; quem atende trabalha no painel, que é quem cria os índices.
+    "deletion_requests",
+    // AS IDEIAS (04/09/2026): "gostaria de um botão para ver ideias, e poder
+    // sugerir ideias". O quadro é UM só para todos os clientes, e é o voto que
+    // exige isso — com a lista no banco de cada instância, o voto do Willian não
+    // somaria com o da Bruna, e o número diria "quantos querem isto dentro da
+    // minha academia", que não prioriza nada.
+    //
+    // Este backend escreve nelas (a pessoa sugere e vota do app dela) e o painel
+    // responde. Os índices — inclusive o único que impede votar duas vezes —
+    // nascem no painel, como manda a fronteira do cabeçalho de config/mongodb.js.
+    // E `idea_comments` (04/09/2026): *"quero que as pessoas comentem etc."* O fio
+    // é público a todos os clientes, então mora onde as ideias moram.
+    "idea_posts", "idea_votes", "idea_comments",
   ]);
 
   const declaradas = new Set([...schema.POR_INSTANCIA, ...schema.CENTRAL, ...DO_PAINEL]);

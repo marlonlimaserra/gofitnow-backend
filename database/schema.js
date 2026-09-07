@@ -22,6 +22,14 @@ const instanceContext = require("../lib/instance.js");
 // no banco do cliente (`ai_sessions`), com o resto do que é dele.
 const CENTRAL = ["exercises", "foods", "ai_usage"];
 
+// Quanto tempo o histórico de ações fica. Decisão do Marlon em 07/09/2026 — ver
+// o comentário longo em `indicesEssenciais`.
+//
+// Constante e não número solto na chamada: mudar a retenção é mudar uma linha, e
+// o nome diz o que o `expireAfterSeconds` está contando (o segundo é a unidade
+// do Mongo, o dia é a unidade da decisão).
+const PODA_HISTORICO_DIAS = 180;
+
 const POR_INSTANCIA = [
   "users",
   "user_tokens",
@@ -288,9 +296,47 @@ async function indicesEssenciais(db) {
   await db.collection("roles").createIndex({ instance: 1, permissions: 1 }, { name: "by_permission" });
 
   // user_action_history — muita escrita, lido por "quem fez isto" e "o que
-  // aconteceu com este registro". Sem TTL: uma trilha de auditoria que se apaga
-  // sozinha não é uma. Se um dia precisar de poda, que seja decisão explícita e
-  // não uma varredura que ninguém lembra de ter configurado.
+  // aconteceu com este registro".
+  //
+  // ── A PODA DE 180 DIAS (07/09/2026) ──────────────────────────────────────
+  //
+  // Aqui dizia **"sem TTL: uma trilha de auditoria que se apaga sozinha não é
+  // uma"**, e completava: *"se um dia precisar de poda, que seja decisão
+  // explícita e não uma varredura que ninguém lembra de ter configurado"*.
+  //
+  // A decisão explícita aconteceu. Eu mostrei ao Marlon que esta era a maior
+  // collection em contagem (2.792 documentos, 1,3 MB) e a única que cresce para
+  // sempre — `api_calls` tem 90 dias, `client_errors` 30, sessões e tokens têm
+  // os deles, e esta não tinha nada. Ele respondeu: *"pode 6 meses, limpe o que
+  // for antigo"*.
+  //
+  // Então o comentário antigo continua valendo como regra: a poda é decisão de
+  // quem tem o dado, tomada e registrada — não um padrão que apareceu sozinho.
+  //
+  // ── POR QUE 180 DIAS SERVE ───────────────────────────────────────────────
+  //
+  // O que se pergunta a esta collection é "quem mexeu nisto?", e essa pergunta
+  // nasce de uma conversa de suporte — que acontece dias depois do fato, não
+  // meses. Meio ano cobre com folga qualquer "mês passado alguém apagou o treino
+  // da Bruna", que é o caso real.
+  //
+  // ── O TTL É UM ÍNDICE À PARTE, e tem de ser ──────────────────────────────
+  //
+  // Ele NÃO pode ser um dos compostos abaixo: o Mongo só expira por índice de um
+  // campo só. E é um campo só sem `instance`, o que está certo — a poda é do
+  // sistema, não de um cliente, e a data é a mesma régua para todos.
+  //
+  // Custo: um quinto índice numa collection que só escreve. É uma data por
+  // documento, e o que ele evita é a collection dobrar de tamanho a cada
+  // semestre para sempre.
+  //
+  // Quem apaga é o monitor de TTL do Mongo, que passa a cada minuto. Criar o
+  // índice JÁ É a limpeza — não existe script de poda para lembrar de rodar, que
+  // era metade da objeção do comentário antigo.
+  await db
+    .collection("user_action_history")
+    .createIndex({ createdAt: 1 }, { expireAfterSeconds: PODA_HISTORICO_DIAS * 86400, name: "poda_180d" });
+
   await db.collection("user_action_history").createIndex({ instance: 1, createdAt: -1 }, { name: "by_date" });
   await db
     .collection("user_action_history")

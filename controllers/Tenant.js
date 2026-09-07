@@ -581,9 +581,13 @@ module.exports = function (app) {
     const user = await app.helpers.ReqProtected.can(req, res, "assessments.view");
     if (user === false) return;
 
+    // O `max` que a tela usa para desabilitar o "acrescentar" é o DO PLANO, e
+    // não mais o absoluto do código. Sem isto a tela deixaria acrescentar até
+    // doze e a gravação recusaria — o pior lugar para descobrir um limite é
+    // depois de ter escrito tudo.
     res.send({
       sides: await app.api.tenant.assessmentPhotoSides(),
-      max: assessmentPhotoSides.MAXIMO,
+      max: await limiteDoPlano.tetoDoPlano(app, req.instance, "photoSides"),
       defaults: assessmentPhotoSides.PADRAO,
     });
   });
@@ -597,7 +601,24 @@ module.exports = function (app) {
     const user = await app.helpers.ReqProtected.can(req, res, "assessments.manage");
     if (user === false) return;
 
-    const salvo = await app.api.tenant.saveAssessmentPhotoSides((req.body || {}).sides);
+    // ── O TETO DE CATEGORIAS DE FOTO ──────────────────────────────────────
+    //
+    // Recusa, e não corta. `normalizar` corta no absoluto (12) como rede, mas um
+    // corte silencioso aqui devolveria "salvo" com quatro dos oito ângulos que a
+    // pessoa acabou de escrever — e ela só descobriria na próxima avaliação, com
+    // as vagas faltando.
+    //
+    // Cada ângulo a mais é uma foto a mais por avaliação, para sempre, em toda
+    // pessoa da conta: é o limite que mais multiplica armazenamento no produto.
+    const pedidos = (req.body || {}).sides;
+    if (
+      Array.isArray(pedidos) &&
+      (await limiteDoPlano.barrouQuantidade(app, req, res, "photoSides", pedidos.length))
+    ) {
+      return;
+    }
+
+    const salvo = await app.api.tenant.saveAssessmentPhotoSides(pedidos);
     if (!salvo) {
       return res
         .status(400)

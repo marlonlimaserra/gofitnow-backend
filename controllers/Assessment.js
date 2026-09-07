@@ -454,8 +454,20 @@ module.exports = function (app) {
           // `bytesDa` continua servindo o que veio do banco; o helper resolve
           // as duas pontas durante a migração.
           const crus = await arquivos.bytesDoDocumento(foto);
-          if (!crus) return;
-          bytesPorLado[lado.key] = { bytes: bytesDa(crus), mime: foto.mime || "image/jpeg" };
+          const bytes = crus && bytesDa(crus);
+          // ── VAZIO NÃO É FALSO, e era essa a armadilha ────────────────────
+          //
+          // Um Buffer de zero bytes é VERDADEIRO em JavaScript, então só o
+          // `if (!crus)` deixava passar. E o que sai daqui não fica em branco:
+          // `data:image/webp;base64,` é um URI válido, com sintaxe perfeita e
+          // nenhuma imagem — a falha aparece como ícone quebrado no e-mail
+          // depois de tudo dar certo, sem erro em log nenhum.
+          //
+          // Foi exatamente esse defeito nas fotos do plano alimentar
+          // (controllers/Diet.js), achado em 03/09/2026. Sem foto, o documento
+          // desenha o espaço vazio, que é honesto.
+          if (!bytes || !bytes.length) return;
+          bytesPorLado[lado.key] = { bytes, mime: foto.mime || "image/jpeg" };
         })
       );
 

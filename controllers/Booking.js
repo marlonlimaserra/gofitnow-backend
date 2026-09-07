@@ -3,6 +3,8 @@ const arquivos = require("../lib/arquivos.js");
 const rateLimit = require("../lib/rateLimit.js");
 const slots = require("../lib/slots.js");
 const tempo = require("../lib/tempo.js");
+const fotoDoWhatsapp = require("../lib/fotoDoWhatsapp.js");
+const depoisLib = require("../lib/depois.js");
 
 module.exports = function (app) {
   // A agenda pública: onde o cliente marca sozinho.
@@ -456,6 +458,24 @@ module.exports = function (app) {
           email: email || "",
           phone: telefone,
         });
+
+        // ── A FOTO DO WHATSAPP ──────────────────────────────────────────
+        //
+        // Este é o terceiro lugar que cria pessoa (os outros dois estão em
+        // `Student.js`), e o único em que o telefone é OBRIGATÓRIO — quem
+        // agenda por página pública digita o WhatsApp para receber a
+        // confirmação. Então é onde a foto acerta mais.
+        //
+        // FORA do caminho crítico, e aqui isso é mais importante que nas
+        // outras duas rotas: esta é PÚBLICA e é onde alguém decide se agenda.
+        // A busca tem dois `fetch` de 10s — no pior caso, vinte segundos somados
+        // a um "confirmar agendamento". Vinte segundos de espera é o
+        // agendamento perdido, e a foto que se ganharia não paga isso.
+        //
+        // `app.depois` é só de teste; em produção ele é undefined. Ver Portal.js.
+        (app.depois || depoisLib)(`foto do whatsapp de ${studentId}`, () =>
+          fotoDoWhatsapp.buscarParaPessoa(app, studentId, telefone)
+        );
       }
 
       const id = await app.api.appointment.insert(

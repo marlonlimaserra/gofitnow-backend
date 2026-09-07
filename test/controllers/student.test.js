@@ -157,33 +157,52 @@ test("nome continua obrigatório — é o que sobrou de identidade", async () =>
   assert.equal(chamadas.insertStudent.length, 0);
 });
 
-// ── A CATEGORIA (o que a pessoa é, para a contagem da central) ─────────────
+// ── A CATEGORIA SAIU DO CADASTRO DE CLIENTE (04/09/2026) ──────────────────
 //
-// A resposta mora em `users.category` e quem a escreve é o UserCategory — o
-// insertStudent não conhece o campo, de propósito. A rota valida ANTES de
-// inserir: recusar depois deixaria a ficha criada com um 400 dizendo que nada
-// foi salvo.
+// *"Em novo cliente tem 'categoria', precisa mesmo? O cliente é cliente e
+// acabou."*
+//
+// Ela oferecia duas opções — "Aluno" e "Paciente" — e a conta já decide isso no
+// VOCABULÁRIO, o ajuste que faz a tela inteira dizer "Clientes", "Alunos" ou
+// "Pacientes". Duas fontes para a mesma informação, e ninguém preenchia: 3 de
+// 229 usuários, os três de teste.
+//
+// Estes casos testavam o contrato ANTIGO (gravava e validava). O contrato mudou,
+// e o que se trava agora é o oposto — com uma escolha que merece teste próprio:
+//
+// ── IGNORAR, E NÃO RECUSAR ────────────────────────────────────────────────
+//
+// As rotas devolviam 400 quando a categoria não validava. Com a lista vazia,
+// NADA valida mais — então recusar quebraria os apps já instalados (que seguem
+// mandando o campo até o próximo build) e quebraria EDITAR quem já tem categoria
+// gravada: o formulário reenvia o valor carregado e tomaria 400 sem ninguém
+// entender por quê.
+//
+// Campo removido não é campo inválido.
 
-test("cadastrar com categoria grava a categoria — com o tipo da pessoa", async () => {
+test("cadastrar com categoria IGNORA o campo, e cria a ficha", async () => {
   const { app, chamadas } = monta();
   const r = await post(app, { name: "Ana", category: "aluno" });
 
   assert.equal(r.status, 201);
-  assert.deepEqual(chamadas.categoria, [{ userId: "novo1", key: "aluno", tipo: "student" }]);
+  // Nada foi gravado em `users.category`…
+  assert.equal(chamadas.categoria.length, 0);
+  // …e a ficha foi criada do mesmo jeito, que é o ponto.
+  assert.equal(chamadas.insertStudent.length, 1);
 });
 
-test("categoria fora do catálogo recusa ANTES de criar a ficha", async () => {
-  // Um typo gravado viraria uma categoria fantasma na contagem — que ninguém
-  // cadastrou e ninguém consegue renomear.
+test("categoria que não existe também é IGNORADA — nada de 400", async () => {
+  // Antes isto era 400 `invalid_category`. Um app antigo mandando qualquer coisa
+  // não pode deixar de conseguir cadastrar cliente.
   const { app, chamadas } = monta();
   const r = await post(app, { name: "Ana", category: "nutrisionista" });
 
-  assert.equal(r.status, 400);
-  assert.equal(r.body.code, "invalid_category");
-  assert.equal(chamadas.insertStudent.length, 0);
+  assert.equal(r.status, 201);
+  assert.equal(chamadas.categoria.length, 0);
+  assert.equal(chamadas.insertStudent.length, 1);
 });
 
-test("cadastrar SEM categoria não toca no campo — não dizer o que é também é resposta", async () => {
+test("cadastrar SEM categoria segue igual", async () => {
   const { app, chamadas } = monta();
   const r = await post(app, { name: "Ana" });
 
@@ -191,29 +210,26 @@ test("cadastrar SEM categoria não toca no campo — não dizer o que é também
   assert.equal(chamadas.categoria.length, 0);
 });
 
-test("editar com categoria grava; inválida recusa sem salvar o resto", async () => {
+test("EDITAR quem já tem categoria gravada não toma 400", async () => {
+  // O caso que me fez escolher ignorar em vez de recusar: o formulário carrega a
+  // ficha e reenvia tudo, inclusive a categoria antiga. Recusando, o Marlon Lima
+  // — que tem "aluno" gravado — deixaria de poder ser editado.
   const { app, chamadas } = monta();
 
-  const ok = await put(app, { name: "Ana", category: "aluno" });
-  assert.equal(ok.status, 200);
-  assert.deepEqual(chamadas.categoria, [{ userId: "p1", key: "aluno", tipo: "student" }]);
+  const r = await put(app, { name: "Ana", category: "aluno" });
 
-  const ruim = await put(app, { name: "Ana", category: "nutrisionista" });
-  assert.equal(ruim.status, 400);
-  assert.equal(ruim.body.code, "invalid_category");
-  // O 400 tem de chegar antes de qualquer gravação: um "não salvou" com o nome
-  // já salvo faria a pessoa desconfiar do salvar inteiro.
-  assert.equal(chamadas.updateStudent.length, 1, "só a edição válida chegou ao modelo");
+  assert.equal(r.status, 200);
+  assert.equal(chamadas.categoria.length, 0);
+  assert.equal(chamadas.updateStudent.length, 1, "a edição chegou ao modelo");
 });
 
-test("editar com categoria em BRANCO apaga; sem o campo, mantém", async () => {
+test("editar com categoria em branco também passa sem gravar nada", async () => {
   const { app, chamadas } = monta();
 
-  await put(app, { name: "Ana", category: "" });
-  assert.deepEqual(chamadas.categoria, [{ userId: "p1", key: "", tipo: "student" }]);
+  const r = await put(app, { name: "Ana", category: "" });
 
-  await put(app, { name: "Ana" });
-  assert.equal(chamadas.categoria.length, 1, "sem o campo, o gravar não roda");
+  assert.equal(r.status, 200);
+  assert.equal(chamadas.categoria.length, 0);
 });
 
 test("editar mandando o MESMO e-mail continua funcionando", async () => {

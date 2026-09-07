@@ -1,4 +1,10 @@
 const limiteDoPlano = require("../lib/limiteDoPlano.js");
+const fotoDoWhatsapp = require("../lib/fotoDoWhatsapp.js");
+const depoisLib = require("../lib/depois.js");
+
+// `app.depois` só existe quando o teste o injeta — em produção ele é undefined,
+// e chamá-lo direto estoura DEPOIS do `res.send`, onde o erro não tem para onde
+// ir. O `|| depoisLib` é o padrão do Portal.js, e existe por isso.
 module.exports = function (app) {
   // The people a professional follows — professional only.
   //
@@ -165,6 +171,22 @@ module.exports = function (app) {
     });
 
     res.status(201).send({ msg: req.t("ok.inviteDone") });
+
+    // ── A FOTO DO WHATSAPP, DEPOIS DE RESPONDER ─────────────────────────
+    //
+    // Depois e não antes: uma ida ao WhatsApp somaria segundos a um formulário,
+    // e segundos num "salvar" fazem a pessoa clicar de novo. A foto aparece na
+    // próxima vez que a lista carregar.
+    //
+    // Nunca derruba nada — ver `lib/fotoDoWhatsapp.js`. Desligado na central, ou
+    // número desconectado, é um `return` silencioso e a tela segue com a
+    // inicial do nome.
+    if (body.phone) {
+      // Ver a nota do `depoisLib` no topo: `app.depois` é só de teste.
+      (app.depois || depoisLib)(`foto do whatsapp de ${id}`, () =>
+        fotoDoWhatsapp.buscarParaPessoa(app, id, body.phone)
+      );
+    }
   });
 
   app.post("/people", async function (req, res) {
@@ -210,14 +232,20 @@ module.exports = function (app) {
       });
       return;
     }
-    // A categoria é conferida ANTES de inserir: recusar depois deixaria a ficha
-    // criada e um 400 dizendo que nada foi salvo. O tipo é sempre "student" —
-    // é o que esta rota cria — e a gravação em si fica com o UserCategory, que
-    // é o único lugar que escreve `users.category`.
-    if (body.category && !(await app.api.userCategory.valida(body.category, "student"))) {
-      res.status(400).send({ msg: req.t("errors.invalidCategory"), code: "invalid_category" });
-      return;
-    }
+    // ── A CATEGORIA SAIU DO CADASTRO DE CLIENTE (04/09/2026) ────────────
+    //
+    // *"Precisa mesmo? O cliente é cliente e acabou."* Ela oferecia duas
+    // opções — "Aluno" e "Paciente" — e a conta já decide isso no VOCABULÁRIO.
+    // Ver `UserCategory_model.paraTipo`.
+    //
+    // O que vem no corpo é IGNORADO, e não recusado. Recusar seria o caminho
+    // fácil e errado: as rotas devolviam 400 quando a categoria não validava, e
+    // com a lista vazia NADA valida mais. Isso quebraria os apps já instalados
+    // (que seguem mandando o campo até o próximo build) e, pior, quebraria
+    // EDITAR quem já tem categoria gravada — o formulário reenvia o valor
+    // carregado e tomaria 400 sem ninguém entender por quê.
+    //
+    // Campo removido não é campo inválido. Ele simplesmente não é mais lido.
 
     if (email) {
       // Dentro da instância o e-mail é único. Já existir aqui NÃO significa uma
@@ -279,8 +307,6 @@ module.exports = function (app) {
     // A observacao e do profissional, nao da pessoa: fica no vinculo.
     if (body.notes) await app.api.link.setNotes(trainer._id, id, body.notes);
 
-    // Já validada lá em cima; aqui só grava.
-    if (body.category) await app.api.userCategory.gravar(id, body.category, "student");
 
     const created = await app.api.user.data(id);
 
@@ -291,6 +317,15 @@ module.exports = function (app) {
     });
 
     res.status(201).send(app.api.user.filter(created));
+
+    // A foto do WhatsApp, depois de responder — mesma razão do cadastro por
+    // link acima.
+    if (body.phone) {
+      // Ver a nota do `depoisLib` no topo: `app.depois` é só de teste.
+      (app.depois || depoisLib)(`foto do whatsapp de ${id}`, () =>
+        fotoDoWhatsapp.buscarParaPessoa(app, id, body.phone)
+      );
+    }
   });
 
   app.put("/people/:id", async function (req, res) {
@@ -342,17 +377,7 @@ module.exports = function (app) {
       });
       return;
     }
-    // Conferida junto das outras validações: a tela manda o formulário inteiro,
-    // e um 400 depois de já ter gravado nome e telefone diria "não salvou"
-    // mentindo pela metade. Em branco APAGA (quem escolheu errado volta atrás);
-    // ausente mantém — é o que faz uma edição parcial por API funcionar.
-    if (
-      body.category !== undefined &&
-      !(await app.api.userCategory.valida(body.category, "student"))
-    ) {
-      res.status(400).send({ msg: req.t("errors.invalidCategory"), code: "invalid_category" });
-      return;
-    }
+    // A categoria é ignorada aqui também — ver a nota na criação, acima.
     // O e-mail PODE ser trocado aqui.
     //
     // Ficou travado por um bom tempo, e a razão era do mundo de banco único: o
@@ -375,12 +400,6 @@ module.exports = function (app) {
           return;
         }
       }
-    }
-
-    // Já validada lá em cima; o UserCategory é quem escreve `users.category`
-    // (o updateStudent não conhece o campo, de propósito).
-    if (body.category !== undefined) {
-      await app.api.userCategory.gravar(req.params.id, body.category, "student");
     }
 
     try {

@@ -280,6 +280,28 @@ module.exports = function (app) {
       return;
     }
 
+    // ── OS DOIS TETOS DO TREINO ───────────────────────────────────────────
+    //
+    // O total de exercícios, e as séries do exercício MAIS CARREGADO do pedido.
+    // A segunda checagem é por exercício e não somada: o limite é "séries por
+    // exercício", e somar diria "seu plano permite 20" a quem mandou dez
+    // exercícios de três séries.
+    //
+    // Os dois recusam o pedido inteiro. A tela salva o treino todo de uma vez;
+    // gravar a parte que cabe deixaria o profissional com um treino que ele não
+    // montou e não sabe que mudou.
+    if (
+      await limiteDoPlano.barrouQuantidade(app, req, res, "exercisesPerWorkout", exercises.length)
+    ) {
+      return;
+    }
+
+    const maisSeries = exercises.reduce(
+      (n, e) => Math.max(n, Array.isArray(e?.sets) ? e.sets.length : 0),
+      0
+    );
+    if (await limiteDoPlano.barrouQuantidade(app, req, res, "setsPerExercise", maisSeries)) return;
+
     const before = await app.api.workout.data(trainer._id, req.params.id);
 
     const ok = await app.api.workout.saveExercises(trainer._id, req.params.id, exercises);

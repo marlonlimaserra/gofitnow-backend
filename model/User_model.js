@@ -802,6 +802,22 @@ User_model.prototype.deleteStudent = async function (trainerId, id) {
   if (!ObjectId.isValid(id)) return false;
   if (!(await this.app.api.link.exists(trainerId, id))) return false;
 
+  return await this.apagarTudoDoAluno(id);
+};
+
+// A CASCATA, sozinha — sem a conferência de vínculo.
+//
+// Extraída de `deleteStudent` em 02/09/2026 porque ganhou um segundo chamador: a
+// própria pessoa apagando a conta dela (`excluirMinhaConta`). Duplicar esta
+// lista era garantir que uma das duas cópias esquecesse uma collection na
+// próxima tela que nascesse — e o que fica para trás num apagar de conta é
+// justamente dado de saúde de alguém que pediu para sair.
+//
+// Quem chama decide QUEM pode: aqui não há autorização nenhuma, de propósito.
+User_model.prototype.apagarTudoDoAluno = async function (id) {
+  await sessaoGuardada.esquecerUsuario(id);
+  if (!ObjectId.isValid(id)) return false;
+
   const col = await this.collection();
   const r = await col.deleteOne({ _id: new ObjectId(id) });
 
@@ -1140,6 +1156,124 @@ User_model.prototype.platformSummary = async function () {
     admins: await this.countAdmins(),
     newThisMonth: await col.countDocuments({ createdAt: { $gte: monthStart } }),
   };
+};
+
+// ── PEDIR A EXCLUSÃO DA PRÓPRIA CONTA ─────────────────────────────────────
+//
+// Exigência da diretriz 5.1.1(v) da App Store: app que deixa criar conta TEM de
+// deixar pedir a exclusão de dentro do app. "Fale com o suporte" é recusa. O
+// Google Play pede o mesmo e ainda exige um endereço na web que funcione sem
+// instalar o app.
+//
+// ── NADA APAGA AQUI, E ISSO MUDOU EM 02/09/2026 ───────────────────────────
+//
+// A primeira versão apagava: aluno e profissional na hora, dono com 30 dias de
+// prazo e um script cumprindo a data. O Marlon cortou: "não exclua automático,
+// mande uma solicitação de exclusão lá para a central, para eu ver quem
+// solicitou, para eu entrar em contato perguntar o motivo".
+//
+// E ele está certo por uma razão que o prazo não resolvia: quase todo pedido de
+// exclusão é outro problema com outro nome — cobrança indevida, recurso que a
+// pessoa não achou, ou dado que ela quer tirar de um profissional e não do
+// sistema. Apagar no prazo atende o pedido e perde a conversa. E o dado não
+// volta.
+//
+// A loja não exige exclusão INSTANTÂNEA; exige que comece no app. E abre
+// exceção explícita para setor regulado, onde o pedido pode ser processado por
+// atendimento — dado de saúde é exatamente esse caso. O que sustenta isso é o
+// texto da tela dizer a verdade: pedido registrado, alguém vai entrar em
+// contato. Uma tela que dissesse "excluída" sem excluir seria o problema.
+//
+// O papel continua sendo calculado, e não por vaidade: é o que diz ao painel o
+// TAMANHO do que está sendo pedido antes de alguém ligar.
+
+// Qual dos três papéis é esta pessoa.
+//
+// O dono não é "quem tem admin: true" — vários podem ter. É quem, saindo,
+// deixaria a casa SEM NINGUÉM que possa administrá-la, e apagar a conta dele
+// alcança o dado de todos os alunos dele. É a mesma pergunta que `countAdmins`
+// já respondia para impedir o painel de remover o último administrador.
+User_model.prototype.papelNaExclusao = async function (user) {
+  if (!user) return undefined;
+  if (user.type === "student") return "aluno";
+
+  const outros = await this.countAdmins(String(user._id));
+  return outros > 0 ? "profissional" : "dono";
+};
+
+// O QUE VAI SUMIR, em números — para a tela avisar antes de perguntar, e para o
+// painel saber o peso do pedido sem abrir o banco do cliente.
+//
+// Falha em silêncio para vazio: um número que não veio não pode travar a tela
+// que existe para a pessoa poder sair.
+User_model.prototype.oQueVaiSumirNaExclusao = async function (user) {
+  const papel = await this.papelNaExclusao(user);
+  const col = await this.collection();
+
+  if (papel === "dono") {
+    try {
+      return {
+        alunos: await col.countDocuments({ type: "student" }),
+        profissionais: await col.countDocuments({ type: "trainer" }),
+      };
+    } catch (erro) {
+      return {};
+    }
+  }
+
+  return {};
+};
+
+// Registra o pedido na fila do painel. NÃO apaga nada.
+User_model.prototype.pedirExclusaoDaConta = async function (user, motivo) {
+  const papel = await this.papelNaExclusao(user);
+
+  const pedido = await this.app.api.center.pedirExclusao(instanceContext.required(), {
+    usuarioId: String(user._id),
+    nome: user.name,
+    email: user.email,
+    papel,
+    motivo,
+    oQueVaiSumir: await this.oQueVaiSumirNaExclusao(user),
+  });
+
+  if (!pedido) return { papel, feito: false };
+
+  return { papel, feito: true, pedidaEm: pedido.pedidaEm, jaExistia: Boolean(pedido.jaExistia) };
+};
+
+User_model.prototype.exclusaoPedida = async function (user) {
+  return await this.app.api.center.exclusaoPedida(instanceContext.required(), String(user._id));
+};
+
+User_model.prototype.cancelarExclusaoDaConta = async function (user) {
+  return await this.app.api.center.cancelarExclusaoPedida(
+    instanceContext.required(),
+    String(user._id)
+  );
+};
+
+// A senha desta pessoa, conferida — sem passar pelo login.
+//
+// `authenticate` não serve aqui: ele recebe e-mail ou nome de usuário e faz a
+// busca, e quem já está autenticado tem o id em mãos. Pior, ele passa por
+// `podeEntrar` e devolve o documento inteiro, com o hash — coisas que uma
+// reconferência de senha não precisa carregar.
+//
+// Por que reconferir: a sessão do app fica aberta por semanas. Sem a senha,
+// bastaria pegar o telefone destravado de alguém para apagar a conta dele e
+// todos os alunos dele.
+User_model.prototype.conferirSenha = async function (id, senha) {
+  if (!ObjectId.isValid(id) || !senha) return false;
+
+  const col = await this.collection();
+  const doc = await col.findOne(
+    { _id: new ObjectId(id) },
+    { projection: { password: 1, salt: 1 } }
+  );
+
+  if (!doc || !doc.password || !doc.salt) return false;
+  return this.hashPassword(String(senha), doc.salt) === doc.password;
 };
 
 module.exports = User_model;

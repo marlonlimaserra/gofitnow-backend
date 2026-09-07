@@ -564,4 +564,133 @@ Center_model.prototype.removeHost = async function (instance, host) {
   return r.modifiedCount > 0;
 };
 
+
+// ── AS SOLICITAÇÕES DE EXCLUSÃO DE CONTA ───────────────────────────────────
+//
+// Reescrito em 02/09/2026. A primeira versão AGENDAVA a exclusão do dono para 30
+// dias e um script cumpria a data. O Marlon cortou isso: "não exclua automático,
+// mande uma solicitação de exclusão lá para a central, para eu ver quem
+// solicitou, para eu entrar em contato perguntar o motivo".
+//
+// Ele está certo, e por um motivo que o prazo não resolvia: quase todo pedido de
+// exclusão é um problema com outro nome — cobrança que não devia ter vindo,
+// recurso que a pessoa não achou, dado que ela quer tirar de um profissional e
+// não do sistema. Apagar no prazo atende o pedido e perde a conversa, e o dado
+// não volta.
+//
+// **Nada aqui apaga nada.** Escreve na fila do painel, e quem apaga é gente.
+//
+// A collection mora no banco CENTRAL, e não no do cliente, porque o pedido
+// precisa sobreviver à exclusão que ele pede — ver
+// `gofitnow-center-backend/model/DeletionRequest_model.js`, onde vive o modelo
+// completo. Aqui é só o lado de quem PEDE: registrar, consultar e desistir.
+//
+// Escrita à mão com `instance` no filtro: este banco é o central, e o Proxy de
+// `lib/escopo.js` não protege nada aqui.
+Center_model.prototype.pedidosDeExclusaoCollection = async function () {
+  const db = await this.app.mongodb.centralDb();
+  return db.collection("deletion_requests");
+};
+
+const ABERTOS = ["pendente", "em_contato"];
+const MAX_MOTIVO = 2000;
+
+// Registra o pedido. Devolve o que ficou de pé — o novo ou o que já existia.
+//
+// Pedir duas vezes não cria dois: existe índice único parcial no central para
+// isso (`um_aberto_por_pessoa`), e aqui a segunda vez ATUALIZA o motivo, porque
+// quem repete o pedido normalmente está acrescentando informação.
+Center_model.prototype.pedirExclusao = async function (instance, { usuarioId, nome, email, papel, motivo, oQueVaiSumir }) {
+  const nomeDaInstancia = instanceContext.normalize(instance);
+  if (!nomeDaInstancia || !usuarioId) return undefined;
+
+  const col = await this.pedidosDeExclusaoCollection();
+  const agora = new Date();
+  const texto = (v, max) => String(v ?? "").trim().slice(0, max);
+
+  const aberto = await col.findOne({
+    instance: nomeDaInstancia,
+    usuarioId: String(usuarioId),
+    estado: { $in: ABERTOS },
+  });
+
+  if (aberto) {
+    const novoMotivo = texto(motivo, MAX_MOTIVO);
+    if (novoMotivo && novoMotivo !== aberto.motivo) {
+      await col.updateOne({ _id: aberto._id }, { $set: { motivo: novoMotivo, motivoEm: agora } });
+    }
+    return { ...aberto, jaExistia: true };
+  }
+
+  const doc = {
+    instance: nomeDaInstancia,
+    usuarioId: String(usuarioId),
+    // Nome e e-mail COPIADOS, não referenciados: é o único jeito de saber com
+    // quem falar depois que a conta for apagada — e é essa conta que o pedido
+    // manda apagar.
+    nome: texto(nome, 140),
+    email: texto(email, 200),
+    papel: ["aluno", "profissional", "dono"].includes(papel) ? papel : "aluno",
+    motivo: texto(motivo, MAX_MOTIVO),
+    // Medido AGORA: o número muda com o tempo, e o que importa para a conversa
+    // é o tamanho no momento do pedido.
+    oQueVaiSumir: oQueVaiSumir && typeof oQueVaiSumir === "object" ? oQueVaiSumir : {},
+    estado: "pendente",
+    observacao: "",
+    pedidaEm: agora,
+    atualizadaEm: agora,
+  };
+
+  try {
+    const r = await col.insertOne(doc);
+    return { ...doc, _id: r.insertedId, jaExistia: false };
+  } catch (erro) {
+    // Corrida com outro toque no mesmo segundo: o índice único parcial recusa o
+    // segundo insert. Devolver o que existe é o certo — a pessoa pediu, e o
+    // pedido está de pé.
+    if (erro?.code === 11000) {
+      const existente = await col.findOne({
+        instance: nomeDaInstancia,
+        usuarioId: String(usuarioId),
+        estado: { $in: ABERTOS },
+      });
+      if (existente) return { ...existente, jaExistia: true };
+    }
+    throw erro;
+  }
+};
+
+// O pedido de pé desta pessoa, para a tela dela mostrar o estado.
+Center_model.prototype.exclusaoPedida = async function (instance, usuarioId) {
+  const nomeDaInstancia = instanceContext.normalize(instance);
+  if (!nomeDaInstancia || !usuarioId) return undefined;
+
+  const col = await this.pedidosDeExclusaoCollection();
+  return (
+    (await col.findOne({
+      instance: nomeDaInstancia,
+      usuarioId: String(usuarioId),
+      estado: { $in: ABERTOS },
+    })) || undefined
+  );
+};
+
+// A pessoa desistindo. Sem senha: desistir não destrói nada, e barrar a
+// desistência seria atrito no lado errado.
+Center_model.prototype.cancelarExclusaoPedida = async function (instance, usuarioId) {
+  const nomeDaInstancia = instanceContext.normalize(instance);
+  if (!nomeDaInstancia || !usuarioId) return false;
+
+  const col = await this.pedidosDeExclusaoCollection();
+  const r = await col.updateOne(
+    {
+      instance: nomeDaInstancia,
+      usuarioId: String(usuarioId),
+      estado: { $in: ABERTOS },
+    },
+    { $set: { estado: "cancelada", canceladaPelaPessoa: true, atualizadaEm: new Date() } }
+  );
+  return r.matchedCount > 0;
+};
+
 module.exports = Center_model;

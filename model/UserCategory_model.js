@@ -31,12 +31,35 @@ UserCategory_model.prototype.publicas = async function () {
 // Um aluno não escolhe "endocrinologista", e um profissional não escolhe "aluno".
 // Oferecer a lista inteira nos dois casos é erro de cadastro esperando acontecer —
 // e erro de cadastro aqui contamina a estatística que o site vai exibir.
+//
+// ── O CLIENTE NÃO ESCOLHE CATEGORIA NENHUMA (04/09/2026) ──────────────────
+//
+// *"Em novo cliente tem 'categoria', precisa mesmo? O cliente é cliente e
+// acabou."* Ele está certo, e os números confirmaram:
+//
+// Para `student` a lista tinha DUAS opções — "Aluno" e "Paciente". E a conta já
+// decide isso no VOCABULÁRIO, que é o ajuste que faz a tela inteira dizer
+// "Clientes", "Alunos" ou "Pacientes". Perguntar de novo pessoa por pessoa é
+// pedir duas vezes a mesma coisa, e as duas podem discordar: alguém marcado
+// "Paciente" numa conta que chama todo mundo de "Aluno" não significa nada.
+//
+// E ninguém preenchia: 3 de 229 usuários, os três de teste.
+//
+// A lista volta VAZIA em vez de o campo sair do formulário. É de propósito: os
+// dois clientes já escondem o campo quando ela vem vazia (era o comportamento
+// para "central fora do ar"), então um lugar decide e os dois obedecem — sem
+// esperar build de app para a mudança valer.
+//
+// As categorias de PROFISSIONAL e NEGÓCIO ficam: são as 15 que alimentam o
+// `contagens()`, e é com elas que o painel e o site mostram quem usa o sistema.
+// Essa é a razão de a coisa existir, e ela não muda.
 UserCategory_model.prototype.paraTipo = async function (tipoDeUsuario) {
+  if (tipoDeUsuario === "student") return [];
+
   const todas = await this.publicas();
-  const querem = tipoDeUsuario === "student" ? ["atendido"] : ["profissional", "negocio"];
 
   return todas
-    .filter((c) => querem.includes(c.tipo))
+    .filter((c) => ["profissional", "negocio"].includes(c.tipo))
     .map((c) => ({ key: c.key, name: c.name, tipo: c.tipo }));
 };
 

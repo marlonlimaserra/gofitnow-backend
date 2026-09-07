@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const tetos = require("../lib/tetosEstruturais.js");
 const { weekdaysOf } = require("../lib/weekdays.js");
 
 // Os planos alimentares, com as refeições dentro.
@@ -102,7 +103,16 @@ function limparRefeicao(r, i) {
     time: /^\d{2}:\d{2}$/.test(String(r.time || "")) ? String(r.time) : "",
     name: String(r.name || "").trim(),
     note: r.note ? String(r.note).trim() : "",
-    foods: (r.foods || []).map(limparAlimento),
+    // O TETO ABSOLUTO DE ALIMENTOS, aplicado onde toda refeição passa.
+    //
+    // A rota já recusa com 409 antes de chegar aqui (ver controllers/Diet.js), e
+    // esta linha é a rede embaixo: `limparRefeicao` é o funil ÚNICO das dietas e
+    // dos modelos de dieta, e uma rota nova amanhã pode esquecer de checar.
+    //
+    // Corta em silêncio porque esta é uma função pura, sem `res` para responder
+    // — e cortar é melhor que estourar, que derrubaria a gravação inteira de
+    // quem trouxe 101 alimentos numa importação.
+    foods: tetos.cortar(r.foods || [], "foodsPerMeal").map(limparAlimento),
     order: i,
   };
 }
@@ -459,7 +469,11 @@ Diet_model.prototype.saveMeals = async function (trainerId, id, meals) {
   if (!ObjectId.isValid(id)) return false;
   const col = await this.collection();
 
-  const limpas = (meals || []).map(limparRefeicao);
+  // O teto de REFEIÇÕES vem junto: 9.999 refeições de um alimento cada dão o
+  // mesmo documento gigante que 9.999 alimentos numa refeição, e limitar uma
+  // ponta deixando a outra aberta é não ter limitado. Este não tem chave no
+  // plano — é teto duro (ver lib/tetosEstruturais.js).
+  const limpas = tetos.cortar(meals || [], "mealsPerDiet").map(limparRefeicao);
 
   const r = await col.updateOne(
     { _id: new ObjectId(id), trainer: new ObjectId(trainerId) },

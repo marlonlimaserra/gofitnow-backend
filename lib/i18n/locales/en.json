@@ -49,6 +49,10 @@
     "categoryReserved": "That name belongs to a system category. Please choose another.",
     "chargeNotFound": "Charge not found.",
     "conversationNotFound": "Conversation not found.",
+    "deletionFailed": "I could not finish the deletion. Try again in a moment.",
+    "deletionNeedsPassword": "Enter your password to confirm the deletion.",
+    "deletionNothingScheduled": "There is no deletion scheduled on this account.",
+    "deletionWrongPassword": "Wrong password. Enter your account password to confirm.",
     "dietNotFound": "Plan not found.",
     "domainTaken": "That domain is already on another account.",
     "emailAlreadyHasAccess": "This e-mail already has access to GoFitNow. Sign in instead of creating a new account.",
@@ -65,6 +69,11 @@
     "exerciseNotFound": "Exercise not found.",
     "foodNotFound": "Food not found.",
     "foodShared": "This food belongs to the shared catalog and cannot be changed here. Create your own to have your version.",
+    "ideaCommentEmpty": "Write something before sending.",
+    "ideaCommentTooMany": "You have commented a lot today. Come back tomorrow.",
+    "ideaNoTitle": "Write a title with at least 4 characters.",
+    "ideaNotFound": "I could not find that idea.",
+    "ideaTooMany": "You have suggested a lot today. Come back tomorrow — the ideas are not going anywhere.",
     "internal": "Internal error.",
     "invalidApiKey": "Invalid or revoked API key.",
     "invalidAttachment": "File not accepted or too large.",
@@ -682,6 +691,14 @@
     },
     "diet": {
       "subject": "Your meal plan"
+    },
+    "deletion": {
+      "subject": "We received your account deletion request",
+      "title": "{{name}}, we received your deletion request",
+      "body": "Someone requested, from inside your account, to delete it. <strong>Nothing has been deleted.</strong> We will get in touch to understand what happened and agree on the next steps — if you really want to leave, we will handle it with you.<br><br><strong>If this was not you</strong>, cancel the request at the address below and change your password.",
+      "button": "View or cancel the request",
+      "footer": "In the meantime your account keeps working normally, with all of your data in place.",
+      "text": "{{name}}, we received a request to delete your GoFitNow account.\\n\\nNothing has been deleted. We will get in touch to understand what happened and agree on the next steps.\\n\\nIf this was not you, cancel the request here and change your password:\\n{{url}}\\n\\nIn the meantime your account keeps working normally."
     }
   },
   "apiDocs": {
@@ -755,10 +772,14 @@
     "dietTemplates": "diet templates",
     "diets": "diets",
     "exams": "exams",
+    "exercisesPerWorkout": "exercises per workout",
+    "foodsPerMeal": "foods per meal",
     "people": "people",
+    "photoSides": "photo categories in the assessment",
     "prescriptions": "prescriptions",
     "professionals": "team",
     "schedule": "scheduling",
+    "setsPerExercise": "sets per exercise",
     "supplements": "supplementation",
     "whitelabel": "whitelabel",
     "workoutTemplates": "workout templates",

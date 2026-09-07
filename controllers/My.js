@@ -113,7 +113,28 @@ module.exports = function (app) {
       return;
     }
 
-    res.send(workout);
+    // ── A DEMONSTRAÇÃO DE CADA EXERCÍCIO ────────────────────────────────
+    //
+    // O exercício gravado no treino é um retrato e não carrega a chave do
+    // clipe — ela é do catálogo, e um retrato de dois meses atrás apontaria
+    // para um clipe já regravado. Ver `Exercise_model.clipesPorExercicio`.
+    //
+    // Duas consultas para o treino inteiro. Exercício sem clipe não ganha
+    // campo, e a tela não desenha nada por ele.
+    //
+    // Só na tela do TREINO ABERTO, e não na lista: a lista não mostra
+    // exercício, então pagar as consultas ali seria trabalho para ninguém.
+    const clipes = await app.api.exercise.clipesPorExercicio(
+      (workout.exercises || []).map((e) => e.exerciseId)
+    );
+
+    res.send({
+      ...workout,
+      exercises: (workout.exercises || []).map((e) => {
+        const c = clipes[String(e.exerciseId)];
+        return c ? { ...e, ...c } : e;
+      }),
+    });
   });
 
   app.get("/my/diets", async function (req, res) {

@@ -34,6 +34,10 @@ routes.ApiKey = require("./controllers/ApiKey.js");
 routes.Tenant = require("./controllers/Tenant.js");
 routes.Plan = require("./controllers/Plan.js");
 routes.Support = require("./controllers/Support.js");
+routes.Idea = require("./controllers/Idea.js");
+// A porta de saída: excluir a própria conta. Exigência das duas lojas, e a
+// única forma de alguém sair do sistema por conta própria.
+routes.Account = require("./controllers/Account.js");
 routes.Affiliate = require("./controllers/Affiliate.js");
 routes.UserCategory = require("./controllers/UserCategory.js");
 routes.TabCounts = require("./controllers/TabCounts.js");

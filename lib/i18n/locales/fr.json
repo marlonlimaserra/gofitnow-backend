@@ -49,6 +49,10 @@
     "categoryReserved": "Ce nom appartient à une catégorie du système. Choisissez-en un autre.",
     "chargeNotFound": "Facture introuvable.",
     "conversationNotFound": "Conversation introuvable.",
+    "deletionFailed": "Je n'ai pas pu terminer la suppression. Réessayez dans un instant.",
+    "deletionNeedsPassword": "Saisissez votre mot de passe pour confirmer la suppression.",
+    "deletionNothingScheduled": "Aucune suppression n'est programmée sur ce compte.",
+    "deletionWrongPassword": "Mot de passe incorrect. Saisissez celui de votre compte pour confirmer.",
     "dietNotFound": "Plan introuvable.",
     "domainTaken": "Ce domaine est déjà sur un autre compte.",
     "emailAlreadyHasAccess": "Cet e-mail a déjà accès à GoFitNow. Connectez-vous au lieu de créer un compte.",
@@ -65,6 +69,11 @@
     "exerciseNotFound": "Exercice introuvable.",
     "foodNotFound": "Aliment introuvable.",
     "foodShared": "Cet aliment appartient au catalogue partagé et ne peut pas être modifié ici. Créez le vôtre pour avoir votre version.",
+    "ideaCommentEmpty": "Écrivez quelque chose avant d'envoyer.",
+    "ideaCommentTooMany": "Vous avez beaucoup commenté aujourd'hui. Revenez demain.",
+    "ideaNoTitle": "Écrivez un titre d'au moins 4 caractères.",
+    "ideaNotFound": "Je n'ai pas trouvé cette idée.",
+    "ideaTooMany": "Vous avez déjà beaucoup proposé aujourd'hui. Revenez demain — les idées ne s'envolent pas.",
     "internal": "Erreur interne.",
     "invalidApiKey": "Clé d’API invalide ou révoquée.",
     "invalidAttachment": "Fichier non accepté ou trop volumineux.",
@@ -682,6 +691,14 @@
     },
     "diet": {
       "subject": "Votre plan alimentaire"
+    },
+    "deletion": {
+      "subject": "Nous avons reçu votre demande de suppression de compte",
+      "title": "{{name}}, nous avons reçu votre demande de suppression",
+      "body": "Quelqu'un a demandé, depuis votre compte, de le supprimer. <strong>Rien n'a été supprimé.</strong> Nous allons vous contacter pour comprendre ce qui s'est passé et convenir des prochaines étapes — si vous voulez vraiment partir, nous nous en occupons avec vous.<br><br><strong>Si ce n'était pas vous</strong>, annulez la demande à l'adresse ci-dessous et changez votre mot de passe.",
+      "button": "Voir ou annuler la demande",
+      "footer": "Entre-temps, votre compte fonctionne normalement, avec toutes vos données en place.",
+      "text": "{{name}}, nous avons reçu une demande de suppression de votre compte GoFitNow.\\n\\nRien n'a été supprimé. Nous allons vous contacter pour comprendre ce qui s'est passé et convenir des prochaines étapes.\\n\\nSi ce n'était pas vous, annulez la demande ici et changez votre mot de passe :\\n{{url}}\\n\\nEntre-temps, votre compte fonctionne normalement."
     }
   },
   "apiDocs": {
@@ -755,10 +772,14 @@
     "dietTemplates": "modèles de régime",
     "diets": "régimes",
     "exams": "examens",
+    "exercisesPerWorkout": "exercices par séance",
+    "foodsPerMeal": "aliments par repas",
     "people": "personnes",
+    "photoSides": "catégories de photo dans l'évaluation",
     "prescriptions": "prescriptions",
     "professionals": "équipe",
     "schedule": "agenda",
+    "setsPerExercise": "séries par exercice",
     "supplements": "supplémentation",
     "whitelabel": "marque blanche",
     "workoutTemplates": "modèles de séance",

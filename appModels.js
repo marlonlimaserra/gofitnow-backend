@@ -8,6 +8,9 @@ models.affiliate = require("./model/Affiliate_model.js");
 // O suporte que este cliente RECEBE da GoFitNow — chamados, perguntas
 // frequentes e o WhatsApp de quem atende. Tudo mora no central.
 models.support = require("./model/Support_model.js");
+// As ideias: sugeridas e votadas aqui, respondidas no painel. Como o suporte,
+// elas moram no banco CENTRAL — o produto é um só, e o voto tem de somar.
+models.idea = require("./model/Idea_model.js");
 // A identidade que atravessa os clientes: e-mail, senha e foto de cada pessoa,
 // uma vez só. Também na central — ver o comentário do modelo.
 models.allUser = require("./model/AllUser_model.js");

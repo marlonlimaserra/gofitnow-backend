@@ -3,6 +3,7 @@ const { documentoDieta } = require("../lib/documentoDieta.js");
 const { registrarRotasDeDocumento } = require("../lib/rotasDeDocumento.js");
 const { logoDaCasa } = require("../lib/logoDaCasa.js");
 const { avisarSemEsperar } = require("../lib/avisar.js");
+const arquivos = require("../lib/arquivos.js");
 
 module.exports = function (app) {
   // Os planos alimentares de uma pessoa.
@@ -205,6 +206,20 @@ module.exports = function (app) {
       return;
     }
 
+    // ── O TETO DE ALIMENTOS POR REFEIÇÃO ──────────────────────────────────
+    //
+    // Recusa a MAIOR refeição do pedido, e não a soma: o limite é por refeição,
+    // e somar diria "seu plano permite 30" a quem mandou seis refeições de dez.
+    //
+    // A recusa é do pedido INTEIRO, sem gravar as refeições que caberiam. Meia
+    // dieta salva é pior que nenhuma — a tela edita o dia todo de uma vez e
+    // salvaria por cima na próxima, com o que ficou de fora sumido.
+    const maiorRefeicao = meals.reduce(
+      (n, r) => Math.max(n, Array.isArray(r?.foods) ? r.foods.length : 0),
+      0
+    );
+    if (await limiteDoPlano.barrouQuantidade(app, req, res, "foodsPerMeal", maiorRefeicao)) return;
+
     const ok = await app.api.diet.saveMeals(trainer._id, req.params.id, meals);
     if (!ok) {
       res.status(404).send({ msg: req.t("errors.dietNotFound") });
@@ -287,11 +302,36 @@ module.exports = function (app) {
         chaves.slice(0, TETO).map(async (chave) => {
           const img = await app.api.foodImage.byKey(chave);
           if (!img) return;
-          const dado = img.data;
-          bytesPorChave[chave] = {
-            bytes: Buffer.isBuffer(dado) ? dado : dado?.buffer ? Buffer.from(dado.buffer) : Buffer.from(dado || ""),
-            mime: img.mime || "image/webp",
-          };
+
+          // ── OS BYTES PODEM ESTAR NO R2 ────────────────────────────────
+          //
+          // Isto lia `img.data` direto, e desde a migração de 31/08/2026 esse
+          // campo NÃO EXISTE MAIS: as 2.499 fotos de alimento têm `chave` e
+          // zero bytes no banco. O documento de avaliação foi convertido na
+          // época; a dieta ficou para trás.
+          //
+          // ── POR QUE ISSO PASSOU MESES SEM NINGUÉM VER ─────────────────
+          //
+          // Porque falhava produzindo algo VÁLIDO. `Buffer.from(undefined || "")`
+          // dá um buffer vazio, e um buffer vazio vira
+          // `data:image/webp;base64,` — um endereço bem formado, sem dado
+          // dentro. O HTML saía com o `<img>` no lugar certo, o e-mail saía com
+          // o anexo no lugar certo, e o que chegava era o ícone de imagem
+          // quebrada. Nenhum erro, nenhum log, nenhum teste vermelho.
+          //
+          // O relato foi dele: *"as imagens do plano alimentar, no e-mail e pdf
+          // estão indo quebradas"*.
+          const bytes = await arquivos.bytesDoDocumento(img);
+
+          // ── E O VAZIO É RECUSADO AQUI ─────────────────────────────────
+          //
+          // É a guarda que faltava. Sem foto, o `fotinha` do documento não
+          // desenha `<img>` nenhum (ele testa se a chave existe no mapa) — e
+          // nenhuma foto é melhor que um ícone quebrado, porque a linha continua
+          // legível e ninguém acha que o app está estragado.
+          if (!bytes || !bytes.length) return;
+
+          bytesPorChave[chave] = { bytes, mime: img.mime || "image/webp" };
         })
       );
 

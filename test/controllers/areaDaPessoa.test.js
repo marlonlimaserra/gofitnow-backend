@@ -24,7 +24,7 @@ const TREINOS = [
 ];
 
 function monta({ quem = EU, acompanhadoPor = 0 } = {}) {
-  const pedidos = { workouts: [], exams: [] };
+  const pedidos = { workouts: [], exams: [], clipes: [] };
 
   const app = fakeApp({
     api: {
@@ -41,7 +41,25 @@ function monta({ quem = EU, acompanhadoPor = 0 } = {}) {
           return TREINOS;
         },
         async dataOfStudent(studentId, id) {
-          return id === "meu" ? { _id: "meu", name: "A", student: String(studentId) } : undefined;
+          return id === "meu"
+            ? {
+                _id: "meu",
+                name: "A",
+                student: String(studentId),
+                exercises: [
+                  { exerciseId: "e1", name: "Agachamento" },
+                  { exerciseId: "e2", name: "Supino" },
+                ],
+              }
+            : undefined;
+        },
+      },
+      // O catálogo, para a rota poder pedir os clipes. Só `e1` tem — é o caso
+      // real: hoje 32 dos 1471 exercícios têm demonstração gravada.
+      exercise: {
+        async clipesPorExercicio(ids) {
+          pedidos.clipes.push(ids.map(String));
+          return { e1: { clipSlug: "agachamento-livre", clipV: 1725300000000 } };
         },
       },
       diet: { async listOfStudent() { return [{ _id: "d1", status: "current" }]; } },
@@ -124,6 +142,33 @@ test("treino de OUTRA pessoa é 404 — indistinguível de não existir", async 
 
   const alheio = await call(app, "get", "/my/workouts/deOutro", { params: { id: "deOutro" } });
   assert.equal(alheio.status, 404);
+});
+
+// ── A DEMONSTRAÇÃO DO EXERCÍCIO ────────────────────────────────────────────
+//
+// *"Precisa mostrar aqueles vídeos que você fez dos exercícios."*
+//
+// O exercício gravado DENTRO do treino é um retrato e não carrega `clipSlug` —
+// a chave é do catálogo. Sem este enriquecimento a tela do aluno não tem como
+// saber que existe demonstração, e é por isso que ela nunca mostrou nenhuma.
+test("o treino aberto vem com o clipe de quem tem, e sem campo para quem não tem", async () => {
+  const { app, pedidos } = monta();
+
+  const r = await call(app, "get", "/my/workouts/meu", { params: { id: "meu" } });
+
+  assert.equal(r.status, 200);
+
+  // UMA busca para o treino inteiro, com os dois ids — e não uma por exercício.
+  assert.deepEqual(pedidos.clipes, [["e1", "e2"]]);
+
+  const [agachamento, supino] = r.body.exercises;
+  assert.equal(agachamento.clipSlug, "agachamento-livre");
+  assert.equal(agachamento.clipV, 1725300000000);
+
+  // O que NÃO tem clipe não ganha campo nenhum. É o caso da maioria: inventar
+  // um lugar vazio para 1439 exercícios seria pior que não mostrar.
+  assert.equal("clipSlug" in supino, false);
+  assert.equal(supino.name, "Supino");
 });
 
 test("os exames vêm com o catálogo resolvido pelo MEU sexo", async () => {

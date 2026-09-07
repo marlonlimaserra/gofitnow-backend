@@ -67,13 +67,21 @@ module.exports = function (app) {
     const user = await app.helpers.ReqProtected.verify(req, res);
     if (user === false) return;
 
-    const [faq, whatsapp, tickets] = await Promise.all([
+    // AS IDEIAS ENTRAM NESTA MESMA CHAMADA, e pelo mesmo argumento que juntou as
+    // outras três: quem abre a ajuda está com um problema, e somar latência é
+    // somar problema. São as três mais votadas — a tela mostra uma amostra e
+    // manda para o quadro (`/ajuda/ideias`), que é onde se busca e se ordena.
+    const [faq, whatsapp, tickets, ideias] = await Promise.all([
       app.api.support.faq(),
       app.api.support.whatsapp(),
       app.api.support.meus(req.instance),
+      app.api.idea.listar(
+        { instance: req.instance, userId: String(user._id), nome: user.name },
+        { ordem: "votos" }
+      ),
     ]);
 
-    res.send({ faq, whatsapp, tickets });
+    res.send({ faq, whatsapp, tickets, ideias: ideias.slice(0, 3) });
   });
 
   // Só o número de não lidos — é o selinho do ícone, pedido em toda abertura.

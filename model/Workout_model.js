@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const tetos = require("../lib/tetosEstruturais.js");
 // A ordem da semana mora em lib/weekdays.js: é a MESMA para treino e para plano
 // alimentar, e duas cópias seriam duas verdades sobre qual dia vem primeiro.
 const { WEEKDAYS, weekdaysOf } = require("../lib/weekdays.js");
@@ -540,7 +541,14 @@ Workout_model.prototype.saveExercises = async function (trainerId, id, exercises
   if (!ObjectId.isValid(id)) return false;
   const col = await this.workoutsCollection();
 
-  const cleaned = (exercises || []).map((e, i) => ({
+  // OS TETOS ABSOLUTOS DO TREINO, no funil por onde todo exercício passa.
+  //
+  // A rota já recusa com 409 antes disto (ver controllers/Workout.js); aqui é a
+  // rede embaixo, sem I/O e sem plano — a proteção que continua de pé mesmo com
+  // a central fora do ar, que é justamente quando ninguém está olhando.
+  //
+  // Ver lib/tetosEstruturais.js para os números e o porquê de duas camadas.
+  const cleaned = tetos.cortar(exercises || [], "exercisesPerWorkout").map((e, i) => ({
     // `exerciseId` aponta para o catálogo, mas nome, grupo e miniatura são
     // COPIADOS: se o exercício sair do catálogo, o treino já montado continua
     // legível — e a etiqueta de grupo muscular da listagem não some.
@@ -553,7 +561,7 @@ Workout_model.prototype.saveExercises = async function (trainerId, id, exercises
     method: e.method ? String(e.method).trim() : "",
     goal: e.goal ? String(e.goal).trim() : "",
     tip: e.tip ? String(e.tip).trim() : "",
-    sets: (e.sets || []).map((s) => ({
+    sets: tetos.cortar(e.sets || [], "setsPerExercise").map((s) => ({
       unit: s.unit || "reps", // "reps" | "seconds" | "minutes" | "meters"
       quantity: s.quantity !== undefined && s.quantity !== "" ? String(s.quantity) : "",
       load: s.load !== undefined && s.load !== "" ? String(s.load) : "",

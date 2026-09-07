@@ -49,6 +49,10 @@
     "categoryReserved": "Esse nome é de uma categoria do sistema. Escolha outro.",
     "chargeNotFound": "Cobrança não encontrada.",
     "conversationNotFound": "Conversa não encontrada.",
+    "deletionFailed": "Não consegui concluir a exclusão. Tente de novo em alguns instantes.",
+    "deletionNeedsPassword": "Digite sua senha para confirmar a exclusão.",
+    "deletionNothingScheduled": "Não há exclusão agendada nesta conta.",
+    "deletionWrongPassword": "Senha incorreta. Digite a senha da sua conta para confirmar.",
     "dietNotFound": "Plano não encontrado.",
     "domainTaken": "Esse domínio já está em outra conta.",
     "emailAlreadyHasAccess": "Este e-mail já tem acesso ao GoFitNow. Entre em vez de criar uma conta nova.",
@@ -65,6 +69,11 @@
     "exerciseNotFound": "Exercício não encontrado.",
     "foodNotFound": "Alimento não encontrado.",
     "foodShared": "Este alimento é do catálogo compartilhado e não pode ser alterado aqui. Crie o seu para ter uma versão própria.",
+    "ideaCommentEmpty": "Escreva algo antes de enviar.",
+    "ideaCommentTooMany": "Você comentou bastante hoje. Volte amanhã.",
+    "ideaNoTitle": "Escreva um título com pelo menos 4 letras.",
+    "ideaNotFound": "Não achei essa ideia.",
+    "ideaTooMany": "Você já sugeriu bastante hoje. Volte amanhã — as ideias não vão a lugar nenhum.",
     "internal": "Erro interno.",
     "invalidApiKey": "Chave de API inválida ou revogada.",
     "invalidAttachment": "Arquivo não aceito ou grande demais.",
@@ -682,6 +691,14 @@
     },
     "diet": {
       "subject": "Seu plano alimentar"
+    },
+    "deletion": {
+      "subject": "Recebemos seu pedido para excluir a conta",
+      "title": "{{name}}, recebemos seu pedido de exclusão",
+      "body": "Alguém pediu, de dentro da sua conta, para excluí-la. <strong>Nada foi apagado.</strong> Vamos entrar em contato para entender o que aconteceu e combinar os próximos passos — se você quiser mesmo sair, a gente cuida disso com você.<br><br><strong>Se não foi você que pediu</strong>, cancele o pedido no endereço abaixo e troque sua senha.",
+      "button": "Ver ou cancelar o pedido",
+      "footer": "Enquanto isso sua conta continua funcionando normalmente, com todos os seus dados no lugar.",
+      "text": "{{name}}, recebemos um pedido para excluir sua conta no GoFitNow.\\n\\nNada foi apagado. Vamos entrar em contato para entender o que aconteceu e combinar os próximos passos.\\n\\nSe não foi você que pediu, cancele o pedido neste endereço e troque sua senha:\\n{{url}}\\n\\nEnquanto isso sua conta continua funcionando normalmente."
     }
   },
   "apiDocs": {
@@ -755,10 +772,14 @@
     "dietTemplates": "modelos de dieta",
     "diets": "dietas",
     "exams": "exames",
+    "exercisesPerWorkout": "exercícios por treino",
+    "foodsPerMeal": "alimentos por refeição",
     "people": "pessoas",
+    "photoSides": "categorias de foto na avaliação",
     "prescriptions": "prescrições",
     "professionals": "equipe",
     "schedule": "agenda",
+    "setsPerExercise": "séries por exercício",
     "supplements": "suplementação",
     "whitelabel": "whitelabel",
     "workoutTemplates": "modelos de treino",

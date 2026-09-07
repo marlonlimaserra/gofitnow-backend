@@ -223,6 +223,51 @@ async function comVersaoDoClipe(app, linhas) {
   );
 }
 
+// ── O CLIPE DE CADA EXERCÍCIO DE UM TREINO ────────────────────────────────
+//
+// O exercício gravado DENTRO de um treino é um retrato: nome, grupo, método,
+// dica e séries. Ele NÃO carrega `clipSlug`, e é certo que não carregue — a
+// chave do clipe é do catálogo, e um retrato de dois meses atrás apontaria para
+// um clipe que já foi regravado ou trocado de nome.
+//
+// Então quem quer a demonstração pede aqui, pelo `exerciseId`. Duas consultas
+// para o treino inteiro, e não duas por exercício:
+//
+//   uma no catálogo, para saber a chave do movimento de cada exercício;
+//   outra nos clipes, para saber a DATA de cada movimento (o `?v=` da URL).
+//
+// Devolve um mapa `{ [exerciseId]: { clipSlug, clipV } }`. Exercício sem clipe
+// simplesmente não aparece no mapa — e a tela não desenha nada, que é o certo:
+// hoje 32 dos 1471 exercícios têm clipe, e inventar um lugar vazio para os
+// outros 1439 seria pior que não mostrar.
+Exercise_model.prototype.clipesPorExercicio = async function (ids) {
+  const validos = [...new Set((ids || []).map(String).filter((x) => ObjectId.isValid(x)))];
+  if (!validos.length) return {};
+
+  try {
+    const col = await this.collection();
+    const linhas = await col
+      .find(
+        { _id: { $in: validos.map((x) => new ObjectId(x)) }, clipSlug: { $exists: true, $ne: "" } },
+        { projection: { clipSlug: 1 } }
+      )
+      .toArray();
+
+    if (!linhas.length) return {};
+
+    const comVersao = await comVersaoDoClipe(this.app, linhas);
+
+    return Object.fromEntries(
+      comVersao.map((l) => [String(l._id), { clipSlug: l.clipSlug, clipV: l.clipV }])
+    );
+  } catch (erro) {
+    // Demonstração é acessório: uma falha aqui não pode tirar o treino da tela
+    // de quem vai treinar agora.
+    console.warn("[exercicio] não consegui os clipes:", erro?.message);
+    return {};
+  }
+};
+
 // Um exercício pelo id, INCLUSIVE o aposentado.
 //
 // De propósito: a lista deixa de oferecê-lo, mas o treino que já o usa continua
