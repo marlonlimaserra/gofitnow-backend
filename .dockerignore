@@ -1,0 +1,31 @@
+# O que NÃO entra na imagem.
+#
+# A lista importa por dois motivos: peso (o `node_modules` local traz o Chromium
+# de 652 MB que a imagem instala pelo apt) e SEGREDO — sem a linha do `.env`, a
+# senha do Mongo e as chaves de SMTP viajariam dentro de uma imagem que fica no
+# registro, legível por quem puxar.
+#
+# É a mesma razão do `--exclude=.env` no tar do deploy atual, e essa exclusão já
+# derrubou o backend central uma vez por estar faltando (16/08).
+.env
+.env.*
+node_modules
+npm-debug.log*
+
+.git
+.gitignore
+
+# Os testes não rodam em produção, e o deploy atual também os exclui.
+test
+
+# Cache do Chromium baixado pelo puppeteer na máquina de quem desenvolve.
+.cache
+puppeteer-cache
+
+# Lixo do macOS. Já criou 32 documentos de clipe inválidos em produção uma vez,
+# por vir dentro de um tar.
+.DS_Store
+._*
+
+Dockerfile
+.dockerignore

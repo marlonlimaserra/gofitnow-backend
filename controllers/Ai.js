@@ -1,4 +1,5 @@
 const ai = require("../lib/ai.js");
+const { PODA_CONVERSAS_IA_DIAS } = require("../database/schema.js");
 const instanceContext = require("../lib/instance.js");
 const mcpTools = require("../lib/mcpTools.js");
 
@@ -741,7 +742,18 @@ module.exports = function (app) {
     const user = await app.helpers.ReqProtected.can(req, res, "ai.manage");
     if (user === false) return;
 
-    const dias = Math.min(Math.max(Number(req.query.days) || 30, 1), 365);
+    // ── A JANELA NÃO PASSA DA RETENÇÃO ──────────────────────────────────
+    //
+    // Era 365, e virou o mesmo número da poda de `ai_sessions` (07/09/2026).
+    //
+    // O relatório soma esta collection, e ela agora se apaga em 180 dias. Uma
+    // pergunta de "último ano" continuaria respondendo — com um número que
+    // encolhe sozinho e parece que o cliente usou menos IA. Erro que se lê como
+    // dado é pior que erro que aparece.
+    //
+    // O teto vem do SCHEMA, e não repetido aqui: quem mudar a retenção muda a
+    // janela junto, sem precisar saber que este arquivo existe.
+    const dias = Math.min(Math.max(Number(req.query.days) || 30, 1), PODA_CONVERSAS_IA_DIAS);
     const desde = new Date(Date.now() - dias * 24 * 60 * 60 * 1000);
 
     res.send({ days: dias, ...(await app.api.aiSession.resumo(desde)) });

@@ -30,6 +30,12 @@ const CENTRAL = ["exercises", "foods", "ai_usage"];
 // do Mongo, o dia é a unidade da decisão).
 const PODA_HISTORICO_DIAS = 180;
 
+// E quanto tempo a CONVERSA de IA fica. Mesma decisão, mesmo dia, e um número
+// separado de propósito: são dados de naturezas diferentes (auditoria de quem
+// mexeu no quê × texto que a pessoa escreveu), e um dia um deles vai mudar sem o
+// outro. Um `PODA_DIAS` único fazia a segunda mudança mexer no primeiro dado.
+const PODA_CONVERSAS_IA_DIAS = 180;
+
 const POR_INSTANCIA = [
   "users",
   "user_tokens",
@@ -561,6 +567,40 @@ async function ensureUmBanco(db) {
     .collection("api_keys")
     .createIndex({ instance: 1, user: 1, revokedAt: 1, createdAt: -1 }, { name: "by_user_state" });
 
+  // ── A PODA DAS CONVERSAS DE IA (07/09/2026) ──────────────────────────────
+  //
+  // *"Sim, coloque também."* Seis meses, como o histórico de ações.
+  //
+  // ── O CAMPO É `updatedAt`, E ISSO NÃO É DETALHE ──────────────────────────
+  //
+  // Por `createdAt`, uma conversa aberta em janeiro e retomada toda semana
+  // morreria em julho **no meio do uso**. Por `updatedAt`, o relógio reinicia a
+  // cada turno: some o que ninguém toca há seis meses, e sobrevive o que está
+  // vivo.
+  //
+  // Dá para confiar no campo: `AiSession_model` o grava a cada turno, no mesmo
+  // `$set` das mensagens. Não é um "atualizado em" que só o insert escreve — que
+  // seria `createdAt` com nome bonito.
+  //
+  // ── E A CONTA NÃO VAI COM A CONVERSA ─────────────────────────────────────
+  //
+  // O custo está DUAS vezes: aqui (`costMicros` na sessão) e no central
+  // (`ai_usage`, uma linha por sessão, sem uma palavra de conversa). A poda leva
+  // o texto e deixa a conta lá — que é exatamente a divisão que aquela
+  // collection existe para fazer.
+  //
+  // Mas o relatório de gasto lê ESTA collection, e por um bom motivo: o registro
+  // no central é feito com `try/catch` que engole erro ("o central estar fora não
+  // pode derrubar a conversa do cliente"), então `ai_usage` pode ter buraco. A
+  // consequência está em controllers/Ai.js — a janela do relatório foi presa a
+  // esta retenção, para ele não prometer um ano do que se guarda meio.
+  await db
+    .collection("ai_sessions")
+    .createIndex(
+      { updatedAt: 1 },
+      { expireAfterSeconds: PODA_CONVERSAS_IA_DIAS * 86400, name: "poda_180d" }
+    );
+
   // ai_sessions — a lista do histórico é sempre "as minhas, a mais recente
   // primeiro". `updatedAt` e não `createdAt`: uma conversa retomada volta ao
   // topo, que é onde quem a retomou espera achá-la.
@@ -738,6 +778,8 @@ module.exports.ensureInstanceEssencial = ensureInstanceEssencial;
 module.exports.ESSENCIAIS = ESSENCIAIS;
 module.exports.CENTRAL = CENTRAL;
 module.exports.POR_INSTANCIA = POR_INSTANCIA;
+module.exports.PODA_HISTORICO_DIAS = PODA_HISTORICO_DIAS;
+module.exports.PODA_CONVERSAS_IA_DIAS = PODA_CONVERSAS_IA_DIAS;
 
 // Remove um índice que existe; ignora o que já não está lá.
 //
