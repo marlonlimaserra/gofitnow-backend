@@ -616,6 +616,19 @@ test("em todo look o texto do botão é legível — o de verdade, não o supost
     const melhor = Math.max(contraste("#16200c", botao), contraste("#ffffff", botao));
     assert.ok(melhor >= 4.5, `${look.key}: melhor contraste no botão é ${melhor.toFixed(2)}:1`);
   }
+
+  // ── E O PADRÃO, que este teste deixava passar ────────────────────────
+  //
+  // A regra valia para os quinze looks e não para a cor que sai de fábrica —
+  // justamente a que MAIS gente vê, porque é a de quem nunca abriu Aparência.
+  // Em 10/09/2026 a marca virou laranja e o padrão nasceu com 4,15:1 sem que
+  // nada reclamasse; o buraco só apareceu porque o look novo era um look.
+  const padrao = theme.scale(theme.defaults().brand)["600"];
+  const melhorPadrao = Math.max(contraste("#16200c", padrao), contraste("#ffffff", padrao));
+  assert.ok(
+    melhorPadrao >= 4.5,
+    `PADRAO: melhor contraste no botão é ${melhorPadrao.toFixed(2)}:1`
+  );
 });
 
 test("em todo look a faixa da logo é escura o bastante para a nossa marca", () => {
