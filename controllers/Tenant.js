@@ -18,12 +18,13 @@ const assessmentPhotoSides = require("../lib/assessmentPhotoSides.js");
 // Lido a cada chamada em vez de uma vez no boot, para o teste poder mexer no
 // ambiente sem recarregar o módulo. São duas comparações de string.
 function portais() {
-  // SÃO DOIS desde 25/08/2026, um por domínio nosso: `shapeapp.fit` é a marca
+  // SÃO TRÊS desde 10/09/2026 (`vafit.app` entrou), um por domínio nosso: `shapeapp.fit` é a marca
   // nova e `gofitnow.fit` continua sendo o endereço que os clientes têm salvo.
   // Sem `app.shapeapp.fit` aqui, quem digitasse a porta de entrada do domínio
   // novo recebia "domínio não identificado" — que é o mesmo defeito que este
   // trecho já tinha consertado uma vez, no domínio antigo.
-  const bruto = process.env.PORTAL_HOSTS || "app.gofitnow.fit,app.shapeapp.fit";
+  const bruto =
+    process.env.PORTAL_HOSTS || "app.gofitnow.fit,app.shapeapp.fit,app.vafit.app";
   return bruto
     .split(",")
     .map((h) => h.trim().toLowerCase())

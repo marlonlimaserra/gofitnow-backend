@@ -64,6 +64,14 @@ test("domínio próprio do cliente não ganha candidato nenhum", async () => {
   assert.deepEqual(consultas[0].hosts.$in, ["treinos.marlon.com.br"]);
 });
 
+test("o domínio novo lê a mesma cliente", async () => {
+  // `vafit.app` entrou em 10/09/2026. O cadastro guarda o host canônico em
+  // `gofitnow.fit`, e é a leitura que reconhece o terceiro endereço — mesma
+  // regra que já valia para o segundo.
+  const { modelo } = modeloComColecao([{ host: "bruna.gofitnow.fit", instance: "bruna" }]);
+  assert.equal((await modelo.byHost("bruna.vafit.app")).instance, "bruna");
+});
+
 test("endereço que não é de ninguém continua não sendo", async () => {
   const { modelo } = modeloComColecao([{ host: "bruna.gofitnow.fit", instance: "bruna" }]);
 
@@ -77,5 +85,5 @@ test("o endereço que a gente ESCREVE continua num domínio só", () => {
   // A regra que separa ler de escrever: aceitar dois na leitura é conveniência;
   // mostrar dois seria dar à mesma cliente dois endereços canônicos.
   assert.equal(dominio.hostOf("bruna"), "bruna.gofitnow.fit");
-  assert.deepEqual(dominio.BASE_DOMAINS, ["gofitnow.fit", "shapeapp.fit"]);
+  assert.deepEqual(dominio.BASE_DOMAINS, ["gofitnow.fit", "shapeapp.fit", "vafit.app"]);
 });
