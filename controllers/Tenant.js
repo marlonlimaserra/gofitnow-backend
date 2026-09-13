@@ -56,8 +56,20 @@ module.exports = function (app) {
     // Seis horas só é seguro porque a limpeza é estrutural: quem trocar a cor
     // escreve em `configurations`, e `lib/escopo.js` derruba o cache na hora.
     // Ver `lib/aparenciaGuardada.js`.
+    // ── O AMBIENTE FICA FORA DO CACHE DE SEIS HORAS ───────────────────────
+    //
+    // A aparência é guardada por seis horas, e isso só é seguro porque quem a
+    // muda escreve em `configurations` e derruba o cache na hora
+    // (`lib/escopo.js`). O ambiente NÃO tem essa limpeza: quem o muda é a
+    // Central, outro processo, em outro banco — não há nada aqui para avisar.
+    //
+    // Guardado junto, apontar um cliente para desenvolvimento demoraria até seis
+    // horas para valer, sem sintoma nenhum além de "não mudou nada". Então ele é
+    // resolvido a cada chamada, com cache próprio de dez segundos no modelo.
+    const ambiente = await app.api.center.environmentOf(await app.api.center.byHost(host));
+
     const guardada = await aparenciaGuardada.ler(host);
-    if (guardada) return res.send(guardada);
+    if (guardada) return res.send(comAmbiente(guardada, ambiente));
 
     const padrao = { theme: themeLib.defaults(), scale: themeLib.scale(themeLib.defaults().brand) };
 
@@ -92,11 +104,11 @@ module.exports = function (app) {
     // propriedade da NOSSA instalação, e uma constante compilada no frontend
     // ficaria errada em homologação e em desenvolvimento.
     if (portais().includes(String(host).trim().toLowerCase().split(":")[0])) {
-      return res.send({ ...padrao, custom: false, known: false, portal: true });
+      return res.send(comAmbiente({ ...padrao, custom: false, known: false, portal: true }, ambiente));
     }
 
     if (!registro || registro.active === false || registro.active === 0) {
-      return res.send({ ...padrao, custom: false, known: false });
+      return res.send(comAmbiente({ ...padrao, custom: false, known: false }, ambiente));
     }
 
     const conhecido = { known: true };
@@ -116,7 +128,7 @@ module.exports = function (app) {
     });
     // Registrado mas sem tema escolhido: o endereço é de alguém, o visual é o
     // padrão. São coisas diferentes e a resposta diz as duas.
-    if (!tenant) return res.send({ ...padrao, custom: false, ...conhecido });
+    if (!tenant) return res.send(comAmbiente({ ...padrao, custom: false, ...conhecido }, ambiente));
 
     // O IDIOMA PADRÃO da conta viaja junto.
     //
@@ -137,9 +149,23 @@ module.exports = function (app) {
       ...conhecido,
     };
 
+    // Guarda SEM o ambiente, e responde COM: é o que mantém o cache de seis
+    // horas valendo para a aparência sem levar junto um dado que muda por
+    // decisão humana e não tem quem o invalide.
     aparenciaGuardada.guardar(host, resposta, registro.instance);
-    res.send(resposta);
+    res.send(comAmbiente(resposta, ambiente));
   });
+
+  // Acrescenta o ambiente à resposta, quando existe um.
+  //
+  // Ausente quando não há ambiente cadastrado — e ausente é diferente de vazio:
+  // quem lê (o Worker, e o app) trata a ausência como "siga com o backend de
+  // sempre". Uma instalação que nunca abriu a tela de ambientes continua
+  // funcionando exatamente como antes, e é isso que torna este campo seguro de
+  // acrescentar numa rota que está no caminho de toda abertura de tela.
+  function comAmbiente(corpo, ambiente) {
+    return ambiente ? { ...corpo, environment: ambiente } : corpo;
+  }
 
   // ── Do profissional ─────────────────────────────────────────────────────
 

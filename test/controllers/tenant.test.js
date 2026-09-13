@@ -21,6 +21,10 @@ function monta({
   // cenário de quase todo caso daqui. Os que exercitam a tranca passam
   // `{ appearance: false }` ou `{ whitelabel: false }`.
   limitesDoPlano = {},
+  // O ambiente do endereço. `null` = instalação sem ambientes cadastrados, que é
+  // como o sistema viveu até 13/09/2026 e continua vivendo enquanto ninguém
+  // abrir aquela tela. Os casos que exercitam ambiente passam um objeto.
+  ambienteDoHost = null,
 } = {}) {
   const salvos = [];
   const reservas = [];
@@ -101,6 +105,14 @@ function monta({
         },
         async byHost(host) {
           return hostsDaInstancia.includes(host) ? { instance: "marlon" } : undefined;
+        },
+        // O AMBIENTE do endereço (13/09/2026). `null` é o estado de uma
+        // instalação que nunca abriu a tela de ambientes — e é o padrão aqui de
+        // propósito: nenhum destes casos é sobre ambiente, e a resposta deles
+        // não pode mudar de forma por causa de um campo que eles não pedem.
+        // Os casos que SÃO sobre ambiente trocam este dublê.
+        async environmentOf() {
+          return ambienteDoHost;
         },
         async addHost(instance, host) {
           hostsAdicionados.push({ instance, host });
@@ -193,6 +205,61 @@ test("o tema público sai sem sessão nenhuma", async () => {
   assert.equal(r.status, 200);
   assert.equal(r.body.theme.brand, "#2563eb");
   assert.equal(r.body.custom, true);
+});
+
+// ── O AMBIENTE NA RESPOSTA PÚBLICA (13/09/2026) ───────────────────────────
+//
+// É esta rota que diz à tela do cliente QUAL BACKEND chamar. Ela já era chamada
+// em toda abertura de tela de login, antes de qualquer sessão — então o campo
+// pega carona no que já existia, em vez de uma segunda ida à rede antes de a
+// tela desenhar.
+const PRODUCAO = {
+  nome: "Produção",
+  dominio: "producao.vafit.app",
+  url: "https://producao.vafit.app",
+};
+
+test("o ambiente do cliente vai na resposta pública", async () => {
+  const { app } = monta({
+    tenant: { subdomain: "marlon", theme: { brand: "#2563eb" } },
+    ambienteDoHost: PRODUCAO,
+  });
+  const r = await call(app, "get", "/public/theme", { query: { host: "marlon.gofitnow.fit" } });
+
+  assert.deepEqual(r.body.environment, PRODUCAO);
+});
+
+test("sem ambiente cadastrado, o campo NEM APARECE", async () => {
+  // Ausente é diferente de vazio. Quem lê trata a ausência como "siga com o
+  // backend de sempre" — e é isso que faz uma instalação que nunca abriu a tela
+  // de ambientes continuar funcionando exatamente como antes.
+  //
+  // Um `environment: null` na resposta seria lido como "este cliente não tem
+  // backend", que é outra coisa.
+  const { app } = monta({ tenant: { subdomain: "marlon" } });
+  const r = await call(app, "get", "/public/theme", { query: { host: "marlon.gofitnow.fit" } });
+
+  assert.equal("environment" in r.body, false);
+});
+
+test("endereço que não é de ninguém também recebe o ambiente", async () => {
+  // Parece contraditório e não é: a tela de um host desconhecido PRECISA chamar
+  // um backend para mostrar o que quer que seja. Sem ambiente aqui, um endereço
+  // digitado errado ficaria falando com o backend de sempre enquanto o resto da
+  // instalação já teria mudado.
+  const { app } = monta({ ambienteDoHost: PRODUCAO, hosts: [] });
+  const r = await call(app, "get", "/public/theme", { query: { host: "nao-existe.gofitnow.fit" } });
+
+  assert.equal(r.body.known, false);
+  assert.deepEqual(r.body.environment, PRODUCAO);
+});
+
+test("a PORTA DE ENTRADA também recebe o ambiente", async () => {
+  const { app } = monta({ ambienteDoHost: PRODUCAO });
+  const r = await call(app, "get", "/public/theme", { query: { host: "app.gofitnow.fit" } });
+
+  assert.equal(r.body.portal, true);
+  assert.deepEqual(r.body.environment, PRODUCAO);
 });
 
 test("tema salvo SEM endereço reivindicado ainda chega à tela de entrada", async () => {

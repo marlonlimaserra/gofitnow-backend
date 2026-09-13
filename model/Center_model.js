@@ -1,3 +1,4 @@
+const { ObjectId } = require("mongodb");
 const instanceContext = require("../lib/instance.js");
 const dominio = require("../lib/domain.js");
 const alias = require("../lib/alias.js");
@@ -73,6 +74,74 @@ Center_model.prototype.collection = async function () {
   // uma instância.
   const db = await this.app.mongodb.centralDb();
   return db.collection("instances");
+};
+
+// ── O AMBIENTE DE UM ENDEREÇO ───────────────────────────────────────────────
+//
+// Qual instalação atende este cliente — e, na prática, qual BACKEND a tela dele
+// deve chamar. A lista mora em `environments`, no banco do painel, e quem a
+// edita é a Central (ver `gofitnow-center-backend/model/Environment_model.js`).
+//
+// Aqui só se LÊ, e por um motivo de desenho: quem escreve é um painel, quem lê é
+// toda abertura de tela de login. Duas responsabilidades, dois lados.
+//
+// ── Por que o cache é CURTO, e mais curto que o resto deste arquivo ────────
+//
+// `isActive` guarda por 30s porque cliente cadastrado raramente some. Aqui o
+// valor muda por decisão humana, num painel, com alguém olhando o resultado: o
+// Marlon aponta um cliente para desenvolvimento e recarrega a tela dele para
+// conferir. Trinta segundos de "não mudou nada" pareceriam que não salvou — foi
+// exatamente isso que aconteceu com o cache de tema, e o prazo lá caiu para um
+// minuto pelo mesmo motivo.
+//
+// Dez segundos ainda poupam o banco de praticamente toda visita, porque visita
+// não vem sozinha.
+const CACHE_AMBIENTE_MS = 10 * 1000;
+
+Center_model.prototype.environmentsCollection = async function () {
+  const db = await this.app.mongodb.centralDb();
+  return db.collection("environments");
+};
+
+// O ambiente de um REGISTRO de cliente (o documento que `byHost` devolveu).
+//
+// Cliente sem `environment` gravado cai no PADRÃO — e isso não é um detalhe de
+// migração, é o estado normal: escolher ambiente é a exceção, herdar é a regra.
+//
+// Devolve `null` quando não há ambiente nenhum cadastrado. Quem chama trata isso
+// como "continue com o backend de sempre": uma instalação que nunca abriu a tela
+// de ambientes não pode parar de funcionar por causa dela.
+Center_model.prototype.environmentOf = async function (registro) {
+  const id = registro?.environment ? String(registro.environment) : "";
+  const chave = "e:" + (id || "*padrao*");
+
+  const guardado = lido(chave);
+  if (guardado !== undefined) return guardado;
+
+  let doc;
+  try {
+    const col = await this.environmentsCollection();
+    // O id vem do documento do cliente, gravado pelo painel — mas um valor torto
+    // ali não pode derrubar a tela de login de ninguém.
+    doc = id && ObjectId.isValid(id)
+      ? await col.findOne({ _id: new ObjectId(id) })
+      : await col.findOne({ padrao: true });
+
+    // Apontado para um ambiente que foi apagado: cai no padrão em vez de ficar
+    // sem endereço. O painel recusa apagar ambiente em uso, então isto é a rede
+    // de segurança para o caso de alguém apagar direto no banco.
+    if (id && !doc) doc = await col.findOne({ padrao: true });
+  } catch (erro) {
+    // Sem a collection (instalação antiga) ou banco fora: segue sem ambiente.
+    doc = null;
+  }
+
+  const valor = doc ? { nome: doc.nome, dominio: doc.dominio, url: `https://${doc.dominio}` } : null;
+
+  // Guardado com prazo próprio: `guardar` usa os prazos do `isActive`, que são
+  // outros e existem por outra razão.
+  cache.set(chave, { valor, vale: Date.now() + CACHE_AMBIENTE_MS });
+  return valor;
 };
 
 // ── Consumo de IA, no central ───────────────────────────────────────────────

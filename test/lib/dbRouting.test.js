@@ -276,6 +276,11 @@ test("toda collection de cliente que um modelo toca está DECLARADA", () => {
     // E `idea_comments` (04/09/2026): *"quero que as pessoas comentem etc."* O fio
     // é público a todos os clientes, então mora onde as ideias moram.
     "idea_posts", "idea_votes", "idea_comments",
+    // OS AMBIENTES (13/09/2026): qual instalação atende cada cliente. A lista é
+    // UMA para todos e quem a edita é o painel — este backend só a LÊ, em
+    // `Center_model.environmentOf`, para dizer à tela qual backend chamar.
+    // Índices nascem lá, como manda a fronteira do cabeçalho de config/mongodb.js.
+    "environments",
   ]);
 
   const declaradas = new Set([...schema.POR_INSTANCIA, ...schema.CENTRAL, ...DO_PAINEL]);
