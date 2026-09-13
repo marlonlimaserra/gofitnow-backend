@@ -123,21 +123,39 @@ test("o alvo do CNAME é o app principal", () => {
   assert.equal(domain.CNAME_TARGET, "app." + domain.BASE_DOMAIN);
 });
 
-test("os dois domínios nossos são lidos, e só um é escrito", () => {
-  // `shapeapp.fit` entrou em 25/08/2026, ao lado de `gofitnow.fit`. LER aceita os
-  // dois — é o que faz o endereço novo funcionar sem mexer no cadastro de
-  // ninguém. ESCREVER continua num só, senão a mesma cliente passaria a ter dois
-  // endereços canônicos.
-  assert.equal(domain.subdomainOf("bruna.shapeapp.fit"), "bruna");
-  assert.equal(domain.subdomainOf("bruna.gofitnow.fit"), "bruna");
+test("os TRÊS domínios nossos são lidos, e só um é escrito", () => {
+  // LER aceita todos — é o que faz um endereço novo funcionar sem mexer no
+  // cadastro de ninguém. ESCREVER continua num só, senão a mesma cliente passaria
+  // a ter dois endereços canônicos.
+  for (const host of ["bruna.vafit.app", "bruna.shapeapp.fit", "bruna.gofitnow.fit"]) {
+    assert.equal(domain.subdomainOf(host), "bruna", host);
+  }
   assert.equal(domain.subdomainOf("a.b.shapeapp.fit"), null);
   assert.ok(domain.isOwnDomain("shapeapp.fit"));
-  assert.ok(domain.isOwnDomain("bruna.shapeapp.fit"));
+  assert.ok(domain.isOwnDomain("bruna.vafit.app"));
   assert.ok(!domain.isOwnDomain("treinos.marlon.com.br"));
-  // domínio próprio do cliente não pode ser um dos nossos, nos dois casos
+  // domínio próprio do cliente não pode ser um dos nossos, nos três casos
+  assert.ok(!domain.isUsableDomain("x.vafit.app"));
   assert.ok(!domain.isUsableDomain("x.shapeapp.fit"));
   assert.ok(!domain.isUsableDomain("x.gofitnow.fit"));
   // o endereço MOSTRADO segue no domínio canônico
-  assert.equal(domain.BASE_DOMAIN, "gofitnow.fit");
-  assert.equal(domain.hostOf("bruna"), "bruna.gofitnow.fit");
+  assert.equal(domain.BASE_DOMAIN, "vafit.app");
+  assert.equal(domain.hostOf("bruna"), "bruna.vafit.app");
+});
+
+test("`gofitnow.fit` NÃO SAI da lista de leitura, nunca", () => {
+  // Este caso existe por causa de um defeito que quase entrou em 13/09/2026.
+  //
+  // A lista era derivada: `${BASE_DOMAIN},shapeapp.fit,vafit.app`. Quando o
+  // BASE_DOMAIN virou `vafit.app`, a expressão passou a dar
+  // `vafit.app,shapeapp.fit,vafit.app` — e `gofitnow.fit` caiu fora.
+  //
+  // O estrago não é um endereço a menos. É `bruna.gofitnow.fit` deixar de ser
+  // reconhecido como a Bruna: todo cliente tem o endereço antigo salvo no
+  // navegador e no atalho da tela inicial, e a tela deles viraria "domínio não
+  // identificado" no mesmo deploy — sem erro em lugar nenhum.
+  //
+  // Nenhuma troca de marca futura pode tirá-lo daqui.
+  assert.ok(domain.BASE_DOMAINS.includes("gofitnow.fit"));
+  assert.equal(domain.subdomainOf("bruna.gofitnow.fit"), "bruna");
 });

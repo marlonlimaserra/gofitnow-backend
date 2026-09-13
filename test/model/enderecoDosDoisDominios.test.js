@@ -47,10 +47,20 @@ test("o endereço no domínio novo encontra o cliente cadastrado no antigo", asy
   assert.equal((await modelo.byHost("bruna.shapeapp.fit")).instance, "bruna");
   assert.equal((await modelo.byHost("BRUNA.ShapeApp.fit:443")).instance, "bruna");
 
-  // A consulta do domínio novo procura os DOIS, e nessa ordem: o que veio e o
-  // canônico. Se um dia o cadastro passar a guardar o novo, ele acha pelo primeiro.
+  // A consulta procura o endereço que VEIO primeiro, e depois o mesmo rótulo em
+  // todo domínio nosso. A ordem importa: quem chega pelo endereço gravado acha no
+  // primeiro candidato, sem percorrer os outros.
+  //
+  // São TODOS os domínios, e não só o canônico, porque o cadastro guarda o host
+  // do dia em que o cliente nasceu — e esse dia pode ser anterior à marca atual.
   const doNovo = consultas[1];
-  assert.deepEqual(doNovo.hosts.$in, ["bruna.shapeapp.fit", "bruna.gofitnow.fit"]);
+  assert.equal(doNovo.hosts.$in[0], "bruna.shapeapp.fit", "o que veio vem primeiro");
+  // Sem repetir o que já é o primeiro: uma lista com o mesmo host duas vezes
+  // funcionaria e diria que ninguém olhou.
+  assert.deepEqual(
+    doNovo.hosts.$in,
+    ["bruna.shapeapp.fit", ...dominio.BASE_DOMAINS.map((b) => `bruna.${b}`).filter((h) => h !== "bruna.shapeapp.fit")]
+  );
 });
 
 test("domínio próprio do cliente não ganha candidato nenhum", async () => {
@@ -82,8 +92,22 @@ test("endereço que não é de ninguém continua não sendo", async () => {
 });
 
 test("o endereço que a gente ESCREVE continua num domínio só", () => {
-  // A regra que separa ler de escrever: aceitar dois na leitura é conveniência;
-  // mostrar dois seria dar à mesma cliente dois endereços canônicos.
-  assert.equal(dominio.hostOf("bruna"), "bruna.gofitnow.fit");
-  assert.deepEqual(dominio.BASE_DOMAINS, ["gofitnow.fit", "shapeapp.fit", "vafit.app"]);
+  // A regra que separa ler de escrever: aceitar três na leitura é conveniência;
+  // mostrar três seria dar à mesma cliente três endereços canônicos.
+  //
+  // 13/09/2026: o canônico virou `vafit.app`. A regra não mudou — mudou de qual
+  // domínio ela fala.
+  assert.equal(dominio.hostOf("bruna"), "bruna.vafit.app");
+  assert.deepEqual(dominio.BASE_DOMAINS, ["vafit.app", "gofitnow.fit", "shapeapp.fit"]);
+});
+
+test("o cliente cadastrado no domínio ANTIGO continua sendo achado", async () => {
+  // O caso que a troca de marca poderia quebrar sem avisar. Todo cliente de hoje
+  // está gravado em `bruna.gofitnow.fit`, e é esse endereço que está no atalho da
+  // tela inicial deles.
+  const { modelo } = modeloComColecao([{ host: "bruna.gofitnow.fit", instance: "bruna" }]);
+
+  for (const host of ["bruna.gofitnow.fit", "bruna.shapeapp.fit", "bruna.vafit.app"]) {
+    assert.equal((await modelo.byHost(host)).instance, "bruna", host);
+  }
 });

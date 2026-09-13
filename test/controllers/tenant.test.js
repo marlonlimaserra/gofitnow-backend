@@ -4,6 +4,11 @@ const assert = require("node:assert/strict");
 const { fakeApp, call } = require("../helpers/harness.js");
 const TenantController = require("../../controllers/Tenant.js");
 const themeLib = require("../../lib/theme.js");
+// O domínio canônico é lido daqui em vez de escrito à mão nas asserções: estes
+// casos testam a REGRA ("o host que a gente mostra é o canônico"), e não qual é
+// a marca do mês. Escrito à mão, cada troca de marca quebra quatro testes que
+// não têm nada de errado.
+const dominio = require("../../lib/domain.js");
 
 const USER = { _id: "u1", name: "Marlon" };
 
@@ -157,7 +162,11 @@ function monta({
         async claim(userId, nome) {
           reservas.push(nome);
           return livre
-            ? { ok: true, subdomain: nome, host: `${nome}.gofitnow.fit` }
+            // O host sai do `hostOf`, como no modelo de verdade. Escrito à mão,
+            // este dublê passaria a mentir no dia da troca de marca — e mentiria
+            // de um jeito que o teste não pega: ele afirmaria que o sistema
+            // responde um domínio que o sistema já não responde.
+            ? { ok: true, subdomain: nome, host: dominio.hostOf(nome) }
             : { ok: false, erro: "taken" };
         },
         async claimCustomDomain(userId, host) {
@@ -410,7 +419,7 @@ test("escolher domínio reserva o nome", async () => {
 
   assert.equal(r.status, 200);
   assert.deepEqual(reservas, ["marlon"]);
-  assert.equal(r.body.host, "marlon.gofitnow.fit");
+  assert.equal(r.body.host, dominio.hostOf("marlon"));
 });
 
 test("nome inválido é recusado antes de reservar", async () => {
@@ -464,7 +473,7 @@ test("a checagem de disponibilidade explica o motivo", async () => {
 
   const ok = await call(app, "get", "/me/tenant/available", { query: { subdomain: "marlon" } });
   assert.equal(ok.body.free, true);
-  assert.equal(ok.body.host, "marlon.gofitnow.fit");
+  assert.equal(ok.body.host, dominio.hostOf("marlon"));
 });
 
 // ── Domínio próprio ─────────────────────────────────────────────────────────
@@ -493,7 +502,7 @@ test("cadastrar domínio próprio guarda o host e diz para onde apontar", async 
 
   assert.equal(r.status, 200);
   assert.deepEqual(dominios, ["treinos.marlon.com.br"], "guardou o host limpo, não o que foi colado");
-  assert.equal(r.body.cnameTarget, "app.gofitnow.fit");
+  assert.equal(r.body.cnameTarget, dominio.CNAME_TARGET);
 });
 
 test("cadastrar domínio próprio NÃO precisa da credencial de DNS", async () => {
@@ -631,7 +640,7 @@ test("a tela recebe o alvo do CNAME e o estado do domínio próprio", async () =
 
   assert.equal(r.body.customDomain, "marlon.com.br");
   assert.equal(r.body.customStatus, "pending");
-  assert.equal(r.body.cnameTarget, "app.gofitnow.fit");
+  assert.equal(r.body.cnameTarget, dominio.CNAME_TARGET);
   assert.equal(typeof r.body.pagesReady, "boolean");
 });
 
@@ -686,7 +695,7 @@ test("a tela do profissional recebe o que precisa para se montar", async () => {
   const { app } = monta({ tenant: { subdomain: "marlon", status: "pending", theme: {} } });
   const r = await call(app, "get", "/me/tenant");
 
-  assert.equal(r.body.host, "marlon.gofitnow.fit");
+  assert.equal(r.body.host, dominio.hostOf("marlon"));
   assert.equal(r.body.status, "pending");
   assert.ok(r.body.layouts.length >= 3, "as composições");
   assert.ok(r.body.backgrounds.length >= 4, "os fundos, que agora são escolha à parte");
@@ -710,7 +719,7 @@ test("escolher subdomínio registra o endereço no central", async () => {
 
   await call(app, "post", "/me/tenant/domain", { body: { subdomain: "marlon" } });
 
-  assert.deepEqual(hostsAdicionados, [{ instance: "marlon", host: "marlon.gofitnow.fit" }]);
+  assert.deepEqual(hostsAdicionados, [{ instance: "marlon", host: dominio.hostOf("marlon") }]);
 });
 
 test("cadastrar domínio próprio registra o endereço no central", async () => {

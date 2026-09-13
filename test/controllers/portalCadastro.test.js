@@ -4,6 +4,10 @@ const assert = require("node:assert/strict");
 const { fakeApp, call } = require("../helpers/harness.js");
 const PortalController = require("../../controllers/Portal.js");
 const rateLimit = require("../../lib/rateLimit.js");
+// O host canônico vem daqui: o que estes casos afirmam é "o endereço criado é o
+// canônico", e não qual é a marca. Escrito à mão, cada troca de marca quebraria
+// um teste que não tem nada de errado.
+const dominio = require("../../lib/domain.js");
 
 // O CADASTRO é a rota mais perigosa deste backend: ela cria banco de dados e
 // registro de DNS a partir de um formulário aberto na internet.
@@ -167,14 +171,14 @@ test("cria a instância, o banco, o endereço e o primeiro acesso", async () => 
   const r = await cadastrar(app);
 
   assert.equal(r.status, 201);
-  assert.equal(r.body.host, "bruna-sampaio.gofitnow.fit");
+  assert.equal(r.body.host, dominio.hostOf("bruna-sampaio"));
   assert.ok(r.body.token);
 
-  assert.deepEqual(feito.dns, ["bruna-sampaio.gofitnow.fit"]);
+  assert.deepEqual(feito.dns, [dominio.hostOf("bruna-sampaio")]);
   assert.deepEqual(feito.essencial, ["bruna-sampaio"], "o mínimo é esperado");
   assert.deepEqual(feito.schema, ["bruna-sampaio"], "o resto acontece depois de responder");
   assert.deepEqual(feito.hosts, [
-    { instancia: "bruna-sampaio", host: "bruna-sampaio.gofitnow.fit" },
+    { instancia: "bruna-sampaio", host: dominio.hostOf("bruna-sampaio") },
   ]);
 });
 

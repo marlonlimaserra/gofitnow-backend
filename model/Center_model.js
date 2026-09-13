@@ -438,11 +438,30 @@ Center_model.prototype.byHost = async function (host) {
   const limpo = String(host || "").trim().toLowerCase().split(":")[0];
   if (!limpo) return undefined;
 
+  // ── OS CANDIDATOS: O ENDEREÇO QUE VEIO, E O MESMO RÓTULO EM TODO DOMÍNIO ──
+  //
+  // O cadastro guarda UM host por cliente, no domínio canônico do dia em que ele
+  // nasceu. `bruna` foi criada quando o canônico era `gofitnow.fit`, então é
+  // `bruna.gofitnow.fit` que está gravado.
+  //
+  // Antes daqui a busca tentava o que veio e o CANÔNICO ATUAL. Isso funcionou
+  // enquanto o canônico não mudou — e quebrou no instante em que ele virou
+  // `vafit.app` em 13/09/2026: `bruna.vafit.app` gerava os candidatos
+  // `[bruna.vafit.app, bruna.vafit.app]`, nenhum deles o que está gravado, e a
+  // Bruna deixava de existir no endereço novo. Sem erro nenhum: a tela dizia
+  // "domínio não identificado", como se o endereço fosse de ninguém.
+  //
+  // Agora o rótulo é procurado em TODOS os domínios nossos. É o que torna a
+  // troca de marca uma troca de constante de verdade, em vez de uma migração de
+  // todos os cadastros — e o que faz os três endereços da mesma pessoa
+  // continuarem sendo a mesma pessoa, venha a marca a mudar quantas vezes for.
   const candidatos = [limpo];
   const rotulo = dominio.subdomainOf(limpo);
   if (rotulo) {
-    const canonico = dominio.hostOf(rotulo);
-    if (canonico && canonico !== limpo) candidatos.push(canonico);
+    for (const base of dominio.BASE_DOMAINS) {
+      const candidato = `${rotulo}.${base}`;
+      if (candidato !== limpo) candidatos.push(candidato);
+    }
   }
 
   const col = await this.collection();
