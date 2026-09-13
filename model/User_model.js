@@ -2,6 +2,7 @@ const sessaoGuardada = require("../lib/sessaoGuardada.js");
 const { ObjectId } = require("mongodb");
 const permissionCatalog = require("../lib/permissions.js");
 const instanceContext = require("../lib/instance.js");
+const tempo = require("../lib/tempo.js");
 
 // The `users` collection — every person in the system.
 //
@@ -520,6 +521,61 @@ const ORDEM_PESSOAS = {
   createdAt: "createdAt",
 };
 
+// ── Os filtros da tela de pessoas ──────────────────────────────────────────
+//
+// Três deles são de campo (`active`, `access`, período de cadastro) e um é de
+// RELAÇÃO: "tem treino vencido" não é um valor guardado em lugar nenhum — é o
+// que sobra de comparar os treinos da pessoa com a data de hoje.
+//
+// As três respostas são exclusivas entre si e cobrem todo mundo: quem tem algum
+// treino vigente, quem já teve e todos venceram, e quem nunca teve.
+const FILTROS_DE_TREINO = {
+  current: { treinosEmDia: { $gt: 0 } },
+  expired: { treinosTotal: { $gt: 0 }, treinosEmDia: 0 },
+  none: { treinosTotal: 0 },
+};
+
+// O fuso da CONTA, não o do processo. O servidor roda em UTC de propósito (ver
+// lib/tempo.js), então perguntar as horas a ele responde a pergunta errada.
+User_model.prototype.fusoDaConta = async function () {
+  try {
+    return await this.app.api.tenant.timezoneOfInstance();
+  } catch (error) {
+    // Sem o documento do cliente ainda assim há um dia de hoje: o padrão de
+    // `lib/tempo.js`. Um filtro que estoura é pior que um filtro que usa
+    // Brasília numa conta que nunca escolheu fuso.
+    return tempo.PADRAO;
+  }
+};
+
+// "AAAA-MM-DD" nas duas pontas, qualquer uma opcional, virando um intervalo de
+// instantes. Devolve `undefined` quando nenhuma das duas veio — e é isso que
+// faz o filtro sumir do pipeline em vez de virar um `$match` que aceita tudo.
+const DIA = /^\d{4}-\d{2}-\d{2}$/;
+
+User_model.prototype.periodoDeCadastro = async function (filtros = {}) {
+  const de = String(filtros.createdFrom || "").trim();
+  const ate = String(filtros.createdTo || "").trim();
+  if (!DIA.test(de) && !DIA.test(ate)) return undefined;
+
+  const fuso = await this.fusoDaConta();
+  const faixa = {};
+
+  if (DIA.test(de)) {
+    const [ano, mes, dia] = de.split("-").map(Number);
+    faixa.$gte = tempo.instante({ ano, mes, dia }, fuso);
+  }
+
+  if (DIA.test(ate)) {
+    const [ano, mes, dia] = ate.split("-").map(Number);
+    // `dia + 1` pode passar do fim do mês; `Date.UTC`, lá dentro, vira o mês
+    // seguinte sozinho — 32 de setembro é 1º de outubro.
+    faixa.$lt = tempo.instante({ ano, mes, dia: dia + 1 }, fuso);
+  }
+
+  return faixa;
+};
+
 User_model.prototype.pageStudents = async function (trainerId, filtros = {}) {
   const col = await this.collection();
 
@@ -541,6 +597,18 @@ User_model.prototype.pageStudents = async function (trainerId, filtros = {}) {
       },
     });
   }
+
+  // ── Cadastrado entre tal e tal dia ───────────────────────────────────────
+  //
+  // `createdAt` é um INSTANTE; "de 01/09 a 13/09" é uma pergunta de CALENDÁRIO,
+  // e as duas só se encontram passando pelo fuso da conta. Sem isso, quem foi
+  // cadastrado às 21h em Brasília fica gravado como 00h do dia seguinte em UTC
+  // e sumiria de um filtro que termina no dia dele.
+  //
+  // O fim é `$lt` da meia-noite do dia SEGUINTE, e não `$lte` do dia escolhido:
+  // `$lte` de "13/09" pararia em 00:00 e deixaria o dia 13 inteiro de fora.
+  const periodo = await this.periodoDeCadastro(filtros);
+  if (periodo) etapas.push({ $match: { createdAt: periodo } });
 
   // A junção com o vínculo — e o `active`/`notes` que saem dela.
   //
@@ -606,7 +674,69 @@ User_model.prototype.pageStudents = async function (trainerId, filtros = {}) {
   // descartava metade dela no navegador — o que faz uma página de vinte virar
   // uma lista de três, e a de trás não existir. Filtrar aqui é o que mantém a
   // paginação dizendo a verdade.
+  // `1` só quem entra, `0` só quem não entra. Qualquer outra coisa — inclusive
+  // vazio, que é o que um filtro em branco manda — não filtra nada.
   if (String(filtros.access) === "1") etapas.push({ $match: { hasAccess: true } });
+  else if (String(filtros.access) === "0") etapas.push({ $match: { hasAccess: false } });
+
+  // ── Em dia, vencido, ou sem treino nenhum ────────────────────────────────
+  //
+  // Esta é a única junção do arquivo que NÃO dá para adiar para depois do corte:
+  // ela decide quem entra na página. Por isso ela só é montada quando alguém
+  // pede o filtro — sem ele, a consulta continua exatamente a de antes.
+  //
+  // O `$group` devolve duas contagens por pessoa em vez dos treinos: contar
+  // dentro do `$lookup` é o que evita trazer os exercícios de todo mundo para
+  // responder "tem treino vigente?".
+  if (FILTROS_DE_TREINO[filtros.workout]) {
+    const hoje = tempo.paredeDe(new Date(), await this.fusoDaConta()).data;
+
+    etapas.push(
+      {
+        $lookup: {
+          from: "workouts",
+          let: { pessoa: "$_id" },
+          pipeline: [
+            {
+              // `instance` à mão pela mesma razão da junção do vínculo: o escopo
+              // do cliente não entra em sub-pipeline de `$lookup`. Aqui ele é
+              // desempenho e nada mais — `trainer` e `student` são ObjectId.
+              $match: {
+                instance: instanceContext.required(),
+                trainer: new ObjectId(trainerId),
+                $expr: { $eq: ["$student", "$$pessoa"] },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                total: { $sum: 1 },
+                // Vigente = tudo que não terminou antes de hoje. Treino sem data
+                // de fim nunca vence — é o mesmo `statusOf` do Workout_model.
+                emDia: {
+                  $sum: {
+                    $cond: [
+                      { $and: [{ $ne: ["$endDate", ""] }, { $lt: ["$endDate", hoje] }] },
+                      0,
+                      1,
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+          as: "treinos",
+        },
+      },
+      {
+        $addFields: {
+          treinosTotal: { $ifNull: [{ $arrayElemAt: ["$treinos.total", 0] }, 0] },
+          treinosEmDia: { $ifNull: [{ $arrayElemAt: ["$treinos.emDia", 0] }, 0] },
+        },
+      },
+      { $match: FILTROS_DE_TREINO[filtros.workout] }
+    );
+  }
 
   const campo = ORDEM_PESSOAS[filtros.sort] || "createdAt";
   const direcao = filtros.dir === "asc" ? 1 : -1;
@@ -639,7 +769,19 @@ User_model.prototype.pageStudents = async function (trainerId, filtros = {}) {
         { $limit: limite },
         // Daqui para baixo são quinze pessoas, não a lista inteira.
         ...(precisaDoVinculoAntes ? [] : juntarVinculo),
-        { $project: { password: 0, salt: 0, vinculo: 0, __vazio: 0 } },
+        // `treinos` e as duas contagens são andaime do filtro: úteis para
+        // escolher quem entra, ruído na resposta.
+        {
+          $project: {
+            password: 0,
+            salt: 0,
+            vinculo: 0,
+            __vazio: 0,
+            treinos: 0,
+            treinosTotal: 0,
+            treinosEmDia: 0,
+          },
+        },
       ],
       total: [{ $count: "n" }],
     },

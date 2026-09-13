@@ -224,3 +224,114 @@ test("a ordenação usa a collation do português", async () => {
 
   assert.equal(pipelines[0].opcoes.collation.locale, "pt");
 });
+
+// ── Os filtros do painel (13/09/2026) ─────────────────────────────────────
+//
+// Três são de campo e um é de relação. O de relação — "treino vencido" — é o
+// único que obriga uma junção ANTES do corte, porque ele decide quem entra na
+// página. Daí a regra que estes testes protegem: ele só existe quando é pedido.
+
+test("sem filtro de treino, a consulta continua sendo a de antes", async () => {
+  const { model, pipelines } = fakeModel();
+  await chamar(() => model.pageStudents(TRAINER, {}));
+
+  assert.ok(!texto(pipelines[0].pipeline).includes("workouts"), "nenhuma junção com treinos");
+});
+
+test("`workout=expired` é quem já teve treino e não tem nenhum vigente", async () => {
+  const { model, pipelines } = fakeModel();
+  await chamar(() => model.pageStudents(TRAINER, { workout: "expired" }));
+
+  const antes = antesDoCorte(pipelines[0].pipeline);
+  assert.ok(texto(antes).includes('"from":"workouts"'), "a junção sobe: ela escolhe quem entra");
+  assert.ok(texto(antes).includes('"treinosEmDia":0'));
+  assert.ok(texto(antes).includes('"treinosTotal":{"$gt":0}'), "e exige ter tido algum");
+});
+
+test("`workout=none` é quem nunca teve treino", async () => {
+  const { model, pipelines } = fakeModel();
+  await chamar(() => model.pageStudents(TRAINER, { workout: "none" }));
+
+  assert.ok(texto(antesDoCorte(pipelines[0].pipeline)).includes('"treinosTotal":0'));
+});
+
+test("`workout=current` é quem tem pelo menos um vigente", async () => {
+  const { model, pipelines } = fakeModel();
+  await chamar(() => model.pageStudents(TRAINER, { workout: "current" }));
+
+  assert.ok(texto(antesDoCorte(pipelines[0].pipeline)).includes('"treinosEmDia":{"$gt":0}'));
+});
+
+test("valor de treino que não existe não filtra nada", async () => {
+  // Chega pela URL; qualquer um pode digitar. "invente" não pode virar uma
+  // lista vazia sem explicação — nem uma junção paga à toa.
+  const { model, pipelines } = fakeModel();
+  await chamar(() => model.pageStudents(TRAINER, { workout: "invente" }));
+
+  assert.ok(!texto(pipelines[0].pipeline).includes("workouts"));
+});
+
+test("as contagens de treino são andaime: não saem na resposta", async () => {
+  const { model, pipelines } = fakeModel();
+  await chamar(() => model.pageStudents(TRAINER, { workout: "expired" }));
+
+  const projecao = dasLinhas(pipelines[0].pipeline).find((e) => e.$project);
+  assert.equal(projecao.$project.treinos, 0);
+  assert.equal(projecao.$project.treinosTotal, 0);
+  assert.equal(projecao.$project.treinosEmDia, 0);
+});
+
+test("`access=0` é quem AINDA NÃO tem login", async () => {
+  const { model, pipelines } = fakeModel();
+  await chamar(() => model.pageStudents(TRAINER, { access: "0" }));
+
+  assert.ok(texto(antesDoCorte(pipelines[0].pipeline)).includes('"hasAccess":false'));
+});
+
+// ── O período de cadastro, e o fuso ───────────────────────────────────────
+
+test("o dia escolhido é o do RELÓGIO da conta, não o do servidor", async () => {
+  // O servidor roda em UTC. Sem passar pelo fuso, quem foi cadastrado às 21h em
+  // Brasília fica gravado como 00h do dia seguinte e sumiria de um filtro que
+  // termina no dia dele.
+  const { model } = fakeModel();
+  const faixa = await model.periodoDeCadastro({ createdFrom: "2026-09-01" });
+
+  assert.equal(faixa.$gte.toISOString(), "2026-09-01T03:00:00.000Z");
+});
+
+test("o fim do período é a meia-noite do dia SEGUINTE", async () => {
+  // `$lte` do próprio dia pararia em 00:00 e deixaria o dia inteiro de fora —
+  // "até 13/09" não mostraria ninguém cadastrado no dia 13.
+  const { model } = fakeModel();
+  const faixa = await model.periodoDeCadastro({ createdTo: "2026-09-13" });
+
+  assert.equal(faixa.$lt.toISOString(), "2026-09-14T03:00:00.000Z");
+  assert.equal(faixa.$gte, undefined, "só o fim veio, só o fim entra");
+});
+
+test("o último dia do mês vira o primeiro do mês seguinte", async () => {
+  const { model } = fakeModel();
+  const faixa = await model.periodoDeCadastro({ createdTo: "2026-09-30" });
+
+  assert.equal(faixa.$lt.toISOString(), "2026-10-01T03:00:00.000Z");
+});
+
+test("data em branco ou torta não vira filtro", async () => {
+  const { model } = fakeModel();
+
+  assert.equal(await model.periodoDeCadastro({}), undefined);
+  assert.equal(await model.periodoDeCadastro({ createdFrom: "" }), undefined);
+  assert.equal(await model.periodoDeCadastro({ createdFrom: "ontem" }), undefined);
+  assert.equal(await model.periodoDeCadastro({ createdTo: "13/09/2026" }), undefined);
+});
+
+test("o período entra antes do corte — ele decide quem entra na página", async () => {
+  const { model, pipelines } = fakeModel();
+  await chamar(() =>
+    model.pageStudents(TRAINER, { createdFrom: "2026-09-01", createdTo: "2026-09-13" })
+  );
+
+  assert.ok(texto(antesDoCorte(pipelines[0].pipeline)).includes("createdAt"));
+  assert.ok(!texto(antesDoCorte(pipelines[0].pipeline)).includes("$lookup"), "e sem junção");
+});

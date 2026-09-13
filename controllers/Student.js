@@ -28,8 +28,16 @@ module.exports = function (app) {
         search: req.query.search,
         active: req.query.active,
         // `access=1` — só quem entra no app. Quem pergunta é o seletor de
-        // "iniciar conversa": conversar com quem não tem login não existe.
+        // "iniciar conversa": conversar com quem não tem login não existe. O
+        // painel de Filtros da lista manda também `0`, para o caso oposto:
+        // quem ainda não recebeu senha é justamente quem falta atender.
         access: req.query.access,
+        // Os filtros do painel. Todos opcionais, e cada um some do pipeline
+        // quando vem vazio — um filtro em branco não é "não mostre nada".
+        createdFrom: req.query.createdFrom,
+        createdTo: req.query.createdTo,
+        // "current" | "expired" | "none" — a relação com os treinos.
+        workout: req.query.workout,
         sort: req.query.sort,
         dir: req.query.dir,
         page: req.query.page,
