@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { fakeApp, call, permiteTudo } = require("../helpers/harness.js");
+const rateLimit = require("../../lib/rateLimit.js");
 const AulaoController = require("../../controllers/Aulao.js");
 const Aulao = require("../../model/Aulao_model.js");
 
@@ -53,6 +54,7 @@ function monta({
     api: {
       aulao: {
         async byId() { return aulao; },
+        async bySlug() { return aulao; },
         async inscritos() { return []; },
         async contagemDeTodos() { return {}; },
         async list() { return aulao ? [aulao] : []; },
@@ -96,6 +98,7 @@ function monta({
         async dataStudent() { return { _id: PESSOA, name: "Carla", lang: "pt-BR" }; },
         // O cenário manda quem o telefone acha. `null` é "não existe".
         async dataByPhone() { return pessoaPorTelefone; },
+        async dataByEmail() { return null; },
         async insertStudent(dono, obj) {
           feito.criadas.push({ dono: String(dono), ...obj });
           return CRIADA;
@@ -174,6 +177,9 @@ function monta({
   // barra — é o caminho de verdade, e não um dobro da função de barrar.
   app.api.center = {
     async limitsFor() { return limiteEstourado ? { aulaoes: 0 } : {}; },
+    // Quem traduz o endereço do navegador em instância. A rota pública não tem
+    // sessão: é só por aqui que ela descobre de quem é a página.
+    async instanceForHost() { return "marlon"; },
   };
 
   AulaoController(app);
@@ -724,4 +730,110 @@ test("duplicar pede `schedule.manage`", async () => {
   await call(app, "post", "/aulaoes/a1/duplicar", { body: {} });
 
   assert.ok(pedidas.includes("schedule.manage"));
+});
+
+// ── O LIMITE POR IP NA INSCRIÇÃO PÚBLICA ──────────────────────────────────
+//
+// A rota pública responde uma pergunta que ninguém devia poder fazer em massa:
+// *este telefone é cliente deste estúdio?* Um `422 precisa_do_nome` quer dizer
+// não; qualquer outra resposta quer dizer sim. O limite não fecha esse oráculo
+// — ele encarece, e é o que dá para fazer sem tirar da tela o reconhecimento de
+// quem já é aluno.
+//
+// O que estes casos travam é o que um número solto no código não trava: que a
+// conta seja POR IP (senão uma pessoa tranca a aula inteira), que campo inválido
+// NÃO gaste cota (senão quem digita torto se pune), e que o limite venha ANTES
+// da busca (senão a pergunta é respondida antes de a conta fechar).
+const DE_FORA = {
+  // O host é como a rota pública descobre de quem é a página — ela não tem
+  // sessão. O IP vem no cabeçalho da Cloudflare: atrás do nginx, `req.ip` é
+  // sempre 127.0.0.1, e um limite por 127.0.0.1 seria um limite global.
+  headers: { host: "marlon.vafit.app", "cf-connecting-ip": "203.0.113.7" },
+  instance: "marlon",
+};
+
+function inscricaoPublica(app, body, extra = {}) {
+  return call(app, "post", "/public/aulao/aulao-de-pernas/inscricao", {
+    ...DE_FORA,
+    ...extra,
+    body,
+  });
+}
+
+test("a inscrição pública funciona, e o telefone conhecido entra sem mais nada", async (t) => {
+  rateLimit.reset();
+  t.after(() => rateLimit.reset());
+
+  const { app, feito } = monta({
+    aulao: { ...PAGO, priceCents: 0 },
+    pessoaPorTelefone: { _id: PESSOA, name: "Carla", phone: "11987650001" },
+  });
+
+  const r = await inscricaoPublica(app, { phone: "(11) 98765-0001" });
+
+  assert.equal(r.status, 201);
+  assert.equal(feito.inscritos.length, 1);
+  assert.equal(feito.inscritos[0].origem, "publica");
+  assert.equal(feito.inscritos[0].novaPessoa, false);
+});
+
+test("passando de 30 por hora, o mesmo IP leva 429 — e não consulta mais nada", async (t) => {
+  rateLimit.reset();
+  t.after(() => rateLimit.reset());
+
+  const { app, feito } = monta({
+    aulao: { ...PAGO, priceCents: 0 },
+    // Telefone nunca encontrado: é a varredura, e cada chamada é uma sonda.
+    pessoaPorTelefone: null,
+  });
+
+  for (let i = 0; i < 30; i++) {
+    const r = await inscricaoPublica(app, { phone: `1194444${String(i).padStart(4, "0")}` });
+    assert.equal(r.status, 422, `a ${i + 1}ª ainda devia responder`);
+  }
+
+  const barrada = await inscricaoPublica(app, { phone: "11955550000" });
+
+  assert.equal(barrada.status, 429);
+  assert.equal(barrada.body.code, "too_many_requests");
+  // Nada foi criado em nenhuma das 31: `precisa_do_nome` não cadastra.
+  assert.deepEqual(feito.criadas, []);
+});
+
+test("o limite é POR IP: o vizinho barrado não tranca quem chega de outro lugar", async (t) => {
+  // Sem isto, um aulão divulgado no Instagram seria derrubado por uma pessoa só
+  // — e pior, por uma pessoa atrás do mesmo CGNAT de milhares de outras.
+  rateLimit.reset();
+  t.after(() => rateLimit.reset());
+
+  const { app } = monta({ aulao: { ...PAGO, priceCents: 0 }, pessoaPorTelefone: null });
+
+  for (let i = 0; i < 31; i++) {
+    await inscricaoPublica(app, { phone: `1194444${String(i).padStart(4, "0")}` });
+  }
+
+  const outro = await inscricaoPublica(app, { phone: "11933330000" }, {
+    headers: { ...DE_FORA.headers, "cf-connecting-ip": "198.51.100.22" },
+  });
+
+  assert.equal(outro.status, 422, "outro endereço tem a cota dele");
+});
+
+test("campo inválido NÃO gasta cota — quem digita torto não se pune", async (t) => {
+  // A lição é do cadastro no Portal: com o limite antes da validação, quem
+  // errava o próprio dado ficava trancado por uma hora no primeiro contato com
+  // o produto.
+  rateLimit.reset();
+  t.after(() => rateLimit.reset());
+
+  const { app } = monta({ aulao: { ...PAGO, priceCents: 0 }, pessoaPorTelefone: null });
+
+  for (let i = 0; i < 40; i++) {
+    const r = await inscricaoPublica(app, { name: "Sem telefone" });
+    assert.equal(r.status, 400);
+  }
+
+  const valida = await inscricaoPublica(app, { phone: "11944440001" });
+
+  assert.equal(valida.status, 422, "a cota estava intacta");
 });

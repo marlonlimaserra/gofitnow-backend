@@ -187,6 +187,7 @@
     "routeNotFound": "Route introuvable.",
     "serviceNotFound": "Service introuvable.",
     "signupRateLimited": "Trop d’inscriptions depuis cet ordinateur. Réessayez dans une heure.",
+    "aulaoRateLimited": "Trop d'inscriptions depuis cet appareil. Réessayez dans une heure.",
     "studentAreaOnly": "Cet espace appartient aux personnes suivies. Votre accès passe par leur fiche.",
     "studentNotFound": "Élève introuvable.",
     "studentWithoutEmail": "Cette personne n'a pas d'adresse e-mail enregistrée.",

@@ -187,6 +187,7 @@
     "routeNotFound": "Route not found.",
     "serviceNotFound": "Service not found.",
     "signupRateLimited": "Too many sign-ups from this computer. Please try again in an hour.",
+    "aulaoRateLimited": "Too many sign-ups from this device. Please try again in an hour.",
     "studentAreaOnly": "This area belongs to the people you follow. Your access is through their records.",
     "studentNotFound": "Student not found.",
     "studentWithoutEmail": "This person has no email address on file.",

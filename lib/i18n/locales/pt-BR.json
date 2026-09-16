@@ -187,6 +187,7 @@
     "routeNotFound": "Rota não encontrada.",
     "serviceNotFound": "Serviço não encontrado.",
     "signupRateLimited": "Muitos cadastros deste computador. Tente novamente em uma hora.",
+    "aulaoRateLimited": "Muitas inscrições deste aparelho. Tente novamente em uma hora.",
     "studentAreaOnly": "Esta área é de quem é atendido. O seu acesso é pela ficha.",
     "studentNotFound": "Aluno não encontrado.",
     "studentWithoutEmail": "Esta pessoa não tem e-mail cadastrado.",

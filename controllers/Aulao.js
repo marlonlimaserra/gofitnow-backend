@@ -4,6 +4,8 @@ const arquivos = require("../lib/arquivos.js");
 const AulaoImage = require("../model/AulaoImage_model.js");
 const dominio = require("../lib/domain.js");
 const limiteDoPlano = require("../lib/limiteDoPlano.js");
+const rateLimit = require("../lib/rateLimit.js");
+const clientIp = require("../lib/clientIp.js");
 
 // OS AULÕES — aula em grupo com data, lugar e vagas.
 //
@@ -719,6 +721,40 @@ module.exports = function (app) {
     });
   });
 
+  // ── O LIMITE POR IP, E O QUE ELE RESOLVE DE VERDADE ─────────────────────
+  //
+  // A rota abaixo responde uma pergunta que ninguém devia poder fazer em massa:
+  // *este telefone é cliente deste estúdio?* Quem manda um número e recebe
+  // `422 precisa_do_nome` sabe que a resposta é não; qualquer outra resposta
+  // quer dizer sim. Isso é um ORÁCULO DE ENUMERAÇÃO, e ele é inerente ao que a
+  // tela faz de bom — reconhecer quem já é aluno sem pedir o nome de novo.
+  //
+  // Então o que segue não FECHA o oráculo: encarece. Com 30 por hora, varrer os
+  // 100 mil números de um DDD levaria quatro meses a partir de um endereço. É
+  // fricção, não cura — a cura seria não responder a pergunta, e a pergunta é o
+  // recurso.
+  //
+  // ── Por que 30, e não 5 ───────────────────────────────────────────────
+  //
+  // Porque IP não é pessoa. Operadora de celular no Brasil trabalha com CGNAT:
+  // milhares de assinantes saem pelo mesmo endereço. Um aulão divulgado no
+  // Instagram enche por celular, e um limite apertado transformaria "a aula
+  // lotou rápido" em "o site parou de aceitar inscrição" — punindo o sucesso.
+  //
+  // 30 por hora é largo para gente de verdade e estreito para varredura. Se um
+  // dia aparecer abuso mesmo assim, o próximo degrau não é baixar o número: é
+  // exigir o desafio (Turnstile) depois de N tentativas, como o login já faz em
+  // `lib/tentativasDeLogin.js` — "continue, mas prove que é gente" em vez de
+  // "chega, volte depois".
+  const LIMITE_INSCRICOES_POR_HORA = 30;
+
+  // A janela do `rateLimit` é de um minuto. Para uma hora, a chave carrega a
+  // hora corrente — mesmo truque do cadastro no Portal: a contagem morre junto
+  // com a hora, sem um segundo mecanismo para mantê-la.
+  function chaveDaHora(ip) {
+    return `aulaoInscricao:${ip}:${Math.floor(Date.now() / 3600000)}`;
+  }
+
   // ── INSCREVER-SE DE FORA ────────────────────────────────────────────────
   //
   // Quem chega pelo link não tem conta. A ficha é criada como na página de
@@ -753,6 +789,27 @@ module.exports = function (app) {
     // digitar mais nada; quem não existe recebe um segundo passo pedindo o nome.
     if (!telefone) return res.status(400).send({ msg: req.t("errors.bookingPhone"), code: "precisa_do_telefone" });
     if (email && !app.validator.isEmail(email)) return res.status(400).send({ msg: req.t("errors.invalidEmail") });
+
+    // ── O LIMITE, DEPOIS DOS CAMPOS E ANTES DA BUSCA ──────────────────────
+    //
+    // A ordem é a mesma do cadastro no Portal, e pelo motivo aprendido lá: quem
+    // erra o próprio dado não pode gastar cota. Campo vazio não consulta nada e
+    // não revela nada — cobrar por ele trancaria quem digitou torto.
+    //
+    // E é ANTES da busca porque a busca É o oráculo. Contar depois deixaria a
+    // pergunta ser respondida antes de a conta fechar.
+    const limite = await rateLimit.checkShared(
+      chaveDaHora(clientIp(req)),
+      LIMITE_INSCRICOES_POR_HORA
+    );
+
+    if (!limite.allowed) {
+      res.setHeader("Retry-After", "3600");
+      return res.status(429).send({
+        msg: req.t("errors.aulaoRateLimited"),
+        code: "too_many_requests",
+      });
+    }
 
     const dono = a.createdBy;
 
