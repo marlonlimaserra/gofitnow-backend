@@ -74,15 +74,24 @@ for (const k in defaultModules) app[k] = defaultModules[k];
 app.api = {};
 for (const k in appModels) app.api[k] = new appModels[k](app);
 
+// A última coluna é ACESSO AO APP, e ela existe por causa da foto.
+//
+// A tela de Pessoas tem uma coluna "Acesso" que separa quem entra no aplicativo
+// de quem só tem ficha, e a legenda dela no site promete exatamente isso. Com
+// todo mundo sem senha, a coluna saía dizendo "Só ficha" oito vezes e o painel
+// do Dashboard dizia "Com acesso ao app: 0" — a foto desmentia a legenda.
+//
+// Cinco de oito com acesso é a proporção que se vê numa conta de verdade: nem
+// todo aluno baixa o app, e nem todo profissional convida todo mundo.
 const ALUNOS = [
-  ["Camila Ferraz",    "camila.ferraz@exemplo.com",    "11987650001", "female", "1994-03-12", "Hipertrofia"],
-  ["Rodrigo Vasques",  "rodrigo.vasques@exemplo.com",  "11987650002", "male",   "1988-07-25", "Emagrecimento"],
-  ["Helena Brandão",   "helena.brandao@exemplo.com",   "11987650003", "female", "1991-11-03", "Condicionamento"],
-  ["Tiago Mendonça",   "tiago.mendonca@exemplo.com",   "11987650004", "male",   "1996-01-18", "Força"],
-  ["Larissa Coutinho", "larissa.coutinho@exemplo.com", "11987650005", "female", "1999-05-30", "Hipertrofia"],
-  ["Otávio Bezerra",   "otavio.bezerra@exemplo.com",   "11987650006", "male",   "1985-09-08", "Saúde geral"],
-  ["Beatriz Nogueira", "beatriz.nogueira@exemplo.com", "11987650007", "female", "1993-12-21", "Emagrecimento"],
-  ["Gustavo Peixoto",  "gustavo.peixoto@exemplo.com",  "11987650008", "male",   "1990-04-14", "Hipertrofia"],
+  ["Camila Ferraz",    "camila.ferraz@exemplo.com",    "11987650001", "female", "1994-03-12", "Hipertrofia",     true],
+  ["Rodrigo Vasques",  "rodrigo.vasques@exemplo.com",  "11987650002", "male",   "1988-07-25", "Emagrecimento",   true],
+  ["Helena Brandão",   "helena.brandao@exemplo.com",   "11987650003", "female", "1991-11-03", "Condicionamento", true],
+  ["Tiago Mendonça",   "tiago.mendonca@exemplo.com",   "11987650004", "male",   "1996-01-18", "Força",           false],
+  ["Larissa Coutinho", "larissa.coutinho@exemplo.com", "11987650005", "female", "1999-05-30", "Hipertrofia",     true],
+  ["Otávio Bezerra",   "otavio.bezerra@exemplo.com",   "11987650006", "male",   "1985-09-08", "Saúde geral",     false],
+  ["Beatriz Nogueira", "beatriz.nogueira@exemplo.com", "11987650007", "female", "1993-12-21", "Emagrecimento",   true],
+  ["Gustavo Peixoto",  "gustavo.peixoto@exemplo.com",  "11987650008", "male",   "1990-04-14", "Hipertrofia",     false],
 ];
 
 // Datas relativas a AGORA, e não escritas à mão: um script com "2026-09-18"
@@ -229,11 +238,16 @@ function diaISO(d) {
     console.log("profissional:", PROF.name, String(profId));
 
     const alunos = [];
-    for (const [name, email, phone, sex, birthDate, goal] of ALUNOS) {
+    for (const [name, email, phone, sex, birthDate, goal, comAcesso] of ALUNOS) {
       const id = await app.api.user.insertStudent(profId, {
         name, email, phone, sex, birthDate, goal,
         weight: 60 + Math.round(Math.random() * 30),
         height: 160 + Math.round(Math.random() * 25),
+        // `hasAccess` é DERIVADO de ter senha (ver `User_model.filter`), então a
+        // única forma de alguém ter acesso é ter uma. Cada um leva uma senha
+        // sorteada e descartada: ninguém precisa entrar como eles, e uma senha
+        // igual para todos numa conta de demonstração é convite.
+        ...(comAcesso ? { password: crypto.randomBytes(12).toString("base64url") } : {}),
       });
       alunos.push({ id, name });
     }
@@ -271,13 +285,37 @@ function diaISO(d) {
       .project({ name: 1, muscleGroup: 1, thumbUrl: 1, videoUrl: 1, nameSort: 1 })
       .toArray();
 
+    // ── QUAL DOS 1.468 ENTRA NA FOTO ──────────────────────────────────────
+    //
+    // O primeiro que CONTÉM o termo não serve: a busca é sobre um catálogo em
+    // que clientes cadastraram os próprios exercícios, e o primeiro em ordem
+    // alfabética costuma ser o pior. "crucifixo" trazia "Agachamento com
+    // crucifixo inverso trx", "desenvolvimento" trazia "_desenvolvimento
+    // (elástico)", "tríceps" trazia "Agacha tríceps" — todos legítimos, nenhum
+    // apresentável numa página de vendas.
+    //
+    // A ordem agora é: nome EXATO; senão, entre os que contêm o termo, o que
+    // TEM demonstração (a miniatura é metade do que a foto mostra) e, entre
+    // esses, o de nome mais curto — que é quase sempre o exercício canônico,
+    // porque as variações se distinguem justamente acrescentando palavras.
     function acharExercicio(termo) {
       const t = termo.toLowerCase();
-      return (
-        catalogo.find((e) => String(e.name || "").toLowerCase() === t) ||
-        catalogo.find((e) => String(e.name || "").toLowerCase().includes(t)) ||
-        null
-      );
+      const nome = (e) => String(e.name || "").toLowerCase();
+
+      const exato = catalogo.find((e) => nome(e) === t);
+      if (exato) return exato;
+
+      const candidatos = catalogo.filter((e) => nome(e).includes(t));
+      if (!candidatos.length) return null;
+
+      candidatos.sort((a, b) => {
+        const temA = a.thumbUrl || a.videoUrl ? 0 : 1;
+        const temB = b.thumbUrl || b.videoUrl ? 0 : 1;
+        if (temA !== temB) return temA - temB;
+        return nome(a).length - nome(b).length;
+      });
+
+      return candidatos[0];
     }
 
     const PLANO = [
@@ -460,7 +498,10 @@ function diaISO(d) {
       },
       profId
     );
-    console.log("agenda pública: /agendar/estudio");
+    // `/g` é o endereço de verdade (ver `lib/rotaAgenda.js` na tela). O texto
+    // antigo dizia "/agendar/estudio", que nunca existiu — e mandou a captura
+    // da agenda pública fotografar o Dashboard.
+    console.log("agenda pública: /g");
 
     // ── 6. O FINANCEIRO: pago, aberto e atrasado ─────────────────────────
     //
