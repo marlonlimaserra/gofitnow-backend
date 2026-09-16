@@ -30,17 +30,31 @@
     "aiVoiceRateLimited": "OpenAI asked us to wait a bit. Try again in a moment.",
     "aiVoiceUnreachable": "Could not reach OpenAI. Try again in a moment.",
     "alreadyInYourList": "That person is already in your list.",
+    "alreadyOnPlan": "You are already on that plan.",
     "apiKeyCannotManage": "An API key cannot create or revoke keys. Sign in to the app for that.",
     "apiKeyNotFound": "Key not found.",
     "appointmentNotFound": "Appointment not found.",
     "assessmentNotFound": "Assessment not found.",
+    "aulaoAlreadyIn": "That person is already enrolled.",
+    "aulaoBadImage": "We could not read that image. Try a JPG, PNG or WebP.",
+    "aulaoFree": "This class is free — there is no charge.",
+    "aulaoFull": "This group class is full.",
+    "aulaoNoDate": "Set the date and time of the group class.",
+    "aulaoNoName": "Give the group class a name.",
+    "aulaoNoPerson": "Choose who to enroll.",
+    "aulaoNotEnrolled": "That person is not enrolled in this group class.",
+    "aulaoNotFound": "That group class no longer exists.",
+    "aulaoTooManyImages": "This class already has the maximum number of photos.",
     "badCredentials": "Wrong e-mail or password.",
+    "billingOff": "Billing is not enabled on this installation. Contact support.",
+    "bookingName": "Tell us your name.",
     "bookingPageName": "Give the page a name.",
     "bookingPageNotFound": "Booking page not found.",
     "bookingPageSlugRequired": "Write the alias that goes in the URL.",
     "bookingPageSlugReserved": "That alias is reserved by the system. Pick another.",
     "bookingPageSlugShort": "The alias needs at least two letters.",
     "bookingPageSlugTaken": "A page with that alias already exists.",
+    "bookingPhone": "Enter your WhatsApp number.",
     "brandImagesNotInPlan": "Your plan does not include brand images. You can still point to an image hosted somewhere else.",
     "cannotDeleteSelf": "You cannot delete your own account.",
     "captcha_failed": "Verification failed. Please try again.",
@@ -48,10 +62,12 @@
     "categoryDuplicated": "You already have a category with that name.",
     "categoryReserved": "That name belongs to a system category. Please choose another.",
     "chargeNotFound": "Charge not found.",
+    "checkoutFailed": "I could not open the payment screen. Try again in a few minutes.",
     "conversationNotFound": "Conversation not found.",
     "deletionFailed": "I could not finish the deletion. Try again in a moment.",
     "deletionNeedsPassword": "Enter your password to confirm the deletion.",
     "deletionNothingScheduled": "There is no deletion scheduled on this account.",
+    "deletionOwnerBlocked": "You are the account holder, so it cannot be deleted here — the platform would be left with nobody responsible. Contact support to close the whole account.",
     "deletionWrongPassword": "Wrong password. Enter your account password to confirm.",
     "dietNotFound": "Plan not found.",
     "domainTaken": "That domain is already on another account.",
@@ -82,6 +98,7 @@
     "invalidDomain": "Write the domain as it is, with no http:// and no slash — for example, training.yoursite.com.",
     "invalidEmail": "Invalid e-mail.",
     "invalidField": "Invalid field.",
+    "invalidFile": "We could not read that file.",
     "invalidImage": "Send a JPG, PNG or WEBP image of up to 2 MB.",
     "invalidLanguage": "Language not recognised.",
     "invalidName": "Please enter your name.",
@@ -103,6 +120,7 @@
     "lastAccountManagingRolesEdit": "This is the last active account that manages permissions — promote another one before changing this.",
     "lastRoleManagingRoles": "This is the only type that still manages permissions, and it is yours. Give that permission to another type first.",
     "mailFailed": "Could not send the e-mail.",
+    "moduleNotFound": "That module does not exist.",
     "newPasswordTooShort": "The new password needs at least 6 characters.",
     "noAccountWithEmail": "There is no account with that e-mail.",
     "noApiKey": "No API key provided.",
@@ -112,6 +130,7 @@
     "noPhoto": "You have no photo.",
     "noPhotoShort": "No photo.",
     "noSession": "No session provided.",
+    "noSubscription": "You do not have a subscription to manage yet.",
     "notFound": "Not found.",
     "notInPlan": "Your plan does not include {{o}}. Talk to whoever manages your account.",
     "optionNotFound": "Option not found.",
@@ -128,7 +147,12 @@
     "pdfUnavailable": "PDF generation is not available on this server. Use the print option.",
     "personNotFound": "Person not found.",
     "personWithoutEmail": "This person has no e-mail on file.",
+    "planInactive": "That plan is no longer available.",
+    "planIsFree": "The free plan needs no payment.",
     "planLimitReached": "Your plan allows up to {{max}} in {{o}}. Delete what you no longer use, or upgrade.",
+    "planNotFound": "That plan does not exist.",
+    "planNotSellable": "That plan is not ready to be sold yet. Support has been notified.",
+    "portalFailed": "I could not open the management screen. Try again in a few minutes.",
     "prescriptionNotFound": "Prescription not found.",
     "rateLimited": "Limit of {{limit}} calls per minute reached. Try again in {{seconds}}s.",
     "requestNoLongerValid": "This request is no longer valid.",
@@ -699,6 +723,14 @@
       "button": "View or cancel the request",
       "footer": "In the meantime your account keeps working normally, with all of your data in place.",
       "text": "{{name}}, we received a request to delete your GoFitNow account.\\n\\nNothing has been deleted. We will get in touch to understand what happened and agree on the next steps.\\n\\nIf this was not you, cancel the request here and change your password:\\n{{url}}\\n\\nIn the meantime your account keeps working normally."
+    },
+    "booking": {
+      "subject": "{{person}} booked {{service}} — {{when}}",
+      "title": "{{name}}, a slot was booked on your calendar",
+      "body": "<strong>{{person}}</strong> booked <strong>{{service}}</strong> through your booking page.<br><br>When: <strong>{{when}}</strong><br>Contact: {{contact}}",
+      "button": "Open the calendar",
+      "footer": "The slot is already on your calendar — nothing to confirm. If you cannot make it, reschedule or cancel from there.",
+      "text": "{{name}}, {{person}} booked {{service}} for {{when}}. Contact: {{contact}}. Open the calendar: {{url}}"
     }
   },
   "apiDocs": {
@@ -759,6 +791,14 @@
     "workout": {
       "title": "New workout",
       "body": "{{profissional}} put together a workout for you."
+    },
+    "booking": {
+      "title": "New booking on your calendar",
+      "body": "{{person}} · {{service}} · {{when}}"
+    },
+    "aulao": {
+      "title": "You are enrolled",
+      "body": "{{name}} · {{when}}"
     }
   },
   "chat": {
@@ -783,6 +823,7 @@
     "supplements": "supplementation",
     "whitelabel": "whitelabel",
     "workoutTemplates": "workout templates",
-    "workouts": "workouts"
+    "workouts": "workouts",
+    "aulaoes": "group classes"
   }
 }

@@ -1,4 +1,5 @@
 const limiteDoPlano = require("../lib/limiteDoPlano.js");
+const dominio = require("../lib/domain.js");
 const ApiKeyModel = require("../model/ApiKey_model.js");
 const apiDocs = require("../lib/apiDocs.js");
 const rateLimit = require("../lib/rateLimit.js");
@@ -132,7 +133,7 @@ module.exports = function (app) {
     res.setHeader("Cache-Control", "public, max-age=60, s-maxage=300");
 
     res.send({
-      baseUrl: process.env.PUBLIC_API_URL || "https://backend.gofitnow.fit",
+      baseUrl: dominio.apiBaseUrl(),
       rateLimit: rateLimit.LIMITE_PADRAO,
       groups: apiDocs.localized(req.t),
     });
@@ -143,7 +144,7 @@ module.exports = function (app) {
     if (user === false) return;
 
     res.send({
-      baseUrl: process.env.PUBLIC_API_URL || "https://backend.gofitnow.fit",
+      baseUrl: dominio.apiBaseUrl(),
       rateLimit: rateLimit.LIMITE_PADRAO,
       groups: apiDocs.localized(req.t),
       // O que a conta REALMENTE pode: a tela marca o que está fora do alcance

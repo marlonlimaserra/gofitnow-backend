@@ -30,17 +30,31 @@
     "aiVoiceRateLimited": "OpenAI a demandé de patienter un peu. Réessayez dans un instant.",
     "aiVoiceUnreachable": "Impossible de joindre OpenAI. Réessayez dans un instant.",
     "alreadyInYourList": "Cette personne est déjà dans votre liste.",
+    "alreadyOnPlan": "Vous êtes déjà sur ce forfait.",
     "apiKeyCannotManage": "Une clé d’API ne peut ni créer ni révoquer de clés. Connectez-vous à l’app pour cela.",
     "apiKeyNotFound": "Clé introuvable.",
     "appointmentNotFound": "Rendez-vous introuvable.",
     "assessmentNotFound": "Évaluation introuvable.",
+    "aulaoAlreadyIn": "Cette personne est déjà inscrite.",
+    "aulaoBadImage": "Impossible de lire cette image. Essayez un JPG, PNG ou WebP.",
+    "aulaoFree": "Ce cours est gratuit — il n'y a pas de facture.",
+    "aulaoFull": "Ce cours est complet.",
+    "aulaoNoDate": "Indiquez la date et l'heure du cours.",
+    "aulaoNoName": "Donnez un nom au cours.",
+    "aulaoNoPerson": "Choisissez qui inscrire.",
+    "aulaoNotEnrolled": "Cette personne n'est pas inscrite à ce cours.",
+    "aulaoNotFound": "Ce cours collectif n'existe plus.",
+    "aulaoTooManyImages": "Ce cours a déjà le maximum de photos.",
     "badCredentials": "E-mail ou mot de passe invalides.",
+    "billingOff": "La facturation n'est pas activée sur cette installation. Contactez le support.",
+    "bookingName": "Indiquez votre nom.",
     "bookingPageName": "Donnez un nom à la page.",
     "bookingPageNotFound": "Page de réservation introuvable.",
     "bookingPageSlugRequired": "Écrivez l'alias qui ira dans l'URL.",
     "bookingPageSlugReserved": "Cet alias est réservé par le système. Choisissez-en un autre.",
     "bookingPageSlugShort": "L'alias doit avoir au moins deux lettres.",
     "bookingPageSlugTaken": "Une page avec cet alias existe déjà.",
+    "bookingPhone": "Indiquez votre WhatsApp.",
     "brandImagesNotInPlan": "Votre forfait n’inclut pas les images de marque. Vous pouvez toujours utiliser l’adresse d’une image hébergée ailleurs.",
     "cannotDeleteSelf": "Vous ne pouvez pas supprimer votre propre compte.",
     "captcha_failed": "La vérification a échoué. Réessayez.",
@@ -48,10 +62,12 @@
     "categoryDuplicated": "Vous avez déjà une catégorie portant ce nom.",
     "categoryReserved": "Ce nom appartient à une catégorie du système. Choisissez-en un autre.",
     "chargeNotFound": "Facture introuvable.",
+    "checkoutFailed": "Je n'ai pas pu ouvrir l'écran de paiement. Réessayez dans quelques minutes.",
     "conversationNotFound": "Conversation introuvable.",
     "deletionFailed": "Je n'ai pas pu terminer la suppression. Réessayez dans un instant.",
     "deletionNeedsPassword": "Saisissez votre mot de passe pour confirmer la suppression.",
     "deletionNothingScheduled": "Aucune suppression n'est programmée sur ce compte.",
+    "deletionOwnerBlocked": "Vous êtes le titulaire de ce compte, il ne peut donc pas être supprimé ici — la plateforme resterait sans responsable. Contactez le support pour fermer le compte entier.",
     "deletionWrongPassword": "Mot de passe incorrect. Saisissez celui de votre compte pour confirmer.",
     "dietNotFound": "Plan introuvable.",
     "domainTaken": "Ce domaine est déjà sur un autre compte.",
@@ -82,6 +98,7 @@
     "invalidDomain": "Écrivez le domaine tel quel, sans http:// ni barre oblique — par exemple, entrainements.votresite.com.",
     "invalidEmail": "E-mail invalide.",
     "invalidField": "Champ invalide.",
+    "invalidFile": "Impossible de lire ce fichier.",
     "invalidImage": "Envoyez une image JPG, PNG ou WEBP de 2 Mo maximum.",
     "invalidLanguage": "Langue non reconnue.",
     "invalidName": "Indiquez votre nom.",
@@ -103,6 +120,7 @@
     "lastAccountManagingRolesEdit": "C’est le dernier compte actif qui gère les permissions — promouvez-en un autre avant de modifier celui-ci.",
     "lastRoleManagingRoles": "C’est le seul type qui gère encore les permissions, et c’est le vôtre. Donnez d’abord cette permission à un autre type.",
     "mailFailed": "Impossible d'envoyer l'e-mail.",
+    "moduleNotFound": "Ce module n'existe pas.",
     "newPasswordTooShort": "Le nouveau mot de passe doit contenir au moins 6 caractères.",
     "noAccountWithEmail": "Il n’existe aucun compte avec cet e-mail.",
     "noApiKey": "Clé d’API non fournie.",
@@ -112,6 +130,7 @@
     "noPhoto": "Vous n’avez pas de photo.",
     "noPhotoShort": "Pas de photo.",
     "noSession": "Session non fournie.",
+    "noSubscription": "Vous n'avez pas encore d'abonnement à gérer.",
     "notFound": "Introuvable.",
     "notInPlan": "Votre forfait n'inclut pas {{o}}. Contactez la personne qui gère votre compte.",
     "optionNotFound": "Option introuvable.",
@@ -128,7 +147,12 @@
     "pdfUnavailable": "La génération de PDF n'est pas disponible sur ce serveur. Utilisez l'option d'impression.",
     "personNotFound": "Personne introuvable.",
     "personWithoutEmail": "Cette personne n'a pas d'e-mail enregistré.",
+    "planInactive": "Ce forfait n'est plus disponible.",
+    "planIsFree": "Le forfait gratuit ne nécessite aucun paiement.",
     "planLimitReached": "Votre forfait autorise jusqu'à {{max}} en {{o}}. Supprimez ce qui ne sert plus, ou changez de forfait.",
+    "planNotFound": "Ce forfait n'existe pas.",
+    "planNotSellable": "Ce forfait n'est pas encore prêt à être vendu. Le support a été prévenu.",
+    "portalFailed": "Je n'ai pas pu ouvrir l'écran de gestion. Réessayez dans quelques minutes.",
     "prescriptionNotFound": "Prescription introuvable.",
     "rateLimited": "Limite de {{limit}} appels par minute atteinte. Réessayez dans {{seconds}} s.",
     "requestNoLongerValid": "Cette demande n’est plus valable.",
@@ -699,6 +723,14 @@
       "button": "Voir ou annuler la demande",
       "footer": "Entre-temps, votre compte fonctionne normalement, avec toutes vos données en place.",
       "text": "{{name}}, nous avons reçu une demande de suppression de votre compte GoFitNow.\\n\\nRien n'a été supprimé. Nous allons vous contacter pour comprendre ce qui s'est passé et convenir des prochaines étapes.\\n\\nSi ce n'était pas vous, annulez la demande ici et changez votre mot de passe :\\n{{url}}\\n\\nEntre-temps, votre compte fonctionne normalement."
+    },
+    "booking": {
+      "subject": "{{person}} a réservé {{service}} — {{when}}",
+      "title": "{{name}}, un créneau est entré dans votre agenda",
+      "body": "<strong>{{person}}</strong> a réservé <strong>{{service}}</strong> via votre page de réservation.<br><br>Quand : <strong>{{when}}</strong><br>Contact : {{contact}}",
+      "button": "Ouvrir l'agenda",
+      "footer": "Le créneau est déjà dans votre agenda — rien à confirmer. Si vous ne pouvez pas, c'est là qu'on replanifie ou annule.",
+      "text": "{{name}}, {{person}} a réservé {{service}} pour {{when}}. Contact : {{contact}}. Ouvrez l'agenda : {{url}}"
     }
   },
   "apiDocs": {
@@ -759,6 +791,14 @@
     "workout": {
       "title": "Nouvel entraînement",
       "body": "{{profissional}} a préparé un entraînement pour vous."
+    },
+    "booking": {
+      "title": "Réservation sur votre agenda",
+      "body": "{{person}} · {{service}} · {{when}}"
+    },
+    "aulao": {
+      "title": "Vous êtes inscrit",
+      "body": "{{name}} · {{when}}"
     }
   },
   "chat": {
@@ -783,6 +823,7 @@
     "supplements": "supplémentation",
     "whitelabel": "marque blanche",
     "workoutTemplates": "modèles de séance",
-    "workouts": "séances"
+    "workouts": "séances",
+    "aulaoes": "cours collectifs"
   }
 }

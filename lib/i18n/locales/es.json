@@ -30,17 +30,31 @@
     "aiVoiceRateLimited": "OpenAI pidió esperar un poco. Inténtalo de nuevo en unos instantes.",
     "aiVoiceUnreachable": "No se pudo hablar con OpenAI. Inténtalo de nuevo en unos instantes.",
     "alreadyInYourList": "Esa persona ya está en tu lista.",
+    "alreadyOnPlan": "Ya estás en ese plan.",
     "apiKeyCannotManage": "Una clave de API no puede crear ni revocar claves. Entra en la app para eso.",
     "apiKeyNotFound": "Clave no encontrada.",
     "appointmentNotFound": "Cita no encontrada.",
     "assessmentNotFound": "Evaluación no encontrada.",
+    "aulaoAlreadyIn": "Esa persona ya está inscrita.",
+    "aulaoBadImage": "No pude leer esa imagen. Prueba con JPG, PNG o WebP.",
+    "aulaoFree": "Esta clase es gratuita — no hay cobro.",
+    "aulaoFull": "Esta clase está llena.",
+    "aulaoNoDate": "Indica la fecha y la hora de la clase.",
+    "aulaoNoName": "Ponle un nombre a la clase.",
+    "aulaoNoPerson": "Elige a quién inscribir.",
+    "aulaoNotEnrolled": "Esa persona no está inscrita en esta clase.",
+    "aulaoNotFound": "Esa clase grupal ya no existe.",
+    "aulaoTooManyImages": "Esta clase ya tiene el máximo de fotos.",
     "badCredentials": "Correo o contraseña inválidos.",
+    "billingOff": "El cobro no está activado en esta instalación. Habla con soporte.",
+    "bookingName": "Dinos tu nombre.",
     "bookingPageName": "Dale un nombre a la página.",
     "bookingPageNotFound": "Página de reserva no encontrada.",
     "bookingPageSlugRequired": "Escribe el alias que va en la URL.",
     "bookingPageSlugReserved": "Ese alias está reservado por el sistema. Elige otro.",
     "bookingPageSlugShort": "El alias necesita al menos dos letras.",
     "bookingPageSlugTaken": "Ya existe una página con ese alias.",
+    "bookingPhone": "Indica tu WhatsApp.",
     "brandImagesNotInPlan": "Tu plan no incluye imágenes de marca. Todavía puedes usar la dirección de una imagen alojada en otro lugar.",
     "cannotDeleteSelf": "No puedes eliminar tu propia cuenta.",
     "captcha_failed": "La verificación falló. Inténtalo de nuevo.",
@@ -48,10 +62,12 @@
     "categoryDuplicated": "Ya tienes una categoría con ese nombre.",
     "categoryReserved": "Ese nombre es de una categoría del sistema. Elige otro.",
     "chargeNotFound": "Cobro no encontrado.",
+    "checkoutFailed": "No pude abrir la pantalla de pago. Inténtalo de nuevo en unos minutos.",
     "conversationNotFound": "Conversación no encontrada.",
     "deletionFailed": "No pude completar la eliminación. Inténtalo de nuevo en unos instantes.",
     "deletionNeedsPassword": "Escribe tu contraseña para confirmar la eliminación.",
     "deletionNothingScheduled": "No hay ninguna eliminación programada en esta cuenta.",
+    "deletionOwnerBlocked": "Eres el titular de esta cuenta, así que no se puede eliminar por aquí — la plataforma quedaría sin responsable. Habla con soporte para cerrar la cuenta completa.",
     "deletionWrongPassword": "Contraseña incorrecta. Escribe la contraseña de tu cuenta para confirmar.",
     "dietNotFound": "Plan no encontrado.",
     "domainTaken": "Ese dominio ya está en otra cuenta.",
@@ -82,6 +98,7 @@
     "invalidDomain": "Escribe el dominio tal como es, sin http:// y sin barra — por ejemplo, entrenos.tusitio.com.",
     "invalidEmail": "Correo inválido.",
     "invalidField": "Campo inválido.",
+    "invalidFile": "No pude leer ese archivo.",
     "invalidImage": "Envía una imagen JPG, PNG o WEBP de hasta 2 MB.",
     "invalidLanguage": "Idioma no reconocido.",
     "invalidName": "Escribe tu nombre.",
@@ -103,6 +120,7 @@
     "lastAccountManagingRolesEdit": "Esta es la última cuenta activa que gestiona permisos — promueve otra antes de alterar esta.",
     "lastRoleManagingRoles": "Este es el único tipo que todavía gestiona permisos, y es el tuyo. Dale ese permiso a otro tipo antes.",
     "mailFailed": "No se pudo enviar el correo.",
+    "moduleNotFound": "Ese módulo no existe.",
     "newPasswordTooShort": "La nueva contraseña necesita al menos 6 caracteres.",
     "noAccountWithEmail": "No existe una cuenta con ese correo.",
     "noApiKey": "Clave de API no informada.",
@@ -112,6 +130,7 @@
     "noPhoto": "No tienes foto.",
     "noPhotoShort": "Sin foto.",
     "noSession": "Sesión no informada.",
+    "noSubscription": "Todavía no tienes una suscripción para gestionar.",
     "notFound": "No encontrado.",
     "notInPlan": "Tu plan no incluye {{o}}. Habla con quien gestiona tu cuenta.",
     "optionNotFound": "Opción no encontrada.",
@@ -128,7 +147,12 @@
     "pdfUnavailable": "La generación de PDF no está disponible en este servidor. Usa la opción de imprimir.",
     "personNotFound": "Persona no encontrada.",
     "personWithoutEmail": "Esta persona no tiene correo registrado.",
+    "planInactive": "Ese plan ya no está disponible.",
+    "planIsFree": "El plan gratuito no necesita pago.",
     "planLimitReached": "Tu plan permite hasta {{max}} en {{o}}. Borra lo que ya no usas, o sube de plan.",
+    "planNotFound": "Ese plan no existe.",
+    "planNotSellable": "Ese plan todavía no está listo para la venta. Ya avisamos a soporte.",
+    "portalFailed": "No pude abrir la pantalla de gestión. Inténtalo de nuevo en unos minutos.",
     "prescriptionNotFound": "Prescripción no encontrada.",
     "rateLimited": "Límite de {{limit}} llamadas por minuto alcanzado. Inténtalo de nuevo en {{seconds}}s.",
     "requestNoLongerValid": "Esta solicitud ya no es válida.",
@@ -699,6 +723,14 @@
       "button": "Ver o cancelar la solicitud",
       "footer": "Mientras tanto tu cuenta sigue funcionando con normalidad, con todos tus datos en su lugar.",
       "text": "{{name}}, recibimos una solicitud para eliminar tu cuenta de GoFitNow.\\n\\nNo se borró nada. Vamos a ponernos en contacto para entender qué pasó y acordar los próximos pasos.\\n\\nSi no fuiste tú, cancela la solicitud aquí y cambia tu contraseña:\\n{{url}}\\n\\nMientras tanto tu cuenta sigue funcionando con normalidad."
+    },
+    "booking": {
+      "subject": "{{person}} reservó {{service}} — {{when}}",
+      "title": "{{name}}, entró un horario en tu agenda",
+      "body": "<strong>{{person}}</strong> reservó <strong>{{service}}</strong> por tu página de reservas.<br><br>Cuándo: <strong>{{when}}</strong><br>Contacto: {{contact}}",
+      "button": "Abrir la agenda",
+      "footer": "El horario ya está en tu agenda — no hay que confirmar nada. Si no puedes atender, desde allí se reprograma o cancela.",
+      "text": "{{name}}, {{person}} reservó {{service}} para {{when}}. Contacto: {{contact}}. Abre la agenda: {{url}}"
     }
   },
   "apiDocs": {
@@ -759,6 +791,14 @@
     "workout": {
       "title": "Nuevo entrenamiento",
       "body": "{{profissional}} armó un entrenamiento para ti."
+    },
+    "booking": {
+      "title": "Reservaron en tu agenda",
+      "body": "{{person}} · {{service}} · {{when}}"
+    },
+    "aulao": {
+      "title": "Estás inscrito",
+      "body": "{{name}} · {{when}}"
     }
   },
   "chat": {
@@ -783,6 +823,7 @@
     "supplements": "suplementación",
     "whitelabel": "whitelabel",
     "workoutTemplates": "plantillas de entrenamiento",
-    "workouts": "entrenamientos"
+    "workouts": "entrenamientos",
+    "aulaoes": "clases grupales"
   }
 }

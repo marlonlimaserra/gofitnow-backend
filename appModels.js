@@ -29,6 +29,14 @@ models.assessmentPhoto = require("./model/AssessmentPhoto_model.js");
 models.chat = require("./model/Chat_model.js");
 models.appointment = require("./model/Appointment_model.js");
 models.service = require("./model/Service_model.js");
+// Os AULÕES: aula em grupo com data, lugar e vagas. Vizinho de 
+// porque são as duas coisas que o profissional OFERECE — e o comentário do
+// modelo explica por que o aulão não cabia dentro de serviço.
+models.aulao = require("./model/Aulao_model.js");
+// As fotos de um aulão: capa e galeria. Collection PRÓPRIA e não `brand_images`
+// — a coleta de lixo daquela apaga o que o tema não usa, e apagaria as fotos de
+// todo aulão no primeiro salvamento de aparência.
+models.aulaoImage = require("./model/AulaoImage_model.js");
 models.finance = require("./model/Finance_model.js");
 // As formas de pagamento de cada conta. Eram uma lista fixa dentro do financeiro.
 models.paymentMethod = require("./model/PaymentMethod_model.js");
@@ -52,6 +60,12 @@ models.avatar = require("./model/Avatar_model.js");
 models.apiKey = require("./model/ApiKey_model.js");
 models.apiCall = require("./model/ApiCall_model.js");
 models.tenant = require("./model/Tenant_model.js");
+// O que esta conta LIBEROU. Um módulo novo não acende menu no deploy: a notícia
+// chega primeiro, com o vídeo e a documentação, e quem libera é o admin da conta.
+models.modulo = require("./model/Modulo_model.js");
+// As notícias do produto. Lidas do CENTRAL, da mesma coleção que alimenta a
+// página /novidades do site — uma notícia, dois públicos.
+models.novidade = require("./model/Novidade_model.js");
 models.ai = require("./model/Ai_model.js");
 models.aiSession = require("./model/AiSession_model.js");
 models.brandImage = require("./model/BrandImage_model.js");

@@ -64,7 +64,18 @@ function corta(v, n) {
 // porque são dois programas diferentes — o mesmo texto de erro tem pilha e
 // conserto distintos em cada um, e juntá-los faria alguém marcar como resolvido
 // um bug que continua de pé do outro lado.
-const ORIGENS = ["app", "painel", "aplicativo"];
+// `servidor` nasceu em 16/09/2026, e a pergunta que o criou foi: *"você salva
+// nos logs da central ou em alguma collection TODOS os erros que dão? para eu
+// poder consultar depois?"*
+//
+// A resposta era NÃO. Erro de rota ia para `console.error` e morria no log da
+// máquina — só alcançável por SSH, e só por quem soubesse qual processo do pm2
+// olhar. Foi assim que o upload de foto do aulão ficou quebrado sem ninguém
+// saber: a tela dizia "Erro interno" e o motivo estava a um `ssh` de distância.
+//
+// Origem SEPARADA das três do cliente, pela mesma razão que separa `app` de
+// `aplicativo`: é outro programa, com outra pilha e outro conserto.
+const ORIGENS = ["app", "painel", "aplicativo", "servidor"];
 
 ClientError_model.prototype.collection = async function () {
   const db = await this.app.mongodb.centralDb();

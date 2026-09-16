@@ -1,4 +1,17 @@
 const arquivos = require("../lib/arquivos.js");
+// O fuso da conta, sem poder derrubar quem o pediu.
+//
+// A janela do mês é melhor COM ele; o relatório é obrigatório SEM ele. É a mesma
+// hierarquia do `vestirComAConta`: o menos importante não pode custar o mais
+// importante.
+async function fusoDaConta(app) {
+  try {
+    return await app.api.tenant.timezoneOfInstance();
+  } catch (erro) {
+    return undefined;
+  }
+}
+
 module.exports = function (app) {
   // O financeiro de cada pessoa.
   //
@@ -20,6 +33,65 @@ module.exports = function (app) {
   //
   // A tela mostra as três coisas juntas — o que deve, o que pagou e o saldo —
   // e três chamadas para desenhar uma aba fariam a tela piscar em três tempos.
+  // ── O FINANCEIRO DE TODO MUNDO ──────────────────────────────────────────
+  //
+  // Tudo aqui era por pessoa, e isso responde à ficha de um aluno — não à
+  // pergunta do fim do mês: "quanto tenho a receber?", "quem está atrasado?".
+  // Com 217 pessoas, a resposta exigia abrir 217 fichas: o dado existia e era
+  // inalcançável.
+  //
+  // ── OS NOMES VÊM JUNTO ────────────────────────────────────────────────
+  //
+  // A cobrança guarda o id da pessoa, e uma lista de ids não é um relatório.
+  // Resolvidos numa consulta só — uma por linha seriam trezentas idas ao banco
+  // para desenhar uma tela.
+  app.get("/finance", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "finance.view");
+    if (user === false) return;
+
+    const { rows, resumo } = await app.api.finance.carteira({
+      de: req.query.de,
+      ate: req.query.ate,
+      status: req.query.status,
+      // O FUSO DA CONTA, para a janela do mês bater com o calendário de quem
+      // olha. Sem ele o fim do dia 30 seria 23:59 UTC — 20:59 em São Paulo —, e
+      // a cobrança da noite do último dia ficaria fora do próprio mês.
+      //
+      // Num `try`, e o relatório sai de todo jeito: uma leitura de configuração
+      // que falha não pode derrubar a tela que mostra o dinheiro do mês. Sem
+      // fuso, `carteira` cai no padrão — que é o de quase toda conta deste
+      // produto, e erra no máximo por três horas no último dia.
+      fuso: await fusoDaConta(app),
+    });
+
+    const nomes = await app.api.user.namesByIds([...new Set(rows.map((r) => r.student))]);
+
+    const termo = String(req.query.q || "").trim().toLowerCase();
+
+    // A busca é por NOME, e acontece depois de resolver os nomes — é o único
+    // jeito: a cobrança não os guarda, e filtrar antes exigiria uma consulta
+    // por termo em outra collection.
+    const visiveis = termo
+      ? rows.filter(
+          (r) =>
+            String(nomes.get(r.student) || "").toLowerCase().includes(termo) ||
+            r.description.toLowerCase().includes(termo)
+        )
+      : rows;
+
+    // As moedas da conta vão junto: os lançamentos antigos não têm a sua
+    // gravada, e é a padrão que os interpreta.
+    const moedas = await app.api.tenant.currencyOfInstance();
+
+    res.send({
+      rows: visiveis.map((r) => ({ ...r, studentName: nomes.get(r.student) || "—" })),
+      // O resumo é de TODA a janela, não da busca — ver o comentário no modelo.
+      resumo,
+      currency: moedas.currency,
+      currencies: moedas.currencies,
+    });
+  });
+
   app.get("/people/:personId/finance", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "finance.view");
     if (trainer === false) return;
@@ -135,7 +207,30 @@ module.exports = function (app) {
       }
     }
 
+    // ── A MOEDA DE UM PAGAMENTO COM COBRANÇA É A DA COBRANÇA ──────────────
+    //
+    // *"aqui nessa tela, temos moeda, já entendeu o problema né?"* — o dialog
+    // abria em USD com o "Referente a" apontando para uma cobrança de R$ 25.
+    //
+    // O estrago não é cosmético: `paidByCharge` e `carteira` somam `amount` SEM
+    // olhar moeda. Um pagamento de 25 USD quitaria uma cobrança de R$ 25 — a
+    // conta fecharia na tela e o dinheiro recebido seria outro.
+    //
+    // ── Forçar, e não recusar ─────────────────────────────────────────────
+    //
+    // Recusar com 400 obrigaria a pessoa a descobrir sozinha qual moeda o campo
+    // deveria ter. E não há ambiguidade a resolver: um pagamento QUE SE REFERE a
+    // uma cobrança é, por definição, na moeda dela — quem recebe em outra moeda
+    // está fazendo outro combinado, e aí lança um pagamento avulso.
+    //
+    // Pagamento SEM cobrança continua livre: a moeda vem do que foi pedido, com
+    // a da conta como padrão (`currencyFor` só aceita as habilitadas).
+    // A moeda pedida, validada contra o que a conta aceita receber. Se o
+    // pagamento apontar para uma cobrança, `insertPayment` troca esta pela
+    // moeda DELA — a regra vive lá, num lugar só, porque a edição passa pelo
+    // mesmo problema e não passa por aqui.
     const moeda = await app.api.tenant.currencyFor(body.currency);
+
     const id = await app.api.finance.insertPayment(student._id, body, trainer._id, moeda);
     if (comprovante) await app.api.finance.saveReceipt(id, comprovante);
 

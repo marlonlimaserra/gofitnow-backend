@@ -503,6 +503,26 @@ Tenant_model.prototype.vestirComAConta = async function (usuario) {
     payload.aiEnabled = true;
   }
 
+  // ── OS MENUS QUE ESTA CONTA NÃO LIBEROU ───────────────────────────────────
+  //
+  // Viaja no `user` pela razão do vocabulário e da bolinha do assistente: a
+  // barra lateral é desenhada em toda navegação, e uma decisão que ela precisa
+  // saber na primeira pintura não pode custar uma requisição por tela. Sem isso
+  // o menu de um módulo não liberado apareceria por um instante e sumiria — o
+  // pior dos dois mundos, porque a pessoa clica no que está vendo.
+  //
+  // `try` PRÓPRIO, como o do assistente e pelo mesmo motivo: uma leitura que
+  // falha aqui não pode custar o vocabulário de quem chamou.
+  //
+  // E FALHA ABRINDO: sem resposta, nada é escondido. Esconder Aulões de quem
+  // está com a aula de sábado aberta, porque uma consulta não voltou, é tirar da
+  // pessoa uma coisa que ela tem — a mesma regra que deixa a bolinha acesa.
+  try {
+    payload.menusEscondidos = await this.app.api.modulo.menusEscondidos();
+  } catch (error) {
+    payload.menusEscondidos = [];
+  }
+
   return payload;
 };
 

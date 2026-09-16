@@ -137,7 +137,41 @@ function limpar(obj) {
     // com o horário: quem é dono do calendário é dono do calendário inteiro.
     //
     // De quantos em quantos minutos um horário começa.
+    //
+    // ── LEGADO, desde 16/09/2026 ──────────────────────────────────────────
+    //
+    // Ele decide sozinho apenas nas páginas que nunca configuraram
+    // `gapMinutes`. A razão de ter sido substituído é que ele mistura duas
+    // coisas: onde o próximo horário começa E quanto respiro sobra entre
+    // atendimentos — e o respiro depende da DURAÇÃO, que é do serviço, não da
+    // página.
+    //
+    // Na página da Bruna isso ficava visível: com passo 60, os serviços de 60
+    // min saíam encostados e o de 45 ganhava 15 minutos de folga. Ninguém
+    // escolheu essa diferença; ela caiu da aritmética.
     slotStep: inteiroOuPadrao(obj.slotStep, 30, { min: 5, max: 240 }),
+
+    // ── O INTERVALO ENTRE ATENDIMENTOS ────────────────────────────────────
+    //
+    // "a duração seria 45 minutos, com intervalo de 15 minutos; esse intervalo
+    // é para mim, e não para o cliente."
+    //
+    // É o respiro DEPOIS de cada atendimento: anotar, trocar de roupa, receber
+    // o próximo. O cliente vê 08:00–08:45 e o horário seguinte começa 09:00.
+    //
+    // Com ele, a passada passa a ser calculada POR SERVIÇO
+    // (`duração + intervalo`), então quem atende 45 e quem atende 60 ganham o
+    // mesmo respiro em vez de respiros diferentes por acidente.
+    //
+    // `null` quer dizer "não configurado", e é diferente de zero: zero é a
+    // escolha de encostar um atendimento no outro; `null` faz a página cair no
+    // `slotStep` de antes. Sem essa distinção, acrescentar o campo mudaria o
+    // calendário de quem nunca pediu — inclusive de uma página de cliente que
+    // está no ar.
+    gapMinutes:
+      obj.gapMinutes === null || obj.gapMinutes === undefined || obj.gapMinutes === ""
+        ? null
+        : inteiroOuPadrao(obj.gapMinutes, 0, { min: 0, max: 120 }),
 
     // Antecedência mínima: ninguém quer receber marcação para daqui a dez
     // minutos e descobrir depois de a pessoa chegar.

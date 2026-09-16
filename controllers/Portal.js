@@ -235,7 +235,9 @@ module.exports = function (app) {
       // `app.schema` é o dublê do teste, no mesmo padrão do `app.cloudflare`: as
       // duas coisas que saem desta máquina — o banco e a rede — ficam trocáveis
       // num ponto só, senão um teste de regra bateria no Mongo e na Cloudflare.
-      await (app.schema || ensureSchema).ensureInstanceEssencial(app, instancia);
+      // `contaNova` — ver o cabeçalho de `ensureInstanceEssencial`. É o que faz
+      // uma conta que nasce hoje não vir com módulo que ela ainda não conhece.
+      await (app.schema || ensureSchema).ensureInstanceEssencial(app, instancia, { contaNova: true });
       await app.api.center.addHost(instancia, host);
       // O portão guarda por alguns segundos que um nome NÃO é de ninguém. Sem
       // isto, a pessoa chega no endereço dela e vê "domínio não identificado" —
@@ -332,7 +334,7 @@ module.exports = function (app) {
       );
 
       depois(`esquema completo de ${instancia}`, () =>
-        (app.schema || ensureSchema).ensureInstance(app, instancia)
+        (app.schema || ensureSchema).ensureInstance(app, instancia, { contaNova: true })
       );
     } catch (error) {
       console.error("[portal] falha no cadastro:", error.message);

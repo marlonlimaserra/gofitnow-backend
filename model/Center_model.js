@@ -287,6 +287,49 @@ Center_model.prototype.limitsFor = async function (instance) {
   }
 };
 
+// ── OS MÓDULOS QUE O PLANO DESTE CLIENTE INCLUI ───────────────────────────
+//
+// O primeiro dos dois portões do módulo. O outro é a liberação da CONTA, e as
+// duas perguntas são diferentes:
+//
+//   este   "a que o plano dá direito"      — decide o painel
+//   conta  "o que a conta já ligou"        — decide o cliente, pela notícia
+//
+// ── `null` É TUDO ─────────────────────────────────────────────────────────
+//
+// E não é detalhe: é o que faz este campo poder ser acrescentado a um produto no
+// ar. Plano sem o campo (todos eles, até alguém editar) inclui todo módulo, do
+// mesmo jeito que limite ausente é ilimitado. Ler ausência como lista vazia
+// apagaria Aulões e Financeiro de todo cliente no instante do deploy.
+//
+// Cache junto do resto do plano — a troca de plano leva até meio minuto para ser
+// sentida, que é o combinado deste arquivo.
+Center_model.prototype.modulosDoPlano = async function (instance) {
+  const nome = instanceContext.normalize(instance);
+  if (!nome) return null;
+
+  const guardado = lido("pm:" + nome);
+  if (guardado !== undefined) return guardado;
+
+  try {
+    const doc = await this.byInstance(nome);
+    // Cliente SEM plano inclui tudo. É a mesma escolha do `limitsFor` devolvendo
+    // `{}`: "não sei em que plano este cliente está" não pode virar "este
+    // cliente não pode nada" — são as contas de cortesia e as que o painel
+    // cadastrou sem escolher plano.
+    if (!doc || !doc.plan) return guardar("pm:" + nome, null);
+
+    const db = await this.app.mongodb.centralDb();
+    const plano = await db.collection("plans").findOne({ key: String(doc.plan) });
+
+    const lista = plano && Array.isArray(plano.modulos) ? plano.modulos.map(String) : null;
+    return guardar("pm:" + nome, lista);
+  } catch (error) {
+    // Não guarda, e devolve TUDO: uma falha de leitura não pode esconder menu.
+    return null;
+  }
+};
+
 // ── O PLANO DESTE CLIENTE, INTEIRO ────────────────────────────────────────
 //
 // `limitsFor` devolve só os números. Isto devolve o plano: nome, preço e a marca
@@ -315,7 +358,11 @@ Center_model.prototype.planFor = async function (instance) {
     const db = await this.app.mongodb.centralDb();
     const plano = await db.collection("plans").findOne({ key: String(doc.plan) });
 
-    return guardar("pl:" + nome, plano ? resumoDoPlano(plano) : null);
+    // O plano ATUAL passa pelo mesmo filtro: ele alimenta o selo do topo e o
+    // dialog do teto estourado. Sem isto, a mesma linha apareceria escondida
+    // na vitrine e visível no dialog.
+    const escondidos = await this.limitesEscondidos();
+    return guardar("pl:" + nome, plano ? resumoDoPlano(plano, escondidos) : null);
   } catch (error) {
     return null;
   }
@@ -329,6 +376,39 @@ Center_model.prototype.planFor = async function (instance) {
 // A chave do cache não leva instância: a vitrine é a mesma para todo mundo. O que
 // muda por cliente é qual deles está marcado como o atual, e isso é decidido por
 // quem chama, com `planFor`.
+// ── O QUE A VITRINE ESCONDE DO CLIENTE ────────────────────────────────────
+//
+// Alguns limites são teto INTERNO do produto — séries por exercício,
+// alimentos por refeição. Ninguém escolhe plano por eles, e cada linha que
+// ocupam empurra para baixo o que de fato vende. Quem decide é o painel, em
+// Planos, e a escolha vale para TODOS os planos: a vitrine é uma comparação,
+// e as colunas só se comparam com as mesmas linhas.
+//
+// Cache curto, pela mesma razão do ambiente: quem acabou de desmarcar um
+// checkbox vai recarregar a vitrine para conferir, e trinta segundos de "não
+// mudou nada" pareceriam que não salvou.
+const CACHE_ESCONDIDOS_MS = 10 * 1000;
+
+Center_model.prototype.limitesEscondidos = async function () {
+  const guardado = lido("hl:");
+  if (guardado !== undefined) return guardado;
+
+  let lista = [];
+  try {
+    const db = await this.app.mongodb.centralDb();
+    const doc = await db.collection("settings").findOne({ key: "plans.hiddenLimits" });
+    if (Array.isArray(doc?.value)) lista = doc.value;
+  } catch (erro) {
+    // Sem a configuração, a vitrine mostra TUDO. Falhar para o lado de mostrar
+    // é o certo aqui: uma linha a mais é ruído, uma linha a menos é o plano
+    // deixando de anunciar o que oferece.
+    lista = [];
+  }
+
+  cache.set("hl:", { valor: lista, vale: Date.now() + CACHE_ESCONDIDOS_MS });
+  return lista;
+};
+
 Center_model.prototype.plansForSale = async function () {
   const guardado = lido("pls:");
   if (guardado !== undefined) return guardado;
@@ -343,7 +423,10 @@ Center_model.prototype.plansForSale = async function () {
       .sort({ order: 1, priceCents: 1 })
       .toArray();
 
-    return guardar("pls:", docs.map(resumoDoPlano));
+    // A lista de escondidos é lida UMA vez para a vitrine inteira, e não por
+    // plano: são as mesmas linhas em todas as colunas, por desenho.
+    const escondidos = await this.limitesEscondidos();
+    return guardar("pls:", docs.map((d) => resumoDoPlano(d, escondidos)));
   } catch (error) {
     // Vitrine vazia, e NÃO guardada: a tela mostra "nada por aqui" em vez de
     // estourar, e o próximo pedido tenta de novo.
@@ -351,10 +434,179 @@ Center_model.prototype.plansForSale = async function () {
   }
 };
 
+// ── O QUE A COBRANÇA PRECISA SABER, E QUE A VITRINE NÃO MOSTRA ────────────
+//
+// `resumoDoPlano` é a lista fechada do que vai para a TELA, e o `stripePriceId`
+// não está nela de propósito: é identificador de catálogo da Stripe, e o
+// navegador não tem o que fazer com ele. Mas o checkout precisa dele, então
+// existe esta segunda leitura — a do servidor para o servidor.
+//
+// ── Por que sem cache ─────────────────────────────────────────────────────
+//
+// Porque é uma leitura por CLIQUE em "Assinar", não por requisição. O que se
+// economizaria é imperceptível, e o que se arriscaria não é: um `price_...`
+// guardado por trinta segundos é meio minuto de checkout apontando para um
+// preço que o painel acabou de arquivar. Quem paga é a pessoa; o erro dela é
+// pagar o valor errado.
+//
+// Devolve `null` quando o plano não existe, e é o chamador que decide o que
+// dizer — os motivos de recusa são diferentes (não existe, está desativado, é
+// grátis, não foi sincronizado) e cada um pede uma frase própria.
+Center_model.prototype.planoParaCobranca = async function (key) {
+  const chave = String(key || "").trim().toLowerCase();
+  if (!chave) return null;
+
+  try {
+    const db = await this.app.mongodb.centralDb();
+    const doc = await db.collection("plans").findOne({ key: chave });
+    if (!doc) return null;
+
+    return {
+      key: String(doc.key),
+      name: String(doc.name || ""),
+      free: Boolean(doc.free),
+      // `active` ausente é ATIVO — mesma regra da vitrine, e ela tem de ser a
+      // mesma nas duas: um plano que aparece e não pode ser comprado é um botão
+      // que estoura.
+      active: doc.active !== false,
+      priceCents: Number(doc.priceCents) || 0,
+      currency: String(doc.currency || "BRL"),
+      interval: doc.interval === "year" ? "year" : "month",
+      stripePriceId: doc.stripePriceId || null,
+    };
+  } catch (erro) {
+    // Diferente de "não achei": quem chama não pode responder "esse plano não
+    // existe" quando o banco central caiu.
+    erro.central = true;
+    throw erro;
+  }
+};
+
+// ── A CONFIGURAÇÃO DA COBRANÇA ────────────────────────────────────────────
+//
+// Mora no painel, em Configurações, e é lida daqui pelo mesmo caminho dos
+// limites escondidos: uma leitura no banco central.
+//
+// A CHAVE SECRETA vem junto, e isso merece ser dito em voz alta: ela sai do
+// banco para a memória deste processo e volta para a Stripe, e nunca para uma
+// resposta HTTP. Quem for mexer em `/me/checkout` não pode devolver este objeto
+// inteiro para a tela por conveniência.
+//
+// Cache curto — quem acabou de colar a chave no painel vai clicar em Assinar
+// para conferir, e trinta segundos de "sem chave" pareceriam que não salvou.
+const CACHE_COBRANCA_MS = 10 * 1000;
+
+Center_model.prototype.cobranca = async function () {
+  const guardado = lido("bl:");
+  if (guardado !== undefined) return guardado;
+
+  const vazio = { ligada: false, secretKey: "", successUrl: "", trialDays: 0 };
+
+  let valor = vazio;
+
+  try {
+    const db = await this.app.mongodb.centralDb();
+    const docs = await db
+      .collection("settings")
+      .find({ key: { $in: ["billing.enabled", "billing.secretKey", "billing.successUrl", "billing.trialDays"] } })
+      .toArray();
+
+    const por = Object.fromEntries(docs.map((d) => [d.key, d.value]));
+
+    valor = {
+      // `billing.enabled` é o interruptor geral: existe para desligar a venda
+      // sem apagar a chave. Ausente é DESLIGADO — o contrário faria uma
+      // instalação nova sair vendendo com a chave de teste de alguém.
+      ligada: por["billing.enabled"] === true,
+      secretKey: String(por["billing.secretKey"] || ""),
+      successUrl: String(por["billing.successUrl"] || ""),
+      trialDays: Number(por["billing.trialDays"]) || 0,
+    };
+  } catch (erro) {
+    // Central fora do ar: a venda fica indisponível por dez segundos. É o lado
+    // certo para errar — o outro é abrir checkout sem saber se a cobrança está
+    // ligada.
+    valor = vazio;
+  }
+
+  cache.set("bl:", { valor, vale: Date.now() + CACHE_COBRANCA_MS });
+  return valor;
+};
+
 // O que sai do plano para o produto. Uma lista fechada, e não o documento cru:
 // `notes` é anotação interna do painel ("cortesia do fulano até dezembro"), e o
 // que se manda para o app de todo mundo é o que se escolheu mandar.
-function resumoDoPlano(plano) {
+// ── O CATÁLOGO DE LIMITES, DUPLICADO AQUI DE PROPÓSITO ────────────────────
+//
+// A lista que manda é a do painel (`gofitnow-center-backend/model/Plan_model.js`),
+// e ela é quem valida na ESCRITA. O problema é que validar na escrita não
+// alcança o que já está gravado: uma chave aposentada some do catálogo e
+// continua no documento de todo plano salvo antes da aposentadoria.
+//
+// Foi o que aconteceu com `brandImages`, que virou `appearance` +
+// `whitelabel`. O plano Grátis não foi editado desde então, então a chave
+// morta atravessou a leitura, chegou na tela e apareceu assim — em inglês, em
+// camelCase, no meio de uma lista em português — na vitrine em que o cliente
+// decide se paga.
+//
+// Filtrar na LEITURA é o que fecha isso para todas as telas de uma vez, e sem
+// depender de ninguém lembrar de reeditar plano antigo.
+//
+// ── Por que não filtrar no frontend ──────────────────────────────────────
+//
+// Porque a tela não sabe distinguir os dois casos, e eles pedem coisas opostas:
+//
+//   chave NOVA, ainda sem tradução      → tem de APARECER ("3 webhooks"), senão
+//                                         o plano deixa de vender o que oferece
+//   chave APOSENTADA                    → não pode aparecer
+//
+// O que separa um do outro é o catálogo, que o navegador não tem. Tentei
+// filtrar lá e quebrei o primeiro caso — há um teste em `planos.test.jsx` que
+// existe exatamente para proteger ele.
+const LIMITES_CONHECIDOS = new Set([
+  "professionals", "people", "workouts", "workoutTemplates", "apiKeys",
+  "appearance", "whitelabel", "diets", "dietTemplates", "assessments",
+  "schedule",
+  // Os aulões. Duplicado aqui de propósito — ver o comentário grande logo
+  // acima sobre o catálogo: esta lista é a que filtra na LEITURA, e é ela que
+  // impede uma chave aposentada de chegar crua na vitrine.
+  "aulaoes", "supplements", "prescriptions", "anamnesis", "exams",
+  "foodsPerMeal", "exercisesPerWorkout", "setsPerExercise", "photoSides",
+  // 15/09/2026: os apps com a marca do cliente, chave do plano mais alto.
+  "nativeApps",
+]);
+
+// As chaves de SIM ou NÃO, dentro do catálogo acima.
+//
+// Elas existem aqui por uma ambiguidade que só aparece na tela: `null` quer
+// dizer coisas OPOSTAS nos dois tipos de limite.
+//
+//   num limite numérico   null = ILIMITADO      ("Alunos · sem limite")
+//   numa chave de sim/não  null = LIGADA        ("Aparência personalizada")
+//
+// O cartão recebe só o valor, não o tipo, então ele não consegue separar os
+// dois — e tratou `null` como ilimitado para os dois, escrevendo "Aparência
+// personalizada · sem limite", que não quer dizer nada.
+//
+// A regra "ausente é SIM" é do painel (ver o cabeçalho de LIMITES em
+// `Plan_model.js`: plano antigo não pode perder o que já usava). Então quem a
+// materializa é este lado: a chave sai daqui como booleano DE VERDADE, e aí
+// `null` volta a ter um sentido só.
+const LIMITES_DE_LIGAR = new Set(["appearance", "whitelabel", "nativeApps"]);
+
+function limitesConhecidos(limits, escondidos = []) {
+  if (!limits || typeof limits !== "object") return {};
+
+  const saida = {};
+  for (const [chave, valor] of Object.entries(limits)) {
+    if (!LIMITES_CONHECIDOS.has(chave) || escondidos.includes(chave)) continue;
+
+    saida[chave] = LIMITES_DE_LIGAR.has(chave) ? valor !== false : valor;
+  }
+  return saida;
+}
+
+function resumoDoPlano(plano, escondidos = []) {
   return {
     key: String(plano.key || ""),
     name: String(plano.name || ""),
@@ -362,7 +614,26 @@ function resumoDoPlano(plano) {
     currency: String(plano.currency || "BRL"),
     interval: plano.interval === "year" ? "year" : "month",
     free: Boolean(plano.free),
-    limits: plano.limits && typeof plano.limits === "object" ? plano.limits : {},
+    // A bandeirinha do alto do cartão. Só UM plano a tem — quem garante é o
+    // painel (`Plan_model.definirRecomendado`), porque duas bandeirinhas na
+    // mesma vitrine não recomendam nada.
+    recommended: Boolean(plano.recommended),
+    // ── O TEXTO QUE VENDE ────────────────────────────────────────────────
+    //
+    // A frase de uma linha e os itens curados do cartão. Escritos no painel
+    // (`Plan_model.sanitize`), e não derivados dos limites: "Para quem vive de
+    // atender pessoa a pessoa" não sai de conta nenhuma.
+    //
+    // Chegam aqui porque as TRÊS vitrines mostram os mesmos planos — o site de
+    // vendas, a tela de planos do app e o dialog do teto estourado — e escrever
+    // a cópia em três lugares é garantir que os três divirjam.
+    tagline: String(plano.tagline || ""),
+    // Cartão na grade, ou faixa de largura inteira embaixo. Só o SITE usa — a
+    // vitrine de dentro do app desenha tudo como cartão, porque lá são três
+    // planos visíveis num dialog, não uma escada de cinco numa página de venda.
+    display: plano.display === "faixa" ? "faixa" : "cartao",
+    highlights: Array.isArray(plano.highlights) ? plano.highlights.map(String) : [],
+    limits: limitesConhecidos(plano.limits, escondidos),
   };
 }
 

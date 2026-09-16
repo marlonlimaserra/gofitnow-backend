@@ -25,6 +25,9 @@ routes.Appointment = require("./controllers/Appointment.js");
 routes.Service = require("./controllers/Service.js");
 routes.Finance = require("./controllers/Finance.js");
 routes.Booking = require("./controllers/Booking.js");
+// Os AULÕES: aula em grupo com data, lugar e vagas. Vizinho de Booking porque
+// os dois são o calendário visto de fora.
+routes.Aulao = require("./controllers/Aulao.js");
 routes.Food = require("./controllers/Food.js");
 routes.WorkoutTemplate = require("./controllers/WorkoutTemplate.js");
 routes.DietTemplate = require("./controllers/DietTemplate.js");
@@ -35,6 +38,10 @@ routes.Tenant = require("./controllers/Tenant.js");
 routes.Plan = require("./controllers/Plan.js");
 routes.Support = require("./controllers/Support.js");
 routes.Idea = require("./controllers/Idea.js");
+// As novidades do produto e o botão que libera um módulo. Vizinho das ideias e
+// do suporte porque os três leem o CENTRAL: é a conversa entre o produto e quem
+// o usa, e ela não é dado de cliente.
+routes.Novidade = require("./controllers/Novidade.js");
 // A porta de saída: excluir a própria conta. Exigência das duas lojas, e a
 // única forma de alguém sair do sistema por conta própria.
 routes.Account = require("./controllers/Account.js");

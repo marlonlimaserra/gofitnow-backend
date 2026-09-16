@@ -1,4 +1,7 @@
 const instanceContext = require("../lib/instance.js");
+const { avisarSemEsperar } = require("../lib/avisar.js");
+const { bookingReceived } = require("../lib/emailTemplates.js");
+const { enderecoDaInstancia } = require("../lib/enderecoDaInstancia.js");
 const arquivos = require("../lib/arquivos.js");
 const rateLimit = require("../lib/rateLimit.js");
 const slots = require("../lib/slots.js");
@@ -73,6 +76,10 @@ module.exports = function (app) {
         // Passo, antecedência e horizonte da PÁGINA. Uma página velha, criada
         // antes de eles existirem, cai no que a conta já usava.
         passo: pagina.slotStep || grade?.slotStep,
+        // `null` aqui é "esta página não configurou intervalo" — ver o
+        // comentário em BookingPage_model. A grade da conta não tem o campo, e
+        // é isso que mantém o link antigo com o mesmo calendário.
+        intervalo: pagina.gapMinutes ?? null,
         antecedencia: pagina.minNoticeHours ?? grade?.minNoticeHours,
         horizonte: pagina.horizonDays || grade?.horizonDays,
         bloqueios: grade?.blocks || [],
@@ -85,6 +92,7 @@ module.exports = function (app) {
     return {
       semana: grade.weekdays,
       passo: grade.slotStep,
+      intervalo: null,
       antecedencia: grade.minNoticeHours,
       horizonte: grade.horizonDays,
       bloqueios: grade.blocks,
@@ -297,7 +305,10 @@ module.exports = function (app) {
         const livres = slots.livresDoDia({
           dia: new Date(d),
           semana: horario.semana,
-          passo: horario.passo,
+          // A passada é DURAÇÃO + INTERVALO quando a página configurou um
+          // intervalo; senão, o passo fixo de antes. Calculada aqui, dentro do
+          // laço de serviços, porque a duração é de cada serviço.
+          passo: horario.intervalo == null ? horario.passo : servico.minutes + horario.intervalo,
           duracao: servico.minutes,
           compromissos: ocupados,
           bloqueios: horario.bloqueios,
@@ -424,7 +435,10 @@ module.exports = function (app) {
         // O horário da página vale AQUI também — é aqui que o horário vira
         // compromisso.
         semana: horario.semana,
-        passo: horario.passo,
+        // Mesma conta da listagem — ver lá. As duas TÊM de concordar: com a
+        // listagem calculando por serviço e a marcação usando o passo fixo,
+        // bastaria mandar outra hora no corpo para marcar dentro do intervalo.
+        passo: horario.intervalo == null ? horario.passo : servico.minutes + horario.intervalo,
         duracao: servico.minutes,
         compromissos: ocupados,
         bloqueios: horario.bloqueios,
@@ -513,6 +527,24 @@ module.exports = function (app) {
         }
       }
 
+      // ── AVISAR QUEM ATENDE ──────────────────────────────────────────────
+      //
+      // A página pública é a única porta em que alguém marca SEM o profissional
+      // estar na frente. Sem aviso, a primeira notícia de um compromisso das
+      // 08:00 é abrir a agenda de manhã — ou a pessoa batendo na porta.
+      //
+      // ── DEPOIS de gravar, e sem segurar a resposta ──────────────────────
+      //
+      // Quem está esperando é o CLIENTE, na página pública, e o aviso não é
+      // dele. Esperar o OneSignal e o SMTP para responder "marcado" seria cobrar
+      // dele o tempo de um recado para outra pessoa — e transformaria um SMTP
+      // fora do ar em marcação que parece ter falhado depois de ter sido
+      // gravada.
+      //
+      // Por isso os dois avisos vão soltos, e o resultado da marcação é
+      // devolvido do mesmo jeito se eles falharem.
+      avisarQuemAtende({ profissionalId: body.professional, studentId, servico, inicio, contato: email || telefone || "" });
+
       return { ok: true, date: criado?.date, service: servico.name, minutes: servico.minutes };
     });
 
@@ -525,6 +557,66 @@ module.exports = function (app) {
 
     res.status(201).send(resultado);
   });
+
+  // ── O AVISO DE QUEM MARCOU ──────────────────────────────────────────────
+  //
+  // Push e e-mail, nessa ordem de importância: o push chega no bolso em
+  // segundos e o e-mail é o que sobra para consultar. Os dois são "melhor
+  // esforço" — ver o comentário na chamada.
+  async function avisarQuemAtende({ profissionalId, studentId, servico, inicio, contato }) {
+    try {
+      const prof = await app.api.user.data(profissionalId);
+      if (!prof) return;
+
+      const pessoa = studentId ? await app.api.user.data(studentId) : null;
+      const nomeDaPessoa = pessoa?.name || "—";
+
+      // A hora que ELE lê, no fuso da conta dele. O instante gravado é UTC, e
+      // mandar "11:00" para quem marcou 08:00 seria pior que não avisar.
+      const fuso = await app.api.tenant.timezoneOfInstance().catch(() => undefined);
+      const quando = new Intl.DateTimeFormat(prof.lang || "pt-BR", {
+        dateStyle: "full",
+        timeStyle: "short",
+        timeZone: fuso,
+      }).format(inicio);
+
+      // ── O PUSH ────────────────────────────────────────────────────────
+      //
+      // `de` fica de fora de propósito: quem marca na página pública não tem
+      // sessão, então não há autor para comparar — e a regra de "não avisar do
+      // próprio ato" não se aplica a um desconhecido.
+      avisarSemEsperar(app, "booking", {
+        para: String(prof._id),
+        lang: prof.lang,
+        vars: { person: nomeDaPessoa, service: servico.name, when: quando },
+      });
+
+      // ── O E-MAIL ──────────────────────────────────────────────────────
+      if (!prof.email) return;
+
+      const casa = await app.api.tenant.dataOfInstance();
+      const mail = bookingReceived({
+        // O idioma é de quem LÊ — mesma regra dos outros e-mails.
+        lang: prof.lang,
+        name: prof.name,
+        person: nomeDaPessoa,
+        service: servico.name,
+        when: quando,
+        // Contato para ele responder sem abrir o sistema. NÃO vai a observação
+        // que o cliente escreveu: ela pode ter dado de saúde, e e-mail não é
+        // lugar para isso.
+        contact: contato || "—",
+        url: `${await enderecoDaInstancia(app)}/agenda`,
+        tema: casa?.theme,
+      });
+
+      await app.helpers.mailer.send({ to: prof.email, ...mail });
+    } catch (erro) {
+      // Engolido: a marcação já está gravada, e um aviso que não saiu não pode
+      // desfazê-la. É a mesma escolha do `lib/avisar.js`.
+      console.error("[agendamento] o aviso não saiu:", erro?.message);
+    }
+  }
 
   // ── As páginas, do lado de dentro ───────────────────────────────────────
   //

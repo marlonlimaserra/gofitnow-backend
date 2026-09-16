@@ -177,12 +177,26 @@ test("só os modelos DECLARADOS usam o banco cru, sem escopo", () => {
   // mostra. Então a regra é uma LISTA, e não um "nunca": um uso novo quebra este
   // teste e obriga quem escreveu a vir aqui declarar por quê.
   //
-  // O que autoriza estas duas: as duas devolvem AGREGADO (contagem por categoria,
-  // lista de chaves e de quem usa), nunca documento de ninguém, e as duas
-  // alimentam o painel, que é nosso.
+  // ── O QUE AUTORIZA CADA UMA ───────────────────────────────────────────
+  //
+  // As duas primeiras devolvem AGREGADO — contagem por categoria, lista de
+  // chaves —, nunca documento de ninguém, e alimentam o painel, que é nosso.
+  //
+  // A terceira é diferente e merece ser dita em voz alta: `paraVitrine` devolve
+  // DOCUMENTOS, o que a regra acima não permitiria. O que a autoriza é o
+  // CONSENTIMENTO, e ele é explícito no dado: só entram aulões com
+  // `showcase: true`, uma marca que existe apenas para isto e que nasce
+  // desligada. Publicar na página do próprio cliente (`published`) é uma coisa;
+  // aparecer no site da VAFIT é outra, e são duas marcas separadas justamente
+  // para que ninguém seja divulgado sem ter pedido.
+  //
+  // Os campos também são uma lista fechada na projeção — é o que impede um
+  // campo novo do aulão de aparecer no site público por acidente.
   const AUTORIZADOS = {
     "UserCategory_model.js": "contagens() — quantas pessoas por categoria, somando os clientes ativos",
     "RecipeCategory_model.js": "dosClientes() — quais categorias os clientes inventaram",
+    "Aulao_model.js":
+      "paraVitrine() — os aulões que o cliente PEDIU para aparecer no site da VAFIT (showcase: true)",
   };
 
   const fs = require("node:fs");
@@ -207,7 +221,7 @@ test("só os modelos DECLARADOS usam o banco cru, sem escopo", () => {
   assert.deepEqual(declaradosSemUso, [], "autorização sobrando em AUTORIZADOS");
 });
 
-test("as duas leituras cruzadas filtram pelos clientes ATIVOS", () => {
+test("as leituras cruzadas filtram pelos clientes ATIVOS", () => {
   // Ler o banco cru sem `$match` nenhum contaria cliente desativado — e, pior,
   // contaria um cliente que foi apagado do registro mas cujos documentos ainda
   // estão lá. O `$in` na lista de ativos é o que mantém a resposta igual à do
@@ -215,7 +229,7 @@ test("as duas leituras cruzadas filtram pelos clientes ATIVOS", () => {
   const fs = require("node:fs");
   const path = require("node:path");
 
-  for (const arquivo of ["UserCategory_model.js", "RecipeCategory_model.js"]) {
+  for (const arquivo of ["UserCategory_model.js", "RecipeCategory_model.js", "Aulao_model.js"]) {
     const texto = fs.readFileSync(path.join(__dirname, "..", "..", "model", arquivo), "utf8");
     assert.ok(
       texto.includes("instance: { $in: ativos }"),
@@ -281,6 +295,18 @@ test("toda collection de cliente que um modelo toca está DECLARADA", () => {
     // `Center_model.environmentOf`, para dizer à tela qual backend chamar.
     // Índices nascem lá, como manda a fronteira do cabeçalho de config/mongodb.js.
     "environments",
+    // AS NOVIDADES (16/09/2026): *"sempre que eu lançar um módulo novo... na
+    // central precisamos da tela de notícia."* A coleção já existia — é a que
+    // alimenta /novidades no site — e agora este backend também a LÊ, para
+    // mostrar a notícia ao admin da conta com o vídeo, a documentação e o botão
+    // que libera o módulo.
+    //
+    // Uma notícia, dois públicos, um lugar para escrever. Uma coleção paralela
+    // aqui seria um segundo lugar para escrever a mesma coisa — e aí o cliente
+    // que liberou o módulo leria uma notícia que a página pública não tem.
+    //
+    // SÓ LEITURA deste lado: quem cria, indexa e publica é o painel.
+    "changelog_posts",
   ]);
 
   const declaradas = new Set([...schema.POR_INSTANCIA, ...schema.CENTRAL, ...DO_PAINEL]);

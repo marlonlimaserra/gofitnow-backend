@@ -1,4 +1,5 @@
 const sessaoGuardada = require("../lib/sessaoGuardada.js");
+const telefones = require("../lib/telefone.js");
 const { ObjectId } = require("mongodb");
 const permissionCatalog = require("../lib/permissions.js");
 const instanceContext = require("../lib/instance.js");
@@ -1424,3 +1425,40 @@ module.exports.normalizeUsername = normalizeUsername;
 module.exports.looksLikeEmail = looksLikeEmail;
 module.exports.USERNAME_RESERVADOS = USERNAME_RESERVADOS;
 module.exports.TYPES = TYPES;
+
+// ── ACHAR UMA PESSOA PELO TELEFONE ────────────────────────────────────────
+//
+// Para a inscrição pelo WhatsApp na página pública do aulão: quem chega digita o
+// número, e isto responde se ela já é aluna do estúdio.
+//
+// ── Comparação em MEMÓRIA, e o motivo ─────────────────────────────────────
+//
+// O telefone é gravado como foi digitado, então o banco tem "(11) 98765-0001" e
+// "11987650001" para a mesma pessoa. Um `findOne({ phone })` acharia quase
+// nunca — e não achar aqui não dá erro: cria um aluno DUPLICADO do próprio
+// cliente, com o histórico partido em dois.
+//
+// Então lê `{_id, name, phone}` de todo mundo da instância e compara pela regra
+// de `lib/telefone.js`. Custa uma leitura pequena: a maior instância tem 217
+// pessoas. Quando alguma passar de alguns milhares, isto vira varredura por
+// requisição numa rota pública, e aí o certo é um campo normalizado com índice
+// (como o `nameSort` que já existe) — está escrito no cabeçalho de `telefone.js`.
+//
+// ── A PRIMEIRA CRIADA GANHA ───────────────────────────────────────────────
+//
+// Se já houver duas fichas com o mesmo número — e há, de antes desta regra
+// existir —, vale a mais antiga. É a que tem histórico, e é a escolha que
+// `dataOfInstance` e o importador do Wiki4Fit já fazem nos empates deles.
+User_model.prototype.dataByPhone = async function (telefone) {
+  const alvo = telefones.chave(telefone);
+  if (!alvo) return undefined;
+
+  const col = await this.collection();
+
+  const candidatos = await col
+    .find({}, { projection: { name: 1, phone: 1, email: 1, type: 1, createdAt: 1 } })
+    .sort({ createdAt: 1 })
+    .toArray();
+
+  return candidatos.find((c) => telefones.chave(c.phone) === alvo) || undefined;
+};

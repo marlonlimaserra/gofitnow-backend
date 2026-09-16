@@ -63,6 +63,11 @@ const POR_INSTANCIA = [
   "roles",
   "user_action_history",
   "workout_templates",
+  // Os AULÕES e quem se inscreveu. Do CLIENTE, não compartilhados: o aulão é
+  // do profissional, mesmo quando a página dele é pública.
+  "aulaoes",
+  "aulao_inscricoes",
+  "aulao_images",
   // `diet_templates` estava FALTANDO nesta lista, e por isso nunca teve índice:
   // ela existia só porque o Mongo cria a collection na primeira inserção. Achei
   // no ensaio da migração — a soma de documentos deu 2 a menos que a contagem
@@ -295,6 +300,31 @@ async function indicesEssenciais(db) {
     .collection("password_resets")
     .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "reset_ttl" });
   await db.collection("password_resets").createIndex({ instance: 1, user: 1 }, { name: "by_user" });
+  // ── aulaoes e aulao_inscricoes ─────────────────────────────────────────
+  //
+  // O SLUG é único por instância, e é o que aparece no endereço público de um
+  // aulão. Único porque dois aulões no mesmo link seria um deles inalcançável —
+  // e `slugLivre` conta com este índice para decidir quem chegou antes.
+  await db.collection("aulaoes").createIndex(
+    { instance: 1, slug: 1 },
+    { unique: true, name: "aulao_slug_unique" }
+  );
+
+  // A lista da tela: os próximos primeiro. Sem ele, cada abertura varre a
+  // collection para ordenar por data.
+  await db.collection("aulaoes").createIndex({ instance: 1, startsAt: -1 }, { name: "aulao_por_data" });
+
+  // ── UMA INSCRIÇÃO POR PESSOA POR AULÃO ────────────────────────────────
+  //
+  // Este índice não é otimização: é a trava. Dois toques no botão de inscrever
+  // — ou duas abas abertas — consumiriam duas vagas da mesma pessoa, e a
+  // contagem de vagas feita em JavaScript não vê o que aconteceu no mesmo
+  // milissegundo. Quem decide é o banco.
+  await db.collection("aulao_inscricoes").createIndex(
+    { instance: 1, aulao: 1, person: 1 },
+    { unique: true, name: "inscricao_unica" }
+  );
+
   // roles — os tipos de usuário. Poucas linhas, lidas em toda requisição
   // autenticada, então o nome é único para dois "Administrador" nunca
   // coexistirem.
@@ -688,7 +718,17 @@ async function ensureUmBanco(db) {
 // Os dois nomes continuam existindo porque são o contrato de duas rotas do painel
 // (`/internal/instances/:instance/provision` e o cadastro). Fundi-los agora
 // misturaria a troca de armazenamento com uma troca de API.
-async function ensureInstanceEssencial(app, instance) {
+// `contaNova` decide com que módulos a conta nasce, e o PADRÃO É O SEGURO.
+//
+// Sem ele (ou com `false`), a conta é tratada como preexistente e recebe todos os
+// módulos do catálogo — que é o que ela já tinha na tela antes de a liberação
+// existir. Só o cadastro pelo portal passa `true`, e aí a conta nasce enxuta e
+// recebe cada módulo pela notícia.
+//
+// A escolha do padrão é deliberada: um lugar que esqueça de passar o parâmetro
+// deixa menu a mais, não a menos. O erro barato é o que mostra; o caro é o que
+// apaga Aulões de quem está usando.
+async function ensureInstanceEssencial(app, instance, { contaNova = false } = {}) {
   const nome = instanceContext.normalize(instance);
   if (!nome) throw new Error("invalid_instance: " + instance);
 
@@ -698,6 +738,11 @@ async function ensureInstanceEssencial(app, instance) {
     // Sem os papéis do sistema a tela de Usuários abre vazia e o primeiro
     // convite não tem o que oferecer.
     await app.api.role.ensureSystemRoles();
+
+    // Os módulos liberados. Roda a cada boot e só escreve quando o documento não
+    // existe, então é aqui que as contas anteriores ao recurso ganham a lista
+    // cheia — uma vez, e nunca por cima do que alguém liberou depois.
+    await app.api.modulo.semear({ tudo: !contaNova });
 
     // ── A MIGRAÇÃO `tenants` → `configurations`, POR CLIENTE ────────────────
     //
@@ -741,8 +786,8 @@ async function ensureInstanceEssencial(app, instance) {
   console.log(`[schema] cliente pronto — ${nome}`);
 }
 
-async function ensureInstance(app, instance) {
-  return ensureInstanceEssencial(app, instance);
+async function ensureInstance(app, instance, opcoes) {
+  return ensureInstanceEssencial(app, instance, opcoes);
 }
 
 

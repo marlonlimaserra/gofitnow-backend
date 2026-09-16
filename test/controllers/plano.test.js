@@ -78,7 +78,38 @@ test("as OBSERVAÇÕES do painel não atravessam para o app", async () => {
   assert.equal(r.body.plan.notes, undefined);
   assert.deepEqual(
     Object.keys(r.body.plan).sort(),
-    ["currency", "free", "interval", "key", "limits", "name", "priceCents"]
+    // A lista é FECHADA de propósito, e cresce só por decisão:
+    //
+    //   recommended             15/09/2026 — a vitrine precisa da bandeirinha.
+    //   display                 16/09/2026 — cartão na grade ou faixa de
+    //                           largura inteira. "Sua marca" e "Seu app" não se
+    //                           compram comparando, e lado a lado com os outros
+    //                           faziam o cliente comparar o que não compete.
+    //   tagline, highlights     16/09/2026 — a cópia que vende. O site tinha
+    //                           essa frase e esses itens CRAVADOS no código, e
+    //                           os preços também: ele anunciava Essencial
+    //                           R$ 79 enquanto a central vendia Recém formado
+    //                           R$ 10. Passando pelo plano, as três vitrines
+    //                           (site, tela de planos, dialog do teto) leem a
+    //                           mesma cópia de um lugar só.
+    //
+    // Um campo que aparecer aqui sem passar por este caso é campo que vazou do
+    // documento cru — que é o que este teste existe para pegar. `notes`
+    // continua de fora, e é o ponto: anotação interna do painel não vira texto
+    // de venda.
+    [
+      "currency",
+      "display",
+      "free",
+      "highlights",
+      "interval",
+      "key",
+      "limits",
+      "name",
+      "priceCents",
+      "recommended",
+      "tagline",
+    ]
   );
 });
 
@@ -128,4 +159,150 @@ test("as duas rotas exigem sessão", async () => {
     const r = await call(app, "get", caminho);
     assert.equal(r.status, 401, caminho);
   }
+});
+
+// ── A CHAVE DE LIMITE APOSENTADA (15/09/2026) ─────────────────────────────
+//
+// O catálogo de limites vive no painel e valida na ESCRITA. Validar na escrita
+// não alcança o que já está gravado: uma chave aposentada some do catálogo e
+// continua no documento de todo plano salvo antes da aposentadoria.
+//
+// `brandImages` virou `appearance` + `whitelabel`. O plano Grátis não foi
+// editado desde então, então a chave morta atravessou a leitura e apareceu na
+// vitrine — em inglês, em camelCase, no meio de uma lista em português, na tela
+// em que o cliente decide se paga.
+//
+// A defesa está na LEITURA, e não na tela, porque a tela não sabe distinguir
+// "chave nova ainda sem tradução" (que TEM de aparecer) de "chave aposentada"
+// (que não pode). Quem sabe isso é o catálogo, e o navegador não o tem.
+test("chave de limite fora do catálogo NÃO atravessa a leitura", async () => {
+  const app = monta({
+    planos: [
+      {
+        key: "gratis",
+        name: "Grátis",
+        priceCents: 0,
+        free: true,
+        limits: { people: 5, brandImages: true },
+      },
+    ],
+  });
+
+  const r = await call(app, "get", "/me/plans");
+
+  const gratis = r.body.rows.find((p) => p.key === "gratis");
+  assert.equal("brandImages" in gratis.limits, false, "a chave morta vazou para a tela");
+  // E a metade que importa do filtro: ele não pode esvaziar os limites.
+  assert.equal(gratis.limits.people, 5);
+});
+
+test("chave que o catálogo conhece atravessa, mesmo sem tradução na tela", async () => {
+  // O caso oposto, e a razão de o filtro ser por CATÁLOGO e não por tradução:
+  // um limite recém-criado no painel precisa chegar na vitrine antes de alguém
+  // escrever o rótulo dele. `planos.test.jsx`, no frontend, prova o outro lado
+  // — ele vira "3 webhooks" em vez de desaparecer.
+  const app = monta({
+    planos: [{ key: "pro", name: "Pro", priceCents: 3900, limits: { photoSides: 4 } }],
+  });
+
+  const r = await call(app, "get", "/me/plans");
+  assert.equal(r.body.rows[0].limits.photoSides, 4);
+});
+
+// ── O QUE A VITRINE ESCONDE DO CLIENTE (15/09/2026) ───────────────────────
+//
+// "tem coisa que ele não precisa ver." Séries por exercício e alimentos por
+// refeição são teto interno; cada linha que ocupam empurra para baixo o que de
+// fato vende.
+//
+// Quem escolhe é o painel, e a escolha vale para TODOS os planos — a vitrine é
+// uma comparação, e as colunas só se comparam com as mesmas linhas.
+function comEscondidos(lista, planos) {
+  const app = monta({ planos });
+  // O único ponto que muda: a leitura da configuração no banco do painel.
+  app.api.center.limitesEscondidos = async () => lista;
+  Center.prototype.forget.call(app.api.center, null);
+  return app;
+}
+
+test("o limite escondido NÃO chega na vitrine", async () => {
+  const app = comEscondidos(["setsPerExercise"], [
+    { key: "pro", name: "Pro", priceCents: 3900, limits: { people: 200, setsPerExercise: 20 } },
+  ]);
+
+  const r = await call(app, "get", "/me/plans");
+  const pro = r.body.rows[0];
+
+  assert.equal("setsPerExercise" in pro.limits, false);
+  assert.equal(pro.limits.people, 200, "e o que não está escondido continua");
+});
+
+test("esconder vale para TODOS os planos, não para um", async () => {
+  // A regra que mantém a comparação honesta. Se valesse por plano, o cartão pago
+  // anunciaria "Agenda ✓" e o grátis não diria nada — e o cliente leria que o
+  // grátis não tem agenda, quando ele tem uma.
+  const app = comEscondidos(["schedule"], [
+    { key: "free", name: "Grátis", priceCents: 0, free: true, limits: { schedule: 1, people: 5 } },
+    { key: "pro", name: "Pro", priceCents: 3900, limits: { schedule: null, people: 200 } },
+  ]);
+
+  const r = await call(app, "get", "/me/plans");
+  for (const p of r.body.rows) {
+    assert.equal("schedule" in p.limits, false, p.key);
+  }
+});
+
+test("o plano ATUAL passa pelo mesmo filtro", async () => {
+  // Ele alimenta o selo do topo e o dialog do teto estourado. Sem isto, a mesma
+  // linha apareceria escondida na vitrine e visível no dialog.
+  const app = comEscondidos(["setsPerExercise"], [
+    { key: "free", name: "Grátis", priceCents: 0, free: true, limits: { people: 5, setsPerExercise: 20 } },
+  ]);
+  app.api.center.byInstance = async () => ({ instance: "marlon", plan: "free" });
+  Center.prototype.forget.call(app.api.center, null);
+
+  const r = await call(app, "get", "/me/plan");
+  assert.equal("setsPerExercise" in r.body.plan.limits, false);
+});
+
+test("sem nada escondido, a vitrine mostra tudo", async () => {
+  const app = comEscondidos([], [
+    { key: "pro", name: "Pro", priceCents: 3900, limits: { people: 200, setsPerExercise: 20 } },
+  ]);
+
+  const r = await call(app, "get", "/me/plans");
+  assert.equal(r.body.rows[0].limits.setsPerExercise, 20);
+});
+
+// ── CHAVE DE SIM/NÃO SAI COMO BOOLEANO DE VERDADE (15/09/2026) ────────────
+//
+// `null` quer dizer coisas OPOSTAS nos dois tipos de limite:
+//
+//   limite numérico   null = ILIMITADO
+//   chave de sim/não  null = LIGADA  (plano antigo não perde o que já usava)
+//
+// O cartão recebe só o valor, não o tipo, então ele não separa os dois — e
+// escreveu "Aparência personalizada · sem limite", que não quer dizer nada.
+//
+// A regra "ausente é SIM" é do painel; quem a materializa é esta leitura.
+test("chave de sim/não ausente sai como `true`, não como null", async () => {
+  const app = monta({
+    planos: [{ key: "pro", name: "Pro", priceCents: 3900, limits: { appearance: null, people: null } }],
+  });
+
+  const r = await call(app, "get", "/me/plans");
+  const limites = r.body.rows[0].limits;
+
+  assert.equal(limites.appearance, true, "a chave vira booleano");
+  // E o limite NUMÉRICO continua `null`, que é o que significa ilimitado.
+  assert.equal(limites.people, null);
+});
+
+test("chave desligada continua `false`", async () => {
+  const app = monta({
+    planos: [{ key: "free", name: "Grátis", priceCents: 0, free: true, limits: { whitelabel: false } }],
+  });
+
+  const r = await call(app, "get", "/me/plans");
+  assert.equal(r.body.rows[0].limits.whitelabel, false);
 });

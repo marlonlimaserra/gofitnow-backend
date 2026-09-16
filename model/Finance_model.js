@@ -1,5 +1,6 @@
 const { ObjectId } = require("mongodb");
 const { centavos } = require("./Service_model.js");
+const tempo = require("../lib/tempo.js");
 const { parseDataUri } = require("../lib/imageDataUri.js");
 
 // O financeiro de cada pessoa.
@@ -179,6 +180,12 @@ Finance_model.prototype.insertCharge = async function (studentId, obj, createdBy
     // a mesma aula de virar duas cobranças.
     appointment: ObjectId.isValid(obj.appointment) ? new ObjectId(obj.appointment) : null,
     service: ObjectId.isValid(obj.service) ? new ObjectId(obj.service) : null,
+    // O AULÃO, quando a cobrança nasceu de uma inscrição. Terceira origem, e
+    // ela precisa estar AQUI e não passar pelo `limparCobranca`: aquele fecha o
+    // documento numa lista de campos, e um `aulao` mandado por fora seria
+    // descartado em silêncio — a cobrança existiria sem vínculo, e uma segunda
+    // inscrição na mesma aula viraria uma segunda cobrança sem ninguém notar.
+    aulao: ObjectId.isValid(obj.aulao) ? new ObjectId(obj.aulao) : null,
     ...limparCobranca(obj),
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -226,7 +233,172 @@ Finance_model.prototype.chargeOfAppointment = async function (appointmentId) {
   return doc || undefined;
 };
 
+// A cobrança de um AULÃO para uma pessoa.
+//
+// Mesmo papel da de compromisso: é o que impede a mesma inscrição de virar duas
+// cobranças quando alguém sai e entra de novo. Por PESSOA e por aulão, porque o
+// aulão tem muitos inscritos e cada um tem a sua.
+Finance_model.prototype.chargeOfAulao = async function (aulaoId, studentId) {
+  if (!ObjectId.isValid(aulaoId) || !ObjectId.isValid(studentId)) return undefined;
+  const col = await this.charges();
+  return (
+    (await col.findOne({ aulao: new ObjectId(aulaoId), student: new ObjectId(studentId) })) || undefined
+  );
+};
+
 // ── Pagamentos ────────────────────────────────────────────────────────────
+
+// ── O FINANCEIRO DE TODO MUNDO ────────────────────────────────────────────
+//
+// Tudo que existia aqui era POR PESSOA: `listCharges(studentId)`,
+// `balanceOf(studentId)`. Funciona para a ficha de um aluno, e não responde a
+// pergunta que se faz no fim do mês — "quanto tenho a receber?", "quem está
+// atrasado?".
+//
+// Sem esta leitura a resposta exigia abrir as fichas uma por uma, e com 217
+// pessoas ninguém faz isso: o dado existia e era inalcançável.
+//
+// ── POR QUE O ATRASO É CALCULADO, e não gravado ──────────────────────────
+//
+// "Atrasada" não é um status — é uma cobrança ABERTA cuja data já passou. Um
+// status `late` gravado precisaria de alguém para virá-lo à meia-noite, e no
+// dia em que esse alguém falhasse o relatório mentiria com confiança.
+//
+// A conta é feita na leitura, contra o instante de agora. Nunca envelhece.
+const DIA_MS = 86400000;
+
+// ── A JANELA É SOBRE O DIA, NÃO SOBRE O INSTANTE ──────────────────────────
+//
+// `de` e `ate` chegam como "AAAA-MM-DD" da tela. `new Date("2026-09-30")` é
+// MEIA-NOITE UTC daquele dia — então `dueDate <= ate` excluía tudo que vencia
+// naquele dia com qualquer hora.
+//
+// O defeito apareceu assim: três cobranças de um aulão do dia 30/09 às 09:00
+// (12:00 UTC) não apareciam no Financeiro de setembro. O Marlon marcou duas como
+// pagas e a tela continuou dizendo "recebido no mês R$ 0,00".
+//
+// E não era só do aulão: TODA cobrança com hora que vencesse no último dia da
+// janela caía fora — as de compromisso inclusive, que herdam a hora do
+// atendimento. Um relatório que perde o último dia de cada mês.
+//
+// ── O FUSO É O DA CONTA ───────────────────────────────────────────────────
+//
+// O fim do dia 30 em São Paulo é 01/10 às 03:00 UTC. Usar 23:59 UTC deixaria de
+// fora a cobrança das 22h — de novo o mesmo tipo de erro, três horas menor.
+//
+// Quem resolve o fuso é o controlador, que tem acesso à conta; aqui só se aceita
+// o instante pronto. `fim` é opcional para não quebrar quem já chamava com
+// datas.
+function inicioDoDia(valor, fuso) {
+  if (valor instanceof Date) return valor;
+  const m = String(valor || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return new Date(valor);
+  return tempo.instante({ ano: +m[1], mes: +m[2], dia: +m[3], hora: 0, minuto: 0 }, fuso);
+}
+
+function fimDoDia(valor, fuso) {
+  if (valor instanceof Date) return valor;
+  const m = String(valor || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return new Date(valor);
+  // 23:59 do dia, no fuso da conta. O `+ 59999` fecha o minuto: sem ele, uma
+  // cobrança às 23:59:30 ficaria de fora.
+  const d = tempo.instante({ ano: +m[1], mes: +m[2], dia: +m[3], hora: 23, minuto: 59 }, fuso);
+  return new Date(d.getTime() + 59999);
+}
+
+Finance_model.prototype.carteira = async function ({ de, ate, status, busca, fuso } = {}) {
+  const charges = await this.charges();
+  const pagamentos = await this.payments();
+
+  const filtro = {};
+
+  // A janela é sobre o VENCIMENTO, não sobre quando a cobrança foi criada: o
+  // relatório do mês é o do que vence no mês.
+  if (de || ate) {
+    filtro.dueDate = {};
+    // O DIA inteiro, e no fuso da conta — ver o cabeçalho de `inicioDoDia`.
+    if (de) filtro.dueDate.$gte = inicioDoDia(de, fuso);
+    if (ate) filtro.dueDate.$lte = fimDoDia(ate, fuso);
+  }
+
+  if (status === "open" || status === "paid" || status === "canceled") filtro.status = status;
+
+  const lista = await charges.find(filtro).sort({ dueDate: -1 }).toArray();
+
+  // ── O QUE JÁ FOI PAGO DE CADA COBRANÇA ────────────────────────────────
+  //
+  // Numa agregação, e não uma consulta por linha: com trezentas cobranças
+  // seriam trezentas idas ao banco para desenhar uma tela.
+  //
+  // Pagamento PARCIAL existe — alguém paga metade hoje e metade no dia 10 —,
+  // então "pago" não é um booleano: é uma soma comparada com o valor.
+  const ids = lista.map((c) => c._id);
+  const somas = ids.length
+    ? await pagamentos
+        .aggregate([
+          { $match: { charge: { $in: ids }, status: "paid" } },
+          { $group: { _id: "$charge", total: { $sum: "$amount" } } },
+        ])
+        .toArray()
+    : [];
+
+  const pagoPor = Object.fromEntries(somas.map((x) => [String(x._id), x.total]));
+
+  const agora = Date.now();
+
+  const linhas = lista.map((c) => {
+    const pago = pagoPor[String(c._id)] || 0;
+    const aberto = c.status === "open";
+    const falta = Math.max(0, (c.amount || 0) - pago);
+
+    return {
+      id: String(c._id),
+      student: String(c.student),
+      description: c.description || "",
+      amount: c.amount || 0,
+      pago,
+      falta,
+      dueDate: c.dueDate,
+      status: c.status,
+      currency: c.currency || null,
+      // De onde ela nasceu: compromisso, aulão, ou a mão de alguém. É o que
+      // explica uma linha que ninguém lembra de ter lançado.
+      origem: c.appointment ? "appointment" : c.aulao ? "aulao" : "manual",
+      // Calculado, nunca gravado — ver o comentário acima.
+      atrasada: aberto && falta > 0 && c.dueDate && new Date(c.dueDate).getTime() < agora,
+      diasDeAtraso:
+        aberto && c.dueDate && new Date(c.dueDate).getTime() < agora
+          ? Math.floor((agora - new Date(c.dueDate).getTime()) / DIA_MS)
+          : 0,
+    };
+  });
+
+  const visiveis = status === "late" ? linhas.filter((l) => l.atrasada) : linhas;
+
+  return { rows: visiveis, resumo: resumoDe(linhas) };
+};
+
+// ── O RESUMO ──────────────────────────────────────────────────────────────
+//
+// Sobre TODAS as linhas da janela, e não sobre as filtradas: filtrar por
+// "atrasadas" e ver o total a receber cair para o valor dos atrasados faria o
+// número parecer um total da seleção. É a mesma decisão da carteira de
+// assinaturas no painel.
+function resumoDe(linhas) {
+  const abertas = linhas.filter((l) => l.status === "open");
+
+  return {
+    // O que ENTROU: a soma do que foi pago, independente do status da cobrança
+    // (uma cobrança cancelada depois de paga não desfaz o dinheiro).
+    recebido: linhas.reduce((t, l) => t + l.pago, 0),
+    // O que falta entrar das abertas.
+    aReceber: abertas.reduce((t, l) => t + l.falta, 0),
+    atrasado: linhas.filter((l) => l.atrasada).reduce((t, l) => t + l.falta, 0),
+    quantasAtrasadas: linhas.filter((l) => l.atrasada).length,
+    quantasAbertas: abertas.length,
+    total: linhas.length,
+  };
+}
 
 Finance_model.prototype.listPayments = async function (studentId) {
   if (!ObjectId.isValid(studentId)) return [];
@@ -246,16 +418,55 @@ Finance_model.prototype.paymentData = async function (id) {
   return doc || undefined;
 };
 
+// ── A MOEDA DE UM PAGAMENTO QUE APONTA PARA UMA COBRANÇA É A DELA ─────────
+//
+// Quitar uma cobrança de R$ 25 com um pagamento de US$ 25 não dá erro em lugar
+// nenhum: a conta FECHA. `paidByCharge`, `balanceOf` e a carteira somam
+// `amount` e comparam com o da cobrança — 2500 quita 2500, e ninguém pergunta
+// de que moeda são.
+//
+// Está aqui, e não nas rotas, porque são DOIS caminhos (criar e editar) e o
+// segundo é o pior: o pagamento já estava certo, a conta já fechou uma vez, e a
+// troca de moeda numa edição desfaz isso sem deixar rastro na tela.
+//
+// Pagamento AVULSO — sem cobrança — continua com a moeda que foi pedida.
+// Adiantamento em outra moeda é combinado legítimo; o que não existe é combinado
+// de quitar em uma moeda uma dívida em outra.
+Finance_model.prototype.moedaDaCobranca = async function (chargeId) {
+  if (!ObjectId.isValid(chargeId)) return null;
+  const doc = await (await this.charges()).findOne(
+    { _id: new ObjectId(chargeId) },
+    { projection: { currency: 1 } }
+  );
+  return doc?.currency || null;
+};
+
 Finance_model.prototype.insertPayment = async function (studentId, obj, createdBy, currency) {
   const col = await this.payments();
+  const moeda = (await this.moedaDaCobranca(obj.charge)) || currency;
 
   const r = await col.insertOne({
     student: new ObjectId(studentId),
-    currency: currency || null,
+    currency: moeda || null,
     createdBy: createdBy ? new ObjectId(createdBy) : null,
     // A qual cobrança se refere, se a alguma: pagamento avulso é legítimo —
     // alguém que paga adiantado, ou uma venda que nunca virou cobrança.
     charge: ObjectId.isValid(obj.charge) ? new ObjectId(obj.charge) : null,
+
+    // ── FOI UM BOTÃO QUE LANÇOU ISTO? ───────────────────────────────────
+    //
+    // `true` quando veio de um atalho do sistema — hoje só o "marcar como
+    // pago" da lista de inscritos do aulão.
+    //
+    // Existe por causa do DESFAZER. Sem a marca, "marcar como não pago"
+    // precisaria apagar todos os pagamentos da cobrança — e apagaria também o
+    // parcial que alguém digitou à mão no financeiro, que é dado de gente e
+    // não subproduto de um clique.
+    //
+    // AQUI e não no `limparPagamento`: aquele fecha o documento numa lista de
+    // campos, e o que for mandado por fora dele é descartado em silêncio — foi
+    // exatamente o que aconteceu com o `aulao` da cobrança.
+    automatico: obj.automatico === true,
     ...limparPagamento(obj),
     receipt: obj.receipt || null,
     createdAt: new Date(),
@@ -274,6 +485,22 @@ Finance_model.prototype.updatePayment = async function (id, obj) {
   else if (obj.charge === null || obj.charge === "") mudanca.charge = null;
 
   if (obj.currency) mudanca.currency = obj.currency;
+
+  // A moeda segue a cobrança — ver `moedaDaCobranca`.
+  //
+  // Qual cobrança: a que a edição APONTA (`mudanca.charge`), ou, quando a edição
+  // não fala de vínculo nenhum, a que o pagamento JÁ tem. Esse segundo caso é o
+  // que uma chamada parcial — `{ currency: "USD" }` e nada mais — usaria para
+  // passar por baixo da regra. `null` explícito é desvínculo pedido, e aí o
+  // pagamento vira avulso e a moeda volta a ser escolha de quem lança.
+  let alvo = mudanca.charge;
+  if (alvo === undefined && obj.currency) {
+    const atual = await col.findOne({ _id: new ObjectId(id) }, { projection: { charge: 1 } });
+    alvo = atual?.charge;
+  }
+
+  const daCobranca = await this.moedaDaCobranca(alvo);
+  if (daCobranca) mudanca.currency = daCobranca;
 
   // Tirar o comprovante no formulário tem de tirá-lo de verdade. Sem esta
   // linha, a tela mostrava o anexo removido e o servidor continuava com ele —
@@ -460,3 +687,189 @@ Finance_model.prototype.deleteAllOfStudent = async function (studentId) {
 module.exports = Finance_model;
 module.exports.FORMAS = FORMAS;
 module.exports.STATUS = STATUS;
+
+// ── AS COBRANÇAS DE UM AULÃO, POR PESSOA ──────────────────────────────────
+//
+// Para a lista de inscritos: quem já pagou, quem falta, e quanto.
+//
+// ── "Pago" é uma SOMA, e não o campo `status` ─────────────────────────────
+//
+// É a mesma regra do `carteira`, e ela não pode ser reinventada aqui: pagamento
+// PARCIAL existe — alguém paga metade hoje e metade no dia da aula —, e só
+// pagamento com `status: "paid"` quita. Promessa e reembolso não.
+//
+// Duas consultas para a lista inteira, e não duas por pessoa: trinta inscritos
+// dariam sessenta idas ao banco para desenhar uma tela.
+Finance_model.prototype.cobrancasDeAulao = async function (aulaoId) {
+  if (!ObjectId.isValid(aulaoId)) return {};
+
+  const col = await this.charges();
+  const cobrancas = await col.find({ aulao: new ObjectId(aulaoId) }).toArray();
+  if (!cobrancas.length) return {};
+
+  const pagamentos = await this.payments();
+  const somas = await pagamentos
+    .aggregate([
+      { $match: { charge: { $in: cobrancas.map((c) => c._id) }, status: "paid" } },
+      { $group: { _id: "$charge", total: { $sum: "$amount" } } },
+    ])
+    .toArray();
+
+  const pagoPor = Object.fromEntries(somas.map((x) => [String(x._id), x.total]));
+
+  const porPessoa = {};
+  for (const c of cobrancas) {
+    const pago = pagoPor[String(c._id)] || 0;
+    porPessoa[String(c.student)] = {
+      id: String(c._id),
+      amount: c.amount || 0,
+      pago,
+      falta: Math.max(0, (c.amount || 0) - pago),
+      status: c.status,
+      currency: c.currency || null,
+    };
+  }
+
+  return porPessoa;
+};
+
+// ── QUITAR uma cobrança de uma vez ────────────────────────────────────────
+//
+// "marcar como pago" na lista de inscritos. No app isto sempre foram DOIS
+// passos — lançar o pagamento e depois fechar a cobrança —, e ninguém faz os
+// dois trinta vezes depois de um aulão.
+//
+// ── Os dois passos, e por que os dois ─────────────────────────────────────
+//
+// O PAGAMENTO é o dinheiro: sem ele o relatório diria que entrou zero.
+// O STATUS é a cobrança: sem ele ela continua "aberta" com nada faltando, e
+// aparece na lista de quem deve com R$ 0,00 — pior que errado, é confuso.
+//
+// ── IDEMPOTENTE ──────────────────────────────────────────────────────────
+//
+// Clicar duas vezes não lança dois pagamentos. `falta <= 0` devolve `ja_pago`
+// sem escrever nada — e isso não é zelo abstrato: dois cliques num botão de
+// "pago" é o gesto mais natural que existe quando a rede demora.
+Finance_model.prototype.quitarCobranca = async function (chargeId, { method, createdBy } = {}) {
+  if (!ObjectId.isValid(chargeId)) return { ok: false, erro: "nao_achei" };
+
+  const col = await this.charges();
+  const cobranca = await col.findOne({ _id: new ObjectId(chargeId) });
+  if (!cobranca) return { ok: false, erro: "nao_achei" };
+
+  const pagos = await this.paidByCharge(cobranca.student);
+  const falta = Math.max(0, (cobranca.amount || 0) - (pagos[String(cobranca._id)] || 0));
+
+  if (falta <= 0) {
+    // Já estava quitada no dinheiro. O status é fechado de todo jeito: pode ter
+    // ficado "aberto" por um pagamento lançado à mão na tela do financeiro.
+    if (cobranca.status === "open") {
+      await col.updateOne({ _id: cobranca._id }, { $set: { status: "paid", updatedAt: new Date() } });
+    }
+    return { ok: true, erro: "ja_pago", falta: 0 };
+  }
+
+  const pagamento = await this.insertPayment(
+    cobranca.student,
+    {
+      // O que FALTA, e não o valor cheio: quem pagou metade antes não pode
+      // aparecer tendo pago uma vez e meia.
+      amount: falta,
+      date: new Date(),
+      method,
+      status: "paid",
+      charge: String(cobranca._id),
+      // A marca do desfazer — ver `insertPayment`.
+      automatico: true,
+    },
+    createdBy,
+    cobranca.currency
+  );
+
+  await col.updateOne({ _id: cobranca._id }, { $set: { status: "paid", updatedAt: new Date() } });
+
+  return { ok: true, pagamento: String(pagamento), valor: falta };
+};
+
+// ── DESFAZER O "MARCAR COMO PAGO" ─────────────────────────────────────────
+//
+// O mesmo botão, apertado de novo. E o cuidado inteiro está em O QUE ele apaga.
+//
+// ── A primeira versão dizia que desfez e não desfazia ────────────────────
+//
+// Ela apagava só os pagamentos com `automatico: true` — a marca que o botão
+// põe. Correto no papel, e errado na mão do Marlon: os pagamentos lançados
+// ANTES de a marca existir (algumas horas, no mesmo dia) não a têm, então o
+// botão anunciava "marcar como não pago", apagava zero, e a linha continuava
+// paga. *"ele fala marco como não pago, mas continua pago."*
+//
+// Botão que promete e não cumpre é defeito, não sutileza.
+//
+// ── A regra, em duas camadas ─────────────────────────────────────────────
+//
+//   1. apaga os `automatico` — o que este botão criou, sem dúvida nenhuma;
+//   2. se não havia nenhum E a cobrança está quitada por UM pagamento só que
+//      a cobre inteira, apaga esse também.
+//
+// A segunda camada é o que resolve o caso do Marlon e o da instância de
+// demonstração. Ela é segura porque "um pagamento só, do valor exato" não tem
+// ambiguidade: desfazê-lo é exatamente o que se pediu, e ele é um lançamento
+// visível que se refaz com um clique.
+//
+// ── O QUE ELA NUNCA APAGA ────────────────────────────────────────────────
+//
+// PARCIAIS. Dois ou mais pagamentos na mesma cobrança são história que alguém
+// digitou — metade em dinheiro no dia da aula, metade no Pix depois — e
+// escolher qual apagar seria adivinhar. Nesse caso devolve `manual: true` e
+// não toca em nada; a tela diz para desfazer no financeiro da pessoa, onde a
+// escolha é de quem olha os lançamentos.
+//
+// ── E o status é RECALCULADO, não chutado ────────────────────────────────
+//
+// Depois de apagar, a conta é feita de novo: se ainda falta, a cobrança volta
+// a "open"; se o que sobrou já a cobre, continua "paid".
+Finance_model.prototype.reabrirCobranca = async function (chargeId) {
+  if (!ObjectId.isValid(chargeId)) return { ok: false, erro: "nao_achei" };
+
+  const col = await this.charges();
+  const cobranca = await col.findOne({ _id: new ObjectId(chargeId) });
+  if (!cobranca) return { ok: false, erro: "nao_achei" };
+
+  const pagamentos = await this.payments();
+
+  // Camada 1: o que este botão criou.
+  let apagados = (await pagamentos.deleteMany({ charge: cobranca._id, automatico: true }))
+    .deletedCount;
+
+  // Camada 2: um pagamento só, cobrindo a cobrança inteira.
+  if (apagados === 0) {
+    const doCharge = await pagamentos.find({ charge: cobranca._id, status: "paid" }).toArray();
+
+    if (doCharge.length === 1 && (doCharge[0].amount || 0) >= (cobranca.amount || 0)) {
+      await pagamentos.deleteOne({ _id: doCharge[0]._id });
+      apagados = 1;
+    } else if (doCharge.length > 1) {
+      // Parciais: não escolho por ninguém. A tela explica onde desfazer.
+      return { ok: true, apagados: 0, manual: true, falta: 0 };
+    }
+  }
+
+  // A conta depois da remoção, pela mesma regra do resto: só pagamento com
+  // `status: "paid"` quita.
+  const somas = await pagamentos
+    .aggregate([
+      { $match: { charge: cobranca._id, status: "paid" } },
+      { $group: { _id: "$charge", total: { $sum: "$amount" } } },
+    ])
+    .toArray();
+
+  const pago = somas[0]?.total || 0;
+  const falta = Math.max(0, (cobranca.amount || 0) - pago);
+
+  await col.updateOne(
+    { _id: cobranca._id },
+    { $set: { status: falta > 0 ? "open" : "paid", updatedAt: new Date() } }
+  );
+
+  return { ok: true, apagados, falta };
+};

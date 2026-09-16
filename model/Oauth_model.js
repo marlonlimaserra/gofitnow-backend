@@ -17,6 +17,22 @@
 // Onde o backend responde. O callback é derivado dele e do provedor, e não escrito
 // à mão em cada lugar: um `/auth/facebok/callback` com typo seria recusado pelo
 // provedor com "URI não corresponde", sem dizer qual dos dois lados errou.
+// ── ESTE HOST NÃO ACOMPANHA A TROCA DE DOMÍNIO, E ISSO É DE PROPÓSITO ─────
+//
+// Em 16/09/2026 eu centralizei o endereço do backend em `lib/domain.js`, para
+// que ele seguisse o `BASE_DOMAIN` sozinho — e trouxe este arquivo junto. Errado:
+// um teste pegou, e a consequência seria pior que o incômodo que eu queria
+// resolver.
+//
+// O `redirect_uri` do OAuth tem de casar EXATAMENTE com o que está registrado
+// no console do Google e do Facebook. Eles recusam qualquer outro — é a defesa
+// do protocolo contra alguém desviar o retorno de um login. Mudar o host aqui
+// não reapontaria o console; derrubaria o "entrar com Google" de todos os
+// clientes, com um erro do provedor e nada no nosso log.
+//
+// Então ele fica em `gofitnow.fit` até alguém acrescentar o callback novo nos
+// DOIS consoles. A ordem é essa: primeiro registrar lá, depois trocar aqui —
+// nunca o contrário. O host antigo continua resolvendo para este servidor.
 const BACKEND = process.env.BACKEND_URL || "https://backend.gofitnow.fit";
 
 // O domínio base, para remontar o endereço de volta a partir do NOME da

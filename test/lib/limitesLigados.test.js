@@ -39,6 +39,10 @@ const APLICADOS = [
   "prescriptions",
   "anamnesis",
   "exams",
+  // Os AULÕES (16/09/2026). Entra nesta lista porque a lista é o CONTRATO: ela
+  // é o que faz um limite novo no painel, que ninguém ligou no código, quebrar
+  // aqui em vez de virar enfeite na tela de planos.
+  "aulaoes",
 ];
 
 test("todo limite do plano é APLICADO em alguma rota", () => {

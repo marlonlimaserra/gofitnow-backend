@@ -1,4 +1,5 @@
 const limiteDoPlano = require("../lib/limiteDoPlano.js");
+const dominio = require("../lib/domain.js");
 const arquivos = require("../lib/arquivos.js");
 const BrandImage = require("../model/BrandImage_model.js");
 const instanceContext = require("../lib/instance.js");
@@ -12,9 +13,10 @@ const instanceContext = require("../lib/instance.js");
 // endereços e descobrir quantas imagens existem. O nome da instância está no
 // caminho por necessidade — sem ele não há como saber qual banco abrir — e não
 // revela nada que o host da tela de entrada já não diga.
-function baseUrl() {
-  return process.env.PUBLIC_API_URL || "https://backend.gofitnow.fit";
-}
+// Vem de `lib/domain.js` desde 16/09/2026: estava cravado no domínio antigo
+// aqui, e cada logo enviada nascia com uma URL de `gofitnow.fit` dentro do tema
+// do cliente. Ver o comentário de `apiBaseUrl`.
+const baseUrl = dominio.apiBaseUrl;
 
 module.exports = function (app) {
   // A INSTÂNCIA está no caminho porque esta rota é aberta: ela chega sem

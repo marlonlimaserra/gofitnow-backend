@@ -1,6 +1,7 @@
 require("dotenv").config();
 
 const express = require("express");
+const depoisLib = require("./lib/depois.js");
 const bodyParser = require("body-parser");
 const cookieParser = require("cookie-parser");
 
@@ -176,6 +177,53 @@ app.use((err, req, res, next) => {
   if (process.env.DEBUG_ERRORS == "1" && err && err.stack) body.stack = err.stack;
 
   res.status(500).send(body);
+
+  // ── E O ERRO VAI PARA O PAINEL, não só para o log da máquina ───────────
+  //
+  // *"você salva em alguma collection TODOS os erros que dão? para eu poder
+  // consultar depois?"* — não salvava. Ia para `console.error` e ficava no log
+  // do pm2: alcançável por SSH, por quem souber qual processo olhar.
+  //
+  // O upload de foto do aulão ficou quebrado exatamente assim. A tela dizia
+  // "Erro interno", e a causa ("pasta desconhecida") estava a um `ssh` de
+  // distância. Registrado, ele aparece na tela de Erros com contador, primeira e
+  // última ocorrência.
+  //
+  // ── DEPOIS de responder, e sem esperar ────────────────────────────────
+  //
+  // A pessoa já recebeu o 500; gravar não pode atrasar isso nem, pior, estourar
+  // de novo dentro do tratador de erro — um erro ao registrar um erro é um laço.
+  // Por isso `depois(...)` e um `catch` que só loga.
+  //
+  // ── O QUE NÃO É GRAVADO ───────────────────────────────────────────────
+  //
+  // O CORPO da requisição. Ele carrega senha no login, senha na troca de senha,
+  // token de convite, data URI de foto e anotação clínica. Um registro de erro
+  // não é lugar para nada disso, e "só quando der erro" não atenua: o erro no
+  // login é justamente onde a senha estaria.
+  //
+  // Vão o método, o caminho e a instância — o suficiente para reproduzir.
+  try {
+    const registrar = () =>
+      app.api.clientError.registrar({
+        message: err?.message || "erro sem mensagem",
+        stack: err?.stack,
+        tipo: err?.name || "Error",
+        origem: "servidor",
+        // `originalUrl` traz a query, que pode ter dado de busca mas não
+        // credencial; é o que diz QUAL pedido falhou.
+        caminho: `${req?.method || "?"} ${req?.originalUrl || "?"}`,
+        source: `${req?.method || "?"} ${req?.route?.path || req?.path || "?"}`,
+        instance: req?.instance || "",
+        host: req?.headers?.host || "",
+      });
+
+    (app.depois || depoisLib)("registrar erro de rota", registrar);
+  } catch (falha) {
+    // Registrar o erro falhou. Isto NÃO pode virar outro erro de resposta: a
+    // resposta já saiu, e o log da máquina continua sendo a rede embaixo.
+    console.error("[erros] não consegui registrar o erro de rota:", falha.message);
+  }
 });
 
 // ── Boot ─────────────────────────────────────────────────────────────────
