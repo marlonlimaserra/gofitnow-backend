@@ -23,7 +23,7 @@ const REGRA = {
   cadencia: "monthly",
   startsAt: new Date("2026-07-05T00:00:00.000Z"),
   endsAt: null,
-  active: true,
+  status: "active",
   description: "Mensalidade",
 };
 
@@ -110,9 +110,9 @@ test("erro que NÃO é colisão não passa como sucesso", async () => {
   assert.equal(await model.gerar({ hoje: HOJE }), 0);
 });
 
-test("regra inativa não gera — desativar é o jeito de parar sem apagar o passado", async () => {
-  // O filtro é do banco (`{ active: true }`), então o dobro devolve a lista já
-  // filtrada; o que este caso prende é que a rota pede o filtro.
+test("regra cancelada não gera — cancelar é o jeito de parar sem apagar o passado", async () => {
+  // O filtro é do banco (`{ status: { $in: GERAM } }`), então o dobro devolve a
+  // lista já filtrada; o que este caso prende é que a rota pede o filtro.
   const { model, inseridas } = montar([]);
 
   assert.equal(await model.gerar({ hoje: HOJE }), 0);
@@ -176,4 +176,25 @@ test("duas regras da mesma pessoa não se confundem", async () => {
     inseridas.map((c) => `${c.description} ${c.periodo}`),
     ["Mensalidade 2026-07-05", "Mensalidade 2026-08-05", "Anuidade 2026-09-05"]
   );
+});
+
+test("o estado vem do CATÁLOGO, e é ele que a geração consulta", async () => {
+  // O filtro não é `status !== "canceled"` escrito à mão: é `$in` na lista dos
+  // que geram. O dia em que "pausada" entrar em `lib/statusDeRecorrencia.js`
+  // com `gera: false`, ela para de gerar sem ninguém procurar os lugares.
+  const statusDeRecorrencia = require("../../lib/statusDeRecorrencia.js");
+  let filtroVisto = null;
+
+  const model = new Recurrence_model({ api: { finance: { async charges() { return {}; } } } });
+  model.collection = async () => ({
+    find: (filtro) => {
+      filtroVisto = filtro;
+      return { toArray: async () => [] };
+    },
+  });
+
+  await model.gerar({ hoje: HOJE });
+
+  assert.deepEqual(filtroVisto, { status: { $in: statusDeRecorrencia.GERAM } });
+  assert.ok(!statusDeRecorrencia.GERAM.includes("canceled"), "cancelada não pode gerar");
 });

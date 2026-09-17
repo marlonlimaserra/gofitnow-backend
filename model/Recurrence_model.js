@@ -1,5 +1,6 @@
 const { ObjectId } = require("mongodb");
 const recorrencia = require("../lib/recorrencia.js");
+const statusDeRecorrencia = require("../lib/statusDeRecorrencia.js");
 
 // AS RECORRÊNCIAS DE UMA PESSOA — a mensalidade, a anuidade, o pacote trimestral.
 //
@@ -77,7 +78,16 @@ const CAMPOS = {
   // de uma recorrência que tinha uma é uma edição legítima. Por isso `null`
   // explícito em vez de "campo ausente".
   endsAt: (v) => (v ? dia(v) : null),
-  active: (v) => v !== false,
+  // ── O ESTADO SUBSTITUIU O `active: true/false` ─────────────────────────
+  //
+  // O booleano respondia "gera ou não gera" e não tinha onde guardar POR QUE
+  // parou. Um combinado que acabou tem história — a pessoa saiu, trocou de
+  // plano, pediu pausa —, e uma regra parada sem explicação ao lado vira
+  // conversa no WhatsApp meses depois.
+  status: (v) => statusDeRecorrencia.normalizar(v),
+  // O motivo é livre e OPCIONAL: obrigá-lo faria alguém digitar "." para
+  // conseguir salvar, e um campo cheio de "." é pior que um campo vazio.
+  canceledReason: (v) => String(v || "").trim().slice(0, 500),
 };
 
 Recurrence_model.prototype.insert = async function (studentId, obj, createdBy, currency) {
@@ -92,10 +102,31 @@ Recurrence_model.prototype.insert = async function (studentId, obj, createdBy, c
   };
 
   for (const [campo, limpar] of Object.entries(CAMPOS)) doc[campo] = limpar(obj[campo]);
+  carimbarCancelamento(doc, doc.status);
 
   const r = await col.insertOne(doc);
   return r.insertedId;
 };
+
+// QUANDO parou, e não só que parou.
+//
+// A data é carimbada pelo servidor e não vem do formulário: ela responde "desde
+// quando esta pessoa deixou de ser cobrada", e é a única das três informações
+// (estado, motivo, data) que ninguém lembraria de preencher à mão.
+//
+// Reativar LIMPA a data e o motivo. Uma regra ativa com "cancelada em 12/08 —
+// mudou de plano" pendurada é a tela contando duas histórias ao mesmo tempo,
+// que foi exatamente a confusão do "paga e cancelada" na cobrança.
+function carimbarCancelamento(alvo, status) {
+  if (status === undefined) return;
+
+  if (statusDeRecorrencia.GERAM.includes(status)) {
+    alvo.canceledAt = null;
+    alvo.canceledReason = "";
+  } else if (!alvo.canceledAt) {
+    alvo.canceledAt = new Date();
+  }
+}
 
 Recurrence_model.prototype.update = async function (id, obj) {
   if (!ObjectId.isValid(id)) return false;
@@ -104,6 +135,17 @@ Recurrence_model.prototype.update = async function (id, obj) {
   const mudanca = { updatedAt: new Date() };
   for (const [campo, limpar] of Object.entries(CAMPOS)) {
     if (obj[campo] !== undefined) mudanca[campo] = limpar(obj[campo]);
+  }
+
+  // O carimbo só entra quando o ESTADO veio na chamada. Uma edição de valor não
+  // pode mexer na data do cancelamento — é a mesma lição do `updateCharge`, que
+  // reescrevia o documento inteiro e apagou cinco cobranças de verdade.
+  if (mudanca.status !== undefined) {
+    const antes = await col.findOne({ _id: new ObjectId(id) }, { projection: { canceledAt: 1 } });
+    carimbarCancelamento(
+      Object.assign(mudanca, { canceledAt: antes?.canceledAt || null }),
+      mudanca.status
+    );
   }
 
   const r = await col.updateOne({ _id: new ObjectId(id) }, { $set: mudanca });
@@ -148,7 +190,9 @@ Recurrence_model.prototype.remove = async function (id) {
 // publicar e consumir.
 Recurrence_model.prototype.idsAtivos = async function () {
   const col = await this.collection();
-  const docs = await col.find({ active: true }, { projection: { _id: 1 } }).toArray();
+  const docs = await col
+    .find({ status: { $in: statusDeRecorrencia.GERAM } }, { projection: { _id: 1 } })
+    .toArray();
   return docs.map((d) => String(d._id));
 };
 
@@ -184,7 +228,9 @@ Recurrence_model.prototype.gerar = async function ({
   try {
     const col = await this.collection();
 
-    const filtro = { active: true };
+    // Pergunta ao CATÁLOGO, e não a um `!== "canceled"` escrito aqui: o dia em
+    // que "pausada" entrar, ela para de gerar sem ninguém procurar os lugares.
+    const filtro = { status: { $in: statusDeRecorrencia.GERAM } };
     if (student) {
       if (!ObjectId.isValid(student)) return 0;
       filtro.student = new ObjectId(student);

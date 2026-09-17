@@ -1,6 +1,7 @@
 const arquivos = require("../lib/arquivos.js");
 const statusDeCobranca = require("../lib/statusDeCobranca.js");
 const recorrencia = require("../lib/recorrencia.js");
+const statusDeRecorrencia = require("../lib/statusDeRecorrencia.js");
 const { documentoFinanceiro } = require("../lib/documentoFinanceiro.js");
 const { registrarRotasDeDocumento } = require("../lib/rotasDeDocumento.js");
 const { logoDaCasa } = require("../lib/logoDaCasa.js");
@@ -151,6 +152,9 @@ module.exports = function (app) {
       // Mesma escolha dos status: acrescentar "quadrimestral" é uma linha em
       // `lib/recorrencia.js`, e a tela ganha a opção sem mudar de linha.
       cadencias: recorrencia.paraTela(req.t),
+      // Os ESTADOS de uma recorrência, pelo mesmo caminho das cadências e dos
+      // status de cobrança: a tela desenha o seletor sem conhecer nenhum deles.
+      recurrenceStatus: statusDeRecorrencia.paraTela(req.t),
       payments: await app.api.finance.listPayments(student._id),
       // Um saldo POR MOEDA: somar moedas diferentes daria um total que não
       // existe.
@@ -178,6 +182,9 @@ module.exports = function (app) {
     res.send({
       rows: await app.api.recurrence.listOfStudent(student._id),
       cadencias: recorrencia.paraTela(req.t),
+      // Os ESTADOS de uma recorrência, pelo mesmo caminho das cadências e dos
+      // status de cobrança: a tela desenha o seletor sem conhecer nenhum deles.
+      recurrenceStatus: statusDeRecorrencia.paraTela(req.t),
     });
   });
 

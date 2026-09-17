@@ -849,6 +849,10 @@
       "quarterly": "Trimestral",
       "semiannual": "Semestral",
       "annual": "Anual"
+    },
+    "recurrenceStatus": {
+      "active": "Ativa",
+      "canceled": "Cancelada"
     }
   }
 }

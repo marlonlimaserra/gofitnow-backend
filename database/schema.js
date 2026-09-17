@@ -521,10 +521,26 @@ async function ensureUmBanco(db) {
     }
   );
 
-  // recurrences — sempre lidas de uma pessoa, e a geração varre as ATIVAS da
-  // conta inteira (é o que o Financeiro geral faz ao abrir).
+  // recurrences — sempre lidas de uma pessoa, e a geração varre as que GERAM na
+  // conta inteira (é o que o Financeiro geral e a rotina diária fazem).
   await db.collection("recurrences").createIndex({ instance: 1, student: 1 }, { name: "by_student" });
-  await db.collection("recurrences").createIndex({ instance: 1, active: 1 }, { name: "by_active" });
+  await db.collection("recurrences").createIndex({ instance: 1, status: 1 }, { name: "by_status" });
+
+  // ── DE `active: true/false` PARA `status` ──────────────────────────────
+  //
+  // O booleano nasceu e morreu no mesmo dia (17/09/2026): ele respondia "gera ou
+  // não gera" e não tinha onde guardar POR QUE parou, que é a pergunta que
+  // alguém faz meses depois olhando uma regra parada.
+  //
+  // Retroativo e idempotente, como o de `conversations` logo acima: sem
+  // documento sem `status`, não escreve nada. Uma passada, e o código só precisa
+  // conhecer o campo novo — nada de `$or` com o campo velho espalhado por aí.
+  await db.collection("recurrences").updateMany({ status: { $exists: false } }, [
+    { $set: { status: { $cond: [{ $eq: ["$active", false] }, "canceled", "active"] } } },
+  ]);
+  await db.collection("recurrences").updateMany({ active: { $exists: true } }, { $unset: { active: "" } });
+
+  await dropIndexIfPresent(db, "recurrences", "by_active");
   await db.collection("payments").createIndex({ instance: 1, student: 1, date: -1 }, { name: "by_student" });
   await db
     .collection("payment_files")
