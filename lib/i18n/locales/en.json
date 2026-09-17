@@ -219,7 +219,9 @@
     "usernameInUse": "This username is already taken.",
     "vocabularyLength": "Use between 3 and 20 letters for the {{field}} (e.g. student / students).",
     "workoutNotFound": "Workout not found.",
-    "wrongCurrentPassword": "Current password is wrong."
+    "wrongCurrentPassword": "Current password is wrong.",
+    "recurrenceNotFound": "Recurrence not found.",
+    "requireAmount": "Enter the amount."
   },
   "ok": {
     "passwordChanged": "Password changed.",
@@ -254,7 +256,8 @@
     "paymentMethodRemoved": "Payment method removed.",
     "assessmentEmailed": "Assessment sent by email.",
     "dietEmailed": "Meal plan sent by email.",
-    "statementEmailed": "Statement sent by email."
+    "statementEmailed": "Statement sent by email.",
+    "recurrenceRemoved": "Recurrence removed. Charges already generated remain."
   },
   "permissions": {
     "groups": {
@@ -837,6 +840,15 @@
       "late": "Late",
       "paid": "Paid",
       "canceled": "Canceled"
+    },
+    "every": {
+      "weekly": "Weekly",
+      "biweekly": "Every two weeks",
+      "monthly": "Monthly",
+      "bimonthly": "Every two months",
+      "quarterly": "Quarterly",
+      "semiannual": "Every six months",
+      "annual": "Yearly"
     }
   }
 }

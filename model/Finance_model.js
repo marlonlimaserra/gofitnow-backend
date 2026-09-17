@@ -187,6 +187,13 @@ Finance_model.prototype.insertCharge = async function (studentId, obj, createdBy
     // descartado em silêncio — a cobrança existiria sem vínculo, e uma segunda
     // inscrição na mesma aula viraria uma segunda cobrança sem ninguém notar.
     aulao: ObjectId.isValid(obj.aulao) ? new ObjectId(obj.aulao) : null,
+    // A RECORRÊNCIA e o PERÍODO, quarta origem. Pelo mesmo motivo do `aulao`
+    // logo acima: `limparCobranca` fecha o documento numa lista de campos, e um
+    // vínculo mandado por fora sairia descartado em silêncio — aqui isso
+    // desligaria o índice único e a mensalidade de setembro nasceria de novo a
+    // cada abertura da tela.
+    recurrence: ObjectId.isValid(obj.recurrence) ? new ObjectId(obj.recurrence) : null,
+    periodo: obj.periodo ? String(obj.periodo).slice(0, 10) : null,
     ...limparCobranca(obj),
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -392,7 +399,13 @@ Finance_model.prototype.carteira = async function ({ de, ate, status, busca, fus
       currency: c.currency || null,
       // De onde ela nasceu: compromisso, aulão, ou a mão de alguém. É o que
       // explica uma linha que ninguém lembra de ter lançado.
-      origem: c.appointment ? "appointment" : c.aulao ? "aulao" : "manual",
+      origem: c.appointment
+        ? "appointment"
+        : c.aulao
+          ? "aulao"
+          : c.recurrence
+            ? "recurrence"
+            : "manual",
       // Calculado, nunca gravado — ver o comentário acima.
       atrasada: aberto && falta > 0 && c.dueDate && new Date(c.dueDate).getTime() < agora,
       diasDeAtraso:

@@ -1,5 +1,6 @@
 const arquivos = require("../lib/arquivos.js");
 const statusDeCobranca = require("../lib/statusDeCobranca.js");
+const recorrencia = require("../lib/recorrencia.js");
 const { documentoFinanceiro } = require("../lib/documentoFinanceiro.js");
 const { registrarRotasDeDocumento } = require("../lib/rotasDeDocumento.js");
 const { logoDaCasa } = require("../lib/logoDaCasa.js");
@@ -52,6 +53,21 @@ module.exports = function (app) {
   app.get("/finance", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "finance.view");
     if (user === false) return;
+
+    // ── A MENSALIDADE NASCE AQUI, ANTES DE LER ──────────────────────────
+    //
+    // Não há agendador neste servidor, e montar um custaria eleição de líder
+    // entre os workers e varredura de todas as instâncias fora do contexto que
+    // garante o isolamento. A geração roda DENTRO da requisição, já escopada no
+    // cliente certo — e esta é a tela que existe justamente para olhar o que há
+    // a receber, então é aqui que a cobrança do mês precisa estar.
+    //
+    // Antes de `carteira`, e não depois: gerar depois faria a mensalidade
+    // aparecer só na SEGUNDA vez que alguém abrisse a tela.
+    //
+    // `gerar` nunca estoura — ver o modelo. Uma recorrência com data estranha
+    // não pode derrubar o relatório do mês.
+    await app.api.recurrence.gerar({});
 
     const { rows, resumo } = await app.api.finance.carteira({
       de: req.query.de,
@@ -115,6 +131,10 @@ module.exports = function (app) {
     const student = await pessoaDoProfissional(req, res, trainer);
     if (student === false) return;
 
+    // A mensalidade desta pessoa, antes de ler o que ela deve. Mesma razão da
+    // carteira: sem agendador, quem materializa a cobrança é quem vem olhar.
+    await app.api.recurrence.gerar({ student: student._id });
+
     // As moedas da conta vão junto: os lançamentos antigos não têm a sua
     // gravada, e é a padrão que os interpreta.
     const moedas = await app.api.tenant.currencyOfInstance();
@@ -123,12 +143,113 @@ module.exports = function (app) {
       currency: moedas.currency,
       currencies: moedas.currencies,
       charges: await app.api.finance.listCharges(student._id),
+      // As REGRAS de recorrência, para a aba "Mensalidade". Vêm junto pelo mesmo
+      // motivo do resto: a aba é da mesma tela, e uma chamada a mais faria a
+      // ficha piscar em dois tempos.
+      recurrences: await app.api.recurrence.listOfStudent(student._id),
+      // O CATÁLOGO DE CADÊNCIAS, para o seletor não conhecer nenhuma delas.
+      // Mesma escolha dos status: acrescentar "quadrimestral" é uma linha em
+      // `lib/recorrencia.js`, e a tela ganha a opção sem mudar de linha.
+      cadencias: recorrencia.paraTela(req.t),
       payments: await app.api.finance.listPayments(student._id),
       // Um saldo POR MOEDA: somar moedas diferentes daria um total que não
       // existe.
       balance: await app.api.finance.balanceOf(student._id, moedas.currency),
       paidByCharge: await app.api.finance.paidByCharge(student._id),
     });
+  });
+
+  // ── Recorrências: a mensalidade, a anuidade, o pacote trimestral ────────
+  //
+  // Quatro rotas e nenhuma delas gera nada: a geração mora na LEITURA do
+  // financeiro (ver o modelo, e o comentário nas duas rotas acima). Aqui só se
+  // cadastra a REGRA.
+  //
+  // `finance.manage` para mexer: criar uma recorrência é criar uma cobrança por
+  // mês, para sempre — é a escrita mais cara desta tela.
+
+  app.get("/people/:personId/recurrences", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "finance.view");
+    if (trainer === false) return;
+
+    const student = await pessoaDoProfissional(req, res, trainer);
+    if (student === false) return;
+
+    res.send({
+      rows: await app.api.recurrence.listOfStudent(student._id),
+      cadencias: recorrencia.paraTela(req.t),
+    });
+  });
+
+  app.post("/people/:personId/recurrences", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "finance.manage");
+    if (trainer === false) return;
+
+    const student = await pessoaDoProfissional(req, res, trainer);
+    if (student === false) return;
+
+    const body = req.body || {};
+    if (!Number(body.amount)) {
+      return res.status(400).send({ msg: req.t("errors.requireAmount") });
+    }
+
+    const moeda = await app.api.tenant.currencyFor(body.currency);
+    const id = await app.api.recurrence.insert(student._id, body, trainer._id, moeda);
+
+    // GERA JÁ, e isto é o que faz o cadastro parecer que funcionou.
+    //
+    // Sem esta linha, quem cadastra "todo mês desde julho" salva o formulário e
+    // volta para uma aba de cobranças exatamente igual à de antes — a primeira
+    // mensalidade só apareceria na próxima abertura da tela. A mesma chamada da
+    // leitura, aqui, na escrita que a motivou.
+    await app.api.recurrence.gerar({ student: student._id });
+
+    app.insertUserActionHistory(req, trainer, "create_recurrence", {
+      category: "finance",
+      local: { target_type: "recurrences", target_id: id + "" },
+      extra: { person: student.name, personId: student._id + "", amount: Number(body.amount) },
+    });
+
+    res.status(201).send(await app.api.recurrence.data(id));
+  });
+
+  app.put("/recurrences/:id", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "finance.manage");
+    if (trainer === false) return;
+
+    const antes = await app.api.recurrence.data(req.params.id);
+    if (!antes) return res.status(404).send({ msg: req.t("errors.recurrenceNotFound") });
+
+    await app.api.recurrence.update(req.params.id, req.body || {});
+    // Editar pode ABRIR ocorrências novas — mudar o início para trás, tirar a
+    // data de fim, reativar. Gerar aqui é o mesmo cuidado do cadastro.
+    await app.api.recurrence.gerar({ student: antes.student });
+
+    app.insertUserActionHistory(req, trainer, "update_recurrence", {
+      category: "finance",
+      local: { target_type: "recurrences", target_id: String(req.params.id) },
+    });
+
+    res.send(await app.api.recurrence.data(req.params.id));
+  });
+
+  app.delete("/recurrences/:id", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "finance.manage");
+    if (trainer === false) return;
+
+    const alvo = await app.api.recurrence.data(req.params.id);
+    if (!alvo) return res.status(404).send({ msg: req.t("errors.recurrenceNotFound") });
+
+    // As cobranças JÁ GERADAS ficam — elas têm pagamento e histórico. Ver o
+    // modelo: apagar o combinado não pode apagar o caixa.
+    await app.api.recurrence.remove(req.params.id);
+
+    app.insertUserActionHistory(req, trainer, "delete_recurrence", {
+      category: "finance",
+      local: { target_type: "recurrences", target_id: String(req.params.id) },
+    });
+
+    res.send({ msg: req.t("ok.recurrenceRemoved") });
   });
 
   // ── Cobranças ───────────────────────────────────────────────────────────

@@ -32,6 +32,14 @@ function monta(rows, resumo, { tenantQuebrado = false } = {}) {
       // Devolve um MAP — é o que o modelo de verdade devolve, e foi onde eu
       // errei na primeira versão: acesso por colchete num Map dá `undefined`
       // sem erro, e o relatório sairia com "—" em toda linha.
+      // A GERAÇÃO DA MENSALIDADE roda antes de ler a carteira: sem agendador,
+      // quem materializa a cobrança do mês é quem vem olhar. O dobro precisa
+      // existir — sem ele a rota estoura antes de chegar ao relatório.
+      recurrence: {
+        async gerar() {
+          return 0;
+        },
+      },
       user: {
         // `contactsByIds` desde 17/09/2026: a rota passou a resolver nome,
         // e-mail e WhatsApp numa consulta só, porque os dois contatos vão para a

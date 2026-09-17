@@ -38,6 +38,11 @@ models.aulao = require("./model/Aulao_model.js");
 // todo aulão no primeiro salvamento de aparência.
 models.aulaoImage = require("./model/AulaoImage_model.js");
 models.finance = require("./model/Finance_model.js");
+// A mensalidade, a anuidade, o pacote trimestral — a REGRA que gera cobrança.
+// Collection própria e não um campo na cobrança: a regra é infinita e a cobrança
+// é um fato, e guardar as duas juntas faria um total somar dinheiro que ainda
+// não existe.
+models.recurrence = require("./model/Recurrence_model.js");
 // As formas de pagamento de cada conta. Eram uma lista fixa dentro do financeiro.
 models.paymentMethod = require("./model/PaymentMethod_model.js");
 models.availability = require("./model/Availability_model.js");

@@ -55,6 +55,8 @@ const POR_INSTANCIA = [
   "charges",
   "payments",
   "payment_files",
+  // As RECORRÊNCIAS: "todo mês, R$ 800". Do cliente, como tudo que é dinheiro.
+  "recurrences",
   "conversations",
   "messages",
   "message_files",
@@ -495,6 +497,34 @@ async function ensureUmBanco(db) {
   await db.collection("charges").createIndex({ instance: 1, student: 1, dueDate: -1 }, { name: "by_student" });
   // E pelo compromisso, que é como a cobrança automática confere se já existe.
   await db.collection("charges").createIndex({ instance: 1, appointment: 1 }, { name: "by_appointment" });
+
+  // ── A MENSALIDADE NÃO PODE NASCER DUAS VEZES ───────────────────────────
+  //
+  // Índice ÚNICO sobre (recorrência, período), e é ele que torna a geração
+  // segura — não o `if` que a antecede.
+  //
+  // A cobrança da mensalidade nasce na LEITURA da tela do dinheiro. Duas abas
+  // abertas, ou dois workers atendendo duas requisições ao mesmo tempo, leem "não
+  // existe" juntas e inserem juntas: sem este índice, a pessoa seria cobrada duas
+  // vezes pelo mesmo mês, e a tela mostraria as duas linhas sem nenhum erro em
+  // log nenhum.
+  //
+  // PARCIAL porque quase toda cobrança não tem recorrência: sem o filtro, todas
+  // elas colidiriam entre si em `(null, null)` e o índice recusaria a segunda
+  // cobrança manual da conta inteira.
+  await db.collection("charges").createIndex(
+    { instance: 1, recurrence: 1, periodo: 1 },
+    {
+      name: "recurrence_period_unique",
+      unique: true,
+      partialFilterExpression: { recurrence: { $type: "objectId" } },
+    }
+  );
+
+  // recurrences — sempre lidas de uma pessoa, e a geração varre as ATIVAS da
+  // conta inteira (é o que o Financeiro geral faz ao abrir).
+  await db.collection("recurrences").createIndex({ instance: 1, student: 1 }, { name: "by_student" });
+  await db.collection("recurrences").createIndex({ instance: 1, active: 1 }, { name: "by_active" });
   await db.collection("payments").createIndex({ instance: 1, student: 1, date: -1 }, { name: "by_student" });
   await db
     .collection("payment_files")

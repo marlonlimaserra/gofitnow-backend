@@ -219,7 +219,9 @@
     "usernameInUse": "Este nombre de usuario ya está en uso.",
     "vocabularyLength": "Usa entre 3 y 20 letras para el {{field}} (ej.: alumno / alumnos).",
     "workoutNotFound": "Entrenamiento no encontrado.",
-    "wrongCurrentPassword": "Contraseña actual incorrecta."
+    "wrongCurrentPassword": "Contraseña actual incorrecta.",
+    "recurrenceNotFound": "Recurrencia no encontrada.",
+    "requireAmount": "Informe el importe."
   },
   "ok": {
     "passwordChanged": "Contraseña cambiada.",
@@ -254,7 +256,8 @@
     "paymentMethodRemoved": "Forma de pago eliminada.",
     "assessmentEmailed": "Evaluación enviada por correo electrónico.",
     "dietEmailed": "Plan alimentario enviado por correo electrónico.",
-    "statementEmailed": "Extracto enviado por correo electrónico."
+    "statementEmailed": "Extracto enviado por correo electrónico.",
+    "recurrenceRemoved": "Recurrencia eliminada. Los cobros ya generados permanecen."
   },
   "permissions": {
     "groups": {
@@ -837,6 +840,15 @@
       "late": "Atrasada",
       "paid": "Pagada",
       "canceled": "Cancelada"
+    },
+    "every": {
+      "weekly": "Semanal",
+      "biweekly": "Quincenal",
+      "monthly": "Mensual",
+      "bimonthly": "Bimestral",
+      "quarterly": "Trimestral",
+      "semiannual": "Semestral",
+      "annual": "Anual"
     }
   }
 }
