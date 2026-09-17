@@ -57,6 +57,11 @@ const POR_INSTANCIA = [
   "payment_files",
   // As RECORRÊNCIAS: "todo mês, R$ 800". Do cliente, como tudo que é dinheiro.
   "recurrences",
+  // O CARDÁPIO que a academia vende aos alunos dela, e as linhas que comparam
+  // um plano com o outro. `membership` porque "plan" neste servidor é o plano do
+  // PRODUTO — ver appModels.js.
+  "memberships",
+  "membership_categories",
   "conversations",
   "messages",
   "message_files",
@@ -525,6 +530,17 @@ async function ensureUmBanco(db) {
   // conta inteira (é o que o Financeiro geral e a rotina diária fazem).
   await db.collection("recurrences").createIndex({ instance: 1, student: 1 }, { name: "by_student" });
   await db.collection("recurrences").createIndex({ instance: 1, status: 1 }, { name: "by_status" });
+
+  // memberships e membership_categories — listas curtas, sempre lidas inteiras e
+  // sempre na ORDEM escolhida (a da vitrine, e a das linhas da tabela).
+  await db.collection("memberships").createIndex({ instance: 1, order: 1 }, { name: "by_order" });
+  await db.collection("membership_categories").createIndex({ instance: 1, order: 1 }, { name: "by_order" });
+  // E pela categoria: é como se descobre quantos planos marcaram uma linha antes
+  // de deixar alguém apagá-la.
+  await db.collection("memberships").createIndex({ instance: 1, categorias: 1 }, { name: "by_categoria" });
+  // A recorrência guarda o plano que a originou — é por aqui que se recusa
+  // apagar um plano que alguém já assinou.
+  await db.collection("recurrences").createIndex({ instance: 1, membership: 1 }, { name: "by_membership" });
 
   // ── DE `active: true/false` PARA `status` ──────────────────────────────
   //

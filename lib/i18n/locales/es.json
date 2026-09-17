@@ -150,7 +150,6 @@
     "planInactive": "Ese plan ya no está disponible.",
     "planIsFree": "El plan gratuito no necesita pago.",
     "planLimitReached": "Tu plan permite hasta {{max}} en {{o}}. Borra lo que ya no usas, o sube de plan.",
-    "planNotFound": "Ese plan no existe.",
     "planNotSellable": "Ese plan todavía no está listo para la venta. Ya avisamos a soporte.",
     "portalFailed": "No pude abrir la pantalla de gestión. Inténtalo de nuevo en unos minutos.",
     "prescriptionNotFound": "Prescripción no encontrada.",
@@ -221,7 +220,12 @@
     "workoutNotFound": "Entrenamiento no encontrado.",
     "wrongCurrentPassword": "Contraseña actual incorrecta.",
     "recurrenceNotFound": "Recurrencia no encontrada.",
-    "requireAmount": "Informe el importe."
+    "requireAmount": "Informe el importe.",
+    "membershipNotFound": "Plan no encontrado.",
+    "membershipCategoryNotFound": "Categoría no encontrada.",
+    "membershipInUse": "Este plan está en {{count}} recurrencia(s). Desactívelo en vez de borrarlo.",
+    "membershipCategoryInUse": "Esta categoría está marcada en {{count}} plan(es). Desactívela en vez de borrarla.",
+    "planNotFound": "Ese plan no existe."
   },
   "ok": {
     "passwordChanged": "Contraseña cambiada.",
@@ -257,7 +261,10 @@
     "assessmentEmailed": "Evaluación enviada por correo electrónico.",
     "dietEmailed": "Plan alimentario enviado por correo electrónico.",
     "statementEmailed": "Extracto enviado por correo electrónico.",
-    "recurrenceRemoved": "Recurrencia eliminada. Los cobros ya generados permanecen."
+    "recurrenceRemoved": "Recurrencia eliminada. Los cobros ya generados permanecen.",
+    "membershipRemoved": "Plan eliminado.",
+    "membershipCategoryRemoved": "Categoría eliminada.",
+    "membershipSaved": "Orden guardado."
   },
   "permissions": {
     "groups": {

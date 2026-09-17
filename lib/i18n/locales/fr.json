@@ -150,7 +150,6 @@
     "planInactive": "Ce forfait n'est plus disponible.",
     "planIsFree": "Le forfait gratuit ne nécessite aucun paiement.",
     "planLimitReached": "Votre forfait autorise jusqu'à {{max}} en {{o}}. Supprimez ce qui ne sert plus, ou changez de forfait.",
-    "planNotFound": "Ce forfait n'existe pas.",
     "planNotSellable": "Ce forfait n'est pas encore prêt à être vendu. Le support a été prévenu.",
     "portalFailed": "Je n'ai pas pu ouvrir l'écran de gestion. Réessayez dans quelques minutes.",
     "prescriptionNotFound": "Prescription introuvable.",
@@ -221,7 +220,12 @@
     "workoutNotFound": "Entraînement introuvable.",
     "wrongCurrentPassword": "Mot de passe actuel incorrect.",
     "recurrenceNotFound": "Récurrence introuvable.",
-    "requireAmount": "Indiquez le montant."
+    "requireAmount": "Indiquez le montant.",
+    "membershipNotFound": "Formule introuvable.",
+    "membershipCategoryNotFound": "Catégorie introuvable.",
+    "membershipInUse": "Cette formule est utilisée par {{count}} récurrence(s). Désactivez-la au lieu de la supprimer.",
+    "membershipCategoryInUse": "Cette catégorie est cochée sur {{count}} formule(s). Désactivez-la au lieu de la supprimer.",
+    "planNotFound": "Ce forfait n'existe pas."
   },
   "ok": {
     "passwordChanged": "Mot de passe modifié.",
@@ -257,7 +261,10 @@
     "assessmentEmailed": "Bilan envoyé par e-mail.",
     "dietEmailed": "Plan alimentaire envoyé par e-mail.",
     "statementEmailed": "Relevé envoyé par e-mail.",
-    "recurrenceRemoved": "Récurrence supprimée. Les factures déjà générées restent."
+    "recurrenceRemoved": "Récurrence supprimée. Les factures déjà générées restent.",
+    "membershipRemoved": "Formule supprimée.",
+    "membershipCategoryRemoved": "Catégorie supprimée.",
+    "membershipSaved": "Ordre enregistré."
   },
   "permissions": {
     "groups": {

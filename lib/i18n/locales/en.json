@@ -150,7 +150,6 @@
     "planInactive": "That plan is no longer available.",
     "planIsFree": "The free plan needs no payment.",
     "planLimitReached": "Your plan allows up to {{max}} in {{o}}. Delete what you no longer use, or upgrade.",
-    "planNotFound": "That plan does not exist.",
     "planNotSellable": "That plan is not ready to be sold yet. Support has been notified.",
     "portalFailed": "I could not open the management screen. Try again in a few minutes.",
     "prescriptionNotFound": "Prescription not found.",
@@ -221,7 +220,12 @@
     "workoutNotFound": "Workout not found.",
     "wrongCurrentPassword": "Current password is wrong.",
     "recurrenceNotFound": "Recurrence not found.",
-    "requireAmount": "Enter the amount."
+    "requireAmount": "Enter the amount.",
+    "membershipNotFound": "Plan not found.",
+    "membershipCategoryNotFound": "Category not found.",
+    "membershipInUse": "This plan is used by {{count}} recurrence(s). Deactivate it instead of deleting.",
+    "membershipCategoryInUse": "This category is ticked on {{count}} plan(s). Deactivate it instead of deleting.",
+    "planNotFound": "That plan does not exist."
   },
   "ok": {
     "passwordChanged": "Password changed.",
@@ -257,7 +261,10 @@
     "assessmentEmailed": "Assessment sent by email.",
     "dietEmailed": "Meal plan sent by email.",
     "statementEmailed": "Statement sent by email.",
-    "recurrenceRemoved": "Recurrence removed. Charges already generated remain."
+    "recurrenceRemoved": "Recurrence removed. Charges already generated remain.",
+    "membershipRemoved": "Plan removed.",
+    "membershipCategoryRemoved": "Category removed.",
+    "membershipSaved": "Order saved."
   },
   "permissions": {
     "groups": {

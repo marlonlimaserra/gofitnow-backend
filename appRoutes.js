@@ -24,6 +24,13 @@ routes.Chat = require("./controllers/Chat.js");
 routes.Appointment = require("./controllers/Appointment.js");
 routes.Service = require("./controllers/Service.js");
 routes.Finance = require("./controllers/Finance.js");
+// O cardápio que a ACADEMIA vende aos alunos dela, e as linhas que comparam um
+// plano com o outro. Controller próprio e não dentro de Finance: aquele já tem
+// dezoito rotas, e plano não é lançamento — é catálogo.
+//
+// `Membership` e não `Plan`: o `Plan.js` logo acima é o plano do PRODUTO, com a
+// Stripe. Os dois se chamam "Planos" na tela, e só na tela.
+routes.Membership = require("./controllers/Membership.js");
 routes.Booking = require("./controllers/Booking.js");
 // Os AULÕES: aula em grupo com data, lugar e vagas. Vizinho de Booking porque
 // os dois são o calendário visto de fora.

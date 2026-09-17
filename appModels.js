@@ -43,6 +43,15 @@ models.finance = require("./model/Finance_model.js");
 // é um fato, e guardar as duas juntas faria um total somar dinheiro que ainda
 // não existe.
 models.recurrence = require("./model/Recurrence_model.js");
+// O CARDÁPIO que a casa vende aos ALUNOS dela — "Black", "Fit", "Smart" — e as
+// linhas da tabela que compara um com o outro. Dois modelos porque são duas
+// coisas: o plano é o que se vende, a categoria é o que se compara.
+//
+// `membership` e não `plan`: "plano" neste servidor já é o do PRODUTO, o que
+// nós vendemos para a academia (`controllers/Plan.js`, com a Stripe). Duas
+// camadas de assinatura, dois nomes.
+models.membership = require("./model/Membership_model.js");
+models.membershipCategory = require("./model/MembershipCategory_model.js");
 // As formas de pagamento de cada conta. Eram uma lista fixa dentro do financeiro.
 models.paymentMethod = require("./model/PaymentMethod_model.js");
 models.availability = require("./model/Availability_model.js");

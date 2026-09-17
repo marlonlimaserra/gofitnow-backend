@@ -88,6 +88,16 @@ const CAMPOS = {
   // O motivo é livre e OPCIONAL: obrigá-lo faria alguém digitar "." para
   // conseguir salvar, e um campo cheio de "." é pior que um campo vazio.
   canceledReason: (v) => String(v || "").trim().slice(0, 500),
+  // ── DE QUAL PLANO ELA NASCEU ────────────────────────────────────────────
+  //
+  // Só a ORIGEM. O valor, a cadência e o nome vêm COPIADOS do plano na hora de
+  // criar, e são estes campos aqui que valem daí em diante.
+  //
+  // Subir o "Black" de 159 para 179 passa a valer para quem entrar depois; quem
+  // já assinou continua pagando o que combinou — que é como funciona em qualquer
+  // academia. Reajustar quem está dentro é outra operação, deliberada, e nunca
+  // um efeito colateral de editar o cardápio.
+  membership: (v) => (ObjectId.isValid(v) ? new ObjectId(v) : null),
 };
 
 Recurrence_model.prototype.insert = async function (studentId, obj, createdBy, currency) {
