@@ -70,10 +70,24 @@ module.exports = function (app) {
     // não pode derrubar o relatório do mês.
     await app.api.recurrence.gerar({});
 
-    const { rows, resumo } = await app.api.finance.carteira({
+    const { rows, total, pagina, limite, resumo } = await app.api.finance.carteira({
       de: req.query.de,
       ate: req.query.ate,
       status: req.query.status,
+      // ── A BUSCA E A ORDEM PASSARAM PARA O BANCO ───────────────────────
+      //
+      // Os dois moravam aqui: a busca era um `filter` em JavaScript sobre a
+      // lista inteira e a ordenação acontecia no navegador. Os dois só funcionam
+      // enquanto a lista inteira vem — e ela parou de vir.
+      //
+      // Buscar na página acharia "Ana" entre as vinte e cinco carregadas e diria
+      // que não existe mais nenhuma; ordenar a página daria a ordem das vinte e
+      // cinco, e não as vinte e cinco primeiras de trezentas.
+      busca: req.query.q,
+      ordem: req.query.sort,
+      direcao: req.query.dir,
+      pagina: req.query.page,
+      limite: req.query.limit,
       // O FUSO DA CONTA, para a janela do mês bater com o calendário de quem
       // olha. Sem ele o fim do dia 30 seria 23:59 UTC — 20:59 em São Paulo —, e
       // a cobrança da noite do último dia ficaria fora do próprio mês.
@@ -85,42 +99,26 @@ module.exports = function (app) {
       fuso: await fusoDaConta(app),
     });
 
-    // Nome, e-mail e WhatsApp: os três numa consulta só. O contato vai para a
-    // PLANILHA — quem exporta para cobrar precisa de por onde falar.
-    const pessoas = await app.api.user.contactsByIds([...new Set(rows.map((r) => r.student))]);
-    const nomes = new Map([...pessoas].map(([id, p]) => [id, p.name]));
-
-    const termo = String(req.query.q || "").trim().toLowerCase();
-
-    // A busca é por NOME, e acontece depois de resolver os nomes — é o único
-    // jeito: a cobrança não os guarda, e filtrar antes exigiria uma consulta
-    // por termo em outra collection.
-    const visiveis = termo
-      ? rows.filter(
-          (r) =>
-            String(nomes.get(r.student) || "").toLowerCase().includes(termo) ||
-            r.description.toLowerCase().includes(termo)
-        )
-      : rows;
-
     // As moedas da conta vão junto: os lançamentos antigos não têm a sua
     // gravada, e é a padrão que os interpreta.
     const moedas = await app.api.tenant.currencyOfInstance();
 
     res.send({
-      rows: visiveis.map((r) => ({
-        ...r,
-        studentName: pessoas.get(r.student)?.name || "—",
-        studentEmail: pessoas.get(r.student)?.email || "",
-        studentPhone: pessoas.get(r.student)?.phone || "",
-      })),
-      // O resumo é de TODA a janela, não da busca — ver o comentário no modelo.
+      // O nome e o contato já vêm da junção do banco — eram resolvidos aqui
+      // numa segunda consulta, o que deixou de fazer sentido quando a busca
+      // por nome precisou acontecer ANTES do corte da página.
+      rows,
+      // O RESUMO é de TODA a janela, não da página nem do recorte — ver o
+      // modelo. É a resposta a *"cada vez que eu troco de aba, os valores ali em
+      // cima mudam"*.
       resumo,
+      // Quantas linhas o recorte tem, para a tela saber quantas páginas existem.
+      // Sem isto ela só saberia que a página veio cheia, que não é o mesmo.
+      total,
+      pagina,
+      limite,
       currency: moedas.currency,
       currencies: moedas.currencies,
-      // O CATÁLOGO DE ESTADOS, para a tela desenhar os filtros sem conhecê-los.
-      // Ver `lib/statusDeCobranca.js`: acrescentar um estado lá o faz aparecer
-      // aqui, e a tela não muda.
       status: statusDeCobranca.paraTela(req.t),
     });
   });

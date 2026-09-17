@@ -26,7 +26,13 @@ function monta(rows, resumo, { tenantQuebrado = false } = {}) {
       finance: {
         async carteira(filtros) {
           pedidos.push(filtros);
-          return { rows, resumo: resumo || { recebido: 0, aReceber: 0, atrasado: 0 } };
+          return {
+            rows,
+            total: rows.length,
+            pagina: Number(filtros.pagina) || 1,
+            limite: Number(filtros.limite) || 15,
+            resumo: resumo || { recebido: 0, aReceber: 0, atrasado: 0 },
+          };
         },
       },
       // Devolve um MAP — é o que o modelo de verdade devolve, e foi onde eu
@@ -87,49 +93,47 @@ const LINHA = {
   diasDeAtraso: 15,
 };
 
-test("o relatório resolve o NOME de quem deve", async () => {
-  // A cobrança guarda o id, e uma lista de ids não é relatório.
+// ── O NOME, O CONTATO E A BUSCA SAÍRAM DAQUI ──────────────────────────────
+//
+// A rota resolvia os nomes numa segunda consulta e filtrava por eles com um
+// `filter` em JavaScript. Os dois pararam de fazer sentido com a paginação
+// (17/09/2026): buscar na página acharia "Ana" entre as quinze linhas
+// carregadas e diria que não existe mais nenhuma.
+//
+// Agora a junção e a busca acontecem no MESMO pipeline que corta a página — e é
+// lá que estão os casos (`test/model/carteiraPaginada.test.js`). O que sobrou
+// para a rota é repassar o que veio e devolver o que o modelo respondeu.
+test("a rota repassa a página inteira do modelo, sem remontar nada", async () => {
   const { app } = monta([LINHA]);
   const r = await call(app, "get", "/finance");
 
   assert.equal(r.status, 200);
-  assert.equal(r.body.rows[0].studentName, "Ana Paula");
+  assert.deepEqual(r.body.rows, [LINHA], "a linha sai como veio do modelo");
 });
 
-test("o contato vai junto — a planilha é para cobrar", async () => {
-  // *"coloque o e-mail e whatsapp também"*. Quem exporta a carteira vai ligar e
-  // mandar mensagem; sem isto, o caminho é abrir a ficha de trinta pessoas.
-  const { app } = monta([LINHA, { ...LINHA, _id: "z9", student: BIA }]);
+test("a busca, a ordem e a página chegam ao modelo", async () => {
+  // Sem isto os três seriam enfeite: a tela pediria a página 3 ordenada por
+  // nome e o servidor devolveria a primeira, por vencimento.
+  const { app, pedidos } = monta([]);
+  await call(app, "get", "/finance", {
+    query: { q: "ana", sort: "person", dir: "asc", page: "3", limit: "50" },
+  });
+
+  assert.equal(pedidos[0].busca, "ana");
+  assert.equal(pedidos[0].ordem, "person");
+  assert.equal(pedidos[0].direcao, "asc");
+  assert.equal(pedidos[0].pagina, "3");
+  assert.equal(pedidos[0].limite, "50");
+});
+
+test("a CONTAGEM do recorte vai junto, senão a tela não sabe quantas páginas há", async () => {
+  // Saber que a página veio cheia não é o mesmo que saber quantas existem.
+  const { app } = monta([LINHA]);
   const r = await call(app, "get", "/finance");
 
-  assert.equal(r.body.rows[0].studentPhone, "(21) 90000-0001");
-  assert.equal(r.body.rows[0].studentEmail, "ana@exemplo.com");
-  // Quem não tem contato sai com string vazia, e não com "undefined" escrito na
-  // célula da planilha.
-  const daBia = r.body.rows.find((x) => x.studentName === "Bia Souza");
-  assert.equal(daBia.studentPhone, "");
-  assert.equal(daBia.studentEmail, "");
-});
-
-test("a busca acha por nome e por descrição", async () => {
-  const { app } = monta([LINHA, { ...LINHA, id: "c2", student: BIA, description: "Aulão de pernas" }]);
-
-  const porNome = await call(app, "get", "/finance", { query: { q: "bia" } });
-  assert.deepEqual(porNome.body.rows.map((x) => x.id), ["c2"]);
-
-  const porDescricao = await call(app, "get", "/finance", { query: { q: "mensalidade" } });
-  assert.deepEqual(porDescricao.body.rows.map((x) => x.id), ["c1"]);
-});
-
-test("o RESUMO é da janela inteira, não da busca", async () => {
-  // Filtrar por um nome e ver o total a receber cair para o valor daquela
-  // pessoa faria o número parecer um total da seleção. É a mesma decisão da
-  // carteira de assinaturas no painel.
-  const { app } = monta([LINHA], { recebido: 5000, aReceber: 20000, atrasado: 20000 });
-  const r = await call(app, "get", "/finance", { query: { q: "zzz" } });
-
-  assert.deepEqual(r.body.rows, [], "a busca não filtrou");
-  assert.equal(r.body.resumo.aReceber, 20000, "o resumo encolheu com a busca");
+  assert.equal(r.body.total, 1);
+  assert.equal(r.body.pagina, 1);
+  assert.equal(r.body.limite, 15);
 });
 
 test("a janela e o status chegam ao modelo", async () => {

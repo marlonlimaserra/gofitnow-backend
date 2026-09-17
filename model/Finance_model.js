@@ -2,6 +2,7 @@ const { ObjectId } = require("mongodb");
 const { centavos } = require("./Service_model.js");
 const tempo = require("../lib/tempo.js");
 const statusDeCobranca = require("../lib/statusDeCobranca.js");
+const instanceContext = require("../lib/instance.js");
 const { parseDataUri } = require("../lib/imageDataUri.js");
 
 // O financeiro de cada pessoa.
@@ -340,105 +341,325 @@ function fimDoDia(valor, fuso) {
   return new Date(d.getTime() + 59999);
 }
 
-Finance_model.prototype.carteira = async function ({ de, ate, status, busca, fuso } = {}) {
+// ── O QUE SE PODE ORDENAR, e por qual campo ─────────────────────────────
+//
+// A tela ordenava sozinha, no navegador, sobre a lista inteira. Com a página
+// vindo do banco isso deixa de funcionar: ordenar quinze linhas dá a ordem das
+// quinze, e não as quinze primeiras de trezentas. Ordenação e paginação são a
+// mesma decisão, e as duas passaram para cá.
+//
+// `situacao` é um POSTO calculado, não um campo: a ordem é a da urgência de quem
+// olha — o que venceu primeiro, o que ainda vai vencer depois, e o que já morreu
+// (pago, cancelado) no fim. É a mesma ordem que a tela usava.
+const ORDEM_DA_CARTEIRA = {
+  person: "studentName",
+  description: "description",
+  dueDate: "dueDate",
+  createdAt: "createdAt",
+  amount: "amount",
+  status: "situacao",
+};
+
+// Teto de página. 200 pelo mesmo motivo da lista de pessoas: acima disso a
+// resposta cresce sem que ninguém leia, e um `limit=100000` na barra de endereço
+// vira uma varredura da collection inteira.
+const LIMITE_MAXIMO = 200;
+const LIMITE_PADRAO = 25;
+
+// A CARTEIRA — a lista do Financeiro geral, uma PÁGINA por vez.
+//
+// ── Por que agregação, e não `find().sort().skip().limit()` ─────────────
+//
+// Porque quase nada do que esta tela mostra é campo da cobrança. `pago` é a soma
+// dos pagamentos dela, `falta` é a diferença, `atrasada` é o relógio comparado
+// com o vencimento, e o NOME da pessoa mora em outra collection. Ordenar ou
+// filtrar por qualquer um deles exige que eles existam antes do `$sort` — daí os
+// dois `$lookup` e o `$addFields`.
+//
+// ── UMA IDA AO BANCO, três respostas ────────────────────────────────────
+//
+// `$facet` separa o que cada uma enxerga, e a separação É a regra de negócio:
+//
+//   resumo   a JANELA INTEIRA, sem recorte nenhum — "como está o mês"
+//   rows     a página, depois do recorte e da busca
+//   total    quantas linhas o recorte tem, para a tela saber quantas páginas
+//
+// O resumo ignorar o recorte não é descuido: *"cada vez que eu troco de aba, os
+// valores ali em cima mudam"*. A pergunta dos cartões é sobre o mês, não sobre a
+// parte da lista que alguém resolveu ver.
+Finance_model.prototype.carteira = async function ({
+  de,
+  ate,
+  status,
+  busca,
+  fuso,
+  ordem,
+  direcao,
+  pagina,
+  limite,
+} = {}) {
   const charges = await this.charges();
-  const pagamentos = await this.payments();
 
-  const filtro = {};
-
+  const janela = {};
   // A janela é sobre o VENCIMENTO, não sobre quando a cobrança foi criada: o
   // relatório do mês é o do que vence no mês.
   if (de || ate) {
-    filtro.dueDate = {};
+    janela.dueDate = {};
     // O DIA inteiro, e no fuso da conta — ver o cabeçalho de `inicioDoDia`.
-    if (de) filtro.dueDate.$gte = inicioDoDia(de, fuso);
-    if (ate) filtro.dueDate.$lte = fimDoDia(ate, fuso);
+    if (de) janela.dueDate.$gte = inicioDoDia(de, fuso);
+    if (ate) janela.dueDate.$lte = fimDoDia(ate, fuso);
   }
 
-  const lista = await charges.find(filtro).sort({ dueDate: -1 }).toArray();
+  const agora = new Date();
 
-  // ── O QUE JÁ FOI PAGO DE CADA COBRANÇA ────────────────────────────────
+  // ── AS DUAS JUNÇÕES ────────────────────────────────────────────────────
   //
-  // Numa agregação, e não uma consulta por linha: com trezentas cobranças
-  // seriam trezentas idas ao banco para desenhar uma tela.
+  // O `instance` DENTRO da sub-pipeline é desempenho, não correção: `lib/escopo.js`
+  // não alcança o interior de um `$lookup`, e a correção já está garantida porque
+  // as duas casam por ObjectId, que é único global. Sem ele, cada junção varreria
+  // os pagamentos e as pessoas de todos os clientes para achar as de um.
+  const instancia = instanceContext.current();
+
+  const juntarPagamentos = {
+    $lookup: {
+      from: "payments",
+      let: { cobranca: "$_id" },
+      pipeline: [
+        {
+          $match: {
+            $expr: { $eq: ["$charge", "$$cobranca"] },
+            ...(instancia ? { instance: instancia } : {}),
+            // Só o que ENTROU conta: pendente é promessa e reembolsado é
+            // dinheiro que voltou. Mesma regra de `balanceOf` e `paidByCharge`.
+            status: "paid",
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ],
+      as: "recebimentos",
+    },
+  };
+
+  const juntarPessoa = {
+    $lookup: {
+      from: "users",
+      let: { pessoa: "$student" },
+      pipeline: [
+        {
+          $match: {
+            $expr: { $eq: ["$_id", "$$pessoa"] },
+            ...(instancia ? { instance: instancia } : {}),
+          },
+        },
+        // O documento da pessoa NÃO sai daqui inteiro: ela tem senha, sal e
+        // ficha. Três campos, e é o que a tela e a planilha usam.
+        { $project: { name: 1, email: 1, phone: 1 } },
+      ],
+      as: "pessoa",
+    },
+  };
+
+  const derivados = {
+    $addFields: {
+      pago: { $ifNull: [{ $arrayElemAt: ["$recebimentos.total", 0] }, 0] },
+      studentName: { $ifNull: [{ $arrayElemAt: ["$pessoa.name", 0] }, ""] },
+      studentEmail: { $ifNull: [{ $arrayElemAt: ["$pessoa.email", 0] }, ""] },
+      studentPhone: { $ifNull: [{ $arrayElemAt: ["$pessoa.phone", 0] }, ""] },
+    },
+  };
+
+  const contas = {
+    $addFields: {
+      falta: { $max: [0, { $subtract: [{ $ifNull: ["$amount", 0] }, "$pago"] }] },
+      origem: {
+        $switch: {
+          branches: [
+            { case: { $ifNull: ["$appointment", false] }, then: "appointment" },
+            { case: { $ifNull: ["$aulao", false] }, then: "aulao" },
+            { case: { $ifNull: ["$recurrence", false] }, then: "recurrence" },
+          ],
+          default: "manual",
+        },
+      },
+    },
+  };
+
+  const atraso = {
+    $addFields: {
+      // ATRASADA é calculada, nunca gravada: é uma cobrança ABERTA cuja data
+      // passou. Gravá-la exigiria alguém varrer o banco à meia-noite.
+      atrasada: {
+        $and: [
+          { $eq: ["$status", "open"] },
+          { $gt: ["$falta", 0] },
+          { $ne: [{ $ifNull: ["$dueDate", null] }, null] },
+          { $lt: ["$dueDate", agora] },
+        ],
+      },
+      diasDeAtraso: {
+        $cond: [
+          {
+            $and: [
+              { $eq: ["$status", "open"] },
+              { $ne: [{ $ifNull: ["$dueDate", null] }, null] },
+              { $lt: ["$dueDate", agora] },
+            ],
+          },
+          { $floor: { $divide: [{ $subtract: [agora, "$dueDate"] }, DIA_MS] } },
+          0,
+        ],
+      },
+    },
+  };
+
+  // O POSTO da situação, para ordenar por ela. Mesma escala que a tela usava.
+  const posto = {
+    $addFields: {
+      situacao: {
+        $switch: {
+          branches: [
+            { case: { $eq: ["$status", "canceled"] }, then: 4 },
+            { case: { $eq: ["$falta", 0] }, then: 3 },
+            { case: "$atrasada", then: 1 },
+          ],
+          default: 2,
+        },
+      },
+    },
+  };
+
+  // ── O RECORTE: estados e busca ─────────────────────────────────────────
   //
-  // Pagamento PARCIAL existe — alguém paga metade hoje e metade no dia 10 —,
-  // então "pago" não é um booleano: é uma soma comparada com o valor.
-  const ids = lista.map((c) => c._id);
-  const somas = ids.length
-    ? await pagamentos
-        .aggregate([
-          { $match: { charge: { $in: ids }, status: "paid" } },
-          { $group: { _id: "$charge", total: { $sum: "$amount" } } },
-        ])
-        .toArray()
-    : [];
+  // Ele mora DENTRO do facet, e só nos ramos `rows` e `total`. O ramo do resumo
+  // parte do mesmo ponto sem ele — é o que faz os três cartões continuarem
+  // falando do mês inteiro.
+  const recorte = [];
 
-  const pagoPor = Object.fromEntries(somas.map((x) => [String(x._id), x.total]));
+  const pedidos = statusDeCobranca.pedidos(status);
+  if (pedidos.size) {
+    const aceitos = [...pedidos].filter((x) => x !== "late");
+    const ou = [];
+    if (aceitos.length) ou.push({ status: { $in: aceitos } });
+    // "late" não é status gravado: é o campo calculado acima.
+    if (pedidos.has("late")) ou.push({ atrasada: true });
+    recorte.push({ $match: { $or: ou } });
+  }
 
-  const agora = Date.now();
+  // A BUSCA passou para o banco, e tinha de passar.
+  //
+  // Ela era um `filter` em JavaScript sobre a lista inteira — o que só funciona
+  // enquanto a lista inteira vem. Buscando na página, "Ana" acharia as Anas das
+  // vinte e cinco linhas carregadas e diria que não existe mais nenhuma.
+  const termo = String(busca || "").trim();
+  if (termo) {
+    const esc = termo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    recorte.push({
+      $match: {
+        $or: [
+          { studentName: { $regex: esc, $options: "i" } },
+          { description: { $regex: esc, $options: "i" } },
+        ],
+      },
+    });
+  }
 
-  const linhas = lista.map((c) => {
-    const pago = pagoPor[String(c._id)] || 0;
-    const aberto = c.status === "open";
-    const falta = Math.max(0, (c.amount || 0) - pago);
+  const campo = ORDEM_DA_CARTEIRA[ordem] || "dueDate";
+  const sentido = direcao === "asc" ? 1 : -1;
 
-    return {
-      id: String(c._id),
-      student: String(c.student),
-      description: c.description || "",
-      amount: c.amount || 0,
-      pago,
-      falta,
-      dueDate: c.dueDate,
+  const limitePorPagina = Math.min(Math.max(Number(limite) || LIMITE_PADRAO, 1), LIMITE_MAXIMO);
+  const paginaPedida = Math.max(Number(pagina) || 1, 1);
+
+  const projecao = {
+    $project: {
+      _id: 0,
+      id: { $toString: "$_id" },
+      student: { $toString: "$student" },
+      description: { $ifNull: ["$description", ""] },
+      amount: { $ifNull: ["$amount", 0] },
+      pago: 1,
+      falta: 1,
+      dueDate: 1,
       // QUANDO A COBRANÇA NASCEU, que é outra pergunta que o vencimento não
       // responde: "lancei isso quando?" separa o que se combinou em janeiro do
       // que se combinou ontem, mesmo os dois vencendo no mesmo dia.
-      createdAt: c.createdAt || null,
-      status: c.status,
-      currency: c.currency || null,
-      // De onde ela nasceu: compromisso, aulão, ou a mão de alguém. É o que
-      // explica uma linha que ninguém lembra de ter lançado.
-      origem: c.appointment
-        ? "appointment"
-        : c.aulao
-          ? "aulao"
-          : c.recurrence
-            ? "recurrence"
-            : "manual",
-      // Calculado, nunca gravado — ver o comentário acima.
-      atrasada: aberto && falta > 0 && c.dueDate && new Date(c.dueDate).getTime() < agora,
-      diasDeAtraso:
-        aberto && c.dueDate && new Date(c.dueDate).getTime() < agora
-          ? Math.floor((agora - new Date(c.dueDate).getTime()) / DIA_MS)
-          : 0,
-    };
-  });
+      createdAt: { $ifNull: ["$createdAt", null] },
+      status: 1,
+      currency: { $ifNull: ["$currency", null] },
+      origem: 1,
+      atrasada: 1,
+      diasDeAtraso: 1,
+      studentName: 1,
+      studentEmail: 1,
+      studentPhone: 1,
+    },
+  };
 
-  // ── O RECORTE, QUE ACEITA VÁRIOS ────────────────────────────────────────
-  //
-  // Acontece AQUI, sobre as linhas já montadas — depois de o resumo ter visto a
-  // janela inteira (ver acima).
-  //
-  // `status` chega como texto único ("open") ou como lista ("open,late"): a
-  // tela virou multisseleção em 17/09/2026, e "em aberto MAIS atrasadas" é a
-  // pergunta de quem vai cobrar. Vazio ou nada reconhecido = tudo, que é o que
-  // "nenhum filtro" quer dizer.
-  //
-  // "late" continua sendo caso à parte porque não é status gravado: é uma
-  // cobrança aberta cuja data passou.
-  // A lista de estados válidos vem de `lib/statusDeCobranca.js` — um lugar só,
-  // que é também o que a tela recebe. Antes era esta linha e os chips do
-  // frontend, e acrescentar um estado pedia acertar os dois.
-  const pedidos = statusDeCobranca.pedidos(status);
+  const [saida] = await charges
+    .aggregate(
+      [
+        { $match: janela },
+        juntarPagamentos,
+        juntarPessoa,
+        derivados,
+        contas,
+        atraso,
+        posto,
+        {
+          $facet: {
+            // A JANELA INTEIRA — sem recorte, sem busca, sem página.
+            resumo: [
+              {
+                $group: {
+                  _id: null,
+                  recebido: { $sum: "$pago" },
+                  aReceber: { $sum: { $cond: [{ $eq: ["$status", "open"] }, "$falta", 0] } },
+                  atrasado: { $sum: { $cond: ["$atrasada", "$falta", 0] } },
+                  quantasAtrasadas: { $sum: { $cond: ["$atrasada", 1, 0] } },
+                  quantasAbertas: { $sum: { $cond: [{ $eq: ["$status", "open"] }, 1, 0] } },
+                  total: { $sum: 1 },
+                },
+              },
+            ],
+            rows: [
+              ...recorte,
+              // Vazio sempre no fim, nas duas direções — a mesma regra da lista
+              // de pessoas. Ordenar por descrição para achar uma fileira de
+              // linhas sem descrição no topo não ajuda ninguém.
+              { $addFields: { __vazio: { $cond: [{ $in: [`$${campo}`, [null, ""]] }, 1, 0] } } },
+              // `_id` no fim desempata: sem um critério estável, duas cobranças
+              // com o mesmo vencimento podem trocar de lugar entre uma página e
+              // outra — e aí uma delas some e outra aparece duas vezes.
+              { $sort: { __vazio: 1, [campo]: sentido, _id: 1 } },
+              { $skip: (paginaPedida - 1) * limitePorPagina },
+              { $limit: limitePorPagina },
+              projecao,
+            ],
+            total: [...recorte, { $count: "n" }],
+          },
+        },
+      ],
+      // Collation do banco em vez de `localeCompare` no navegador: é ela que faz
+      // "Ávila" cair perto de "Avila", e não depois de "Zanetti".
+      { collation: { locale: "pt", strength: 1 } }
+    )
+    .toArray();
 
-  const visiveis = pedidos.size
-    ? linhas.filter(
-        (l) => pedidos.has(l.status) || (pedidos.has("late") && l.atrasada)
-      )
-    : linhas;
+  const resumo = saida?.resumo?.[0] || {};
 
-  return { rows: visiveis, resumo: resumoDe(linhas) };
+  return {
+    rows: saida?.rows || [],
+    total: saida?.total?.[0]?.n || 0,
+    pagina: paginaPedida,
+    limite: limitePorPagina,
+    resumo: {
+      recebido: resumo.recebido || 0,
+      aReceber: resumo.aReceber || 0,
+      atrasado: resumo.atrasado || 0,
+      quantasAtrasadas: resumo.quantasAtrasadas || 0,
+      quantasAbertas: resumo.quantasAbertas || 0,
+      total: resumo.total || 0,
+    },
+  };
 };
 
 // ── O RESUMO ──────────────────────────────────────────────────────────────

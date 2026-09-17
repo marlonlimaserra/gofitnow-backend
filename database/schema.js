@@ -542,6 +542,17 @@ async function ensureUmBanco(db) {
 
   await dropIndexIfPresent(db, "recurrences", "by_active");
   await db.collection("payments").createIndex({ instance: 1, student: 1, date: -1 }, { name: "by_student" });
+
+  // ── E PELA COBRANÇA, que é como o dinheiro se liga ao que se deve ──────
+  //
+  // Faltava, e três caminhos quentes varriam os pagamentos do cliente inteiro
+  // sem ele: `paidByCharge` (a ficha de uma pessoa), `paymentsOfCharge` (o
+  // diálogo de editar) e — desde a paginação de 17/09/2026 — a junção que a
+  // carteira faz para saber quanto entrou de cada cobrança da página.
+  //
+  // Essa última é a que doía: sem índice, cada abertura do Financeiro geral
+  // varria a collection uma vez POR COBRANÇA da janela.
+  await db.collection("payments").createIndex({ instance: 1, charge: 1 }, { name: "by_charge" });
   await db
     .collection("payment_files")
     .createIndex({ instance: 1, payment: 1 }, { unique: true, name: "payment_unique" });
