@@ -11,12 +11,17 @@
 // MEXER é `finance.manage`: mudar o cardápio é mudar o preço do que a casa
 // vende, e é a escrita mais cara desta tela.
 //
-// ── A VITRINE PÚBLICA NÃO ESTÁ AQUI ──────────────────────────────────────
+// ── E A VITRINE PÚBLICA, que é uma rota À PARTE ──────────────────────────
 //
-// De propósito: ele ainda está decidindo o formato (*"ainda estou decidindo como
-// vai ser"*). Tudo aqui exige sessão. Quando a vitrine existir, ela vai ser uma
-// rota pública NOVA, que lê `listActive` — e não um afrouxamento destas.
+// *"crie um botão ver vitrine, aí você monta uma rota pública... pois em breve
+// nossos clientes vão criar um iframe dentro do site deles com essa URL"*.
+//
+// Ela é OUTRA rota (`/public/memberships`) e não um afrouxamento destas, e a
+// diferença é o que ela devolve: só o que está À VENDA, e só os campos que o
+// cartão desenha. Sem contagem de assinantes, sem quem assinou, sem nada que a
+// academia não tenha escolhido pendurar na parede.
 const recorrencia = require("../lib/recorrencia.js");
+const instanceContext = require("../lib/instance.js");
 
 module.exports = function (app) {
   // ── Planos ──────────────────────────────────────────────────────────────
@@ -121,6 +126,83 @@ module.exports = function (app) {
     });
 
     res.send({ msg: req.t("ok.membershipRemoved") });
+  });
+
+  // ── A VITRINE, aberta ───────────────────────────────────────────────────
+  //
+  // De qual academia é esta vitrine sai do HOST, como na página pública da
+  // agenda e na do aulão. `/public/` não passa pelo portão de instância (ver
+  // `lib/instanceGate.js`), então quem resolve é a rota — e ela ENTRA no
+  // contexto antes de tocar no banco, senão os modelos estouram de propósito.
+  async function instanciaDoHost(req, res) {
+    const host = String(
+      req.query.host ||
+        req.headers["x-instance-host"] ||
+        req.headers["x-forwarded-host"] ||
+        req.headers.host ||
+        ""
+    );
+
+    const registro = await app.api.center.byHost(host);
+    if (!registro || registro.active === false || registro.active === 0) {
+      // 404 seco: aqui não há sessão nem idioma, e ninguém lê mensagem
+      // traduzida dentro de um iframe no site de outra pessoa.
+      res.status(404).send({ msg: "unknown" });
+      return false;
+    }
+
+    return registro.instance;
+  }
+
+  app.get("/public/memberships", async function (req, res) {
+    const instancia = await instanciaDoHost(req, res);
+    if (instancia === false) return;
+
+    const dados = await instanceContext.run(instancia, async () => {
+      const [planos, categorias, moedas] = await Promise.all([
+        app.api.membership.listActive(),
+        app.api.membershipCategory.listActive(),
+        app.api.tenant.currencyOfInstance(),
+      ]);
+
+      return { planos, categorias, moeda: moedas.currency };
+    });
+
+    // ── SÓ OS CAMPOS DO CARTÃO ────────────────────────────────────────────
+    //
+    // Montado à mão, e não `...plano`. O documento tem `createdBy`, `order`,
+    // `updatedAt` — nada disso desenha nada, e uma vitrine que devolve o
+    // documento inteiro vaza o próximo campo que alguém acrescentar sem pensar
+    // nisto aqui.
+    const categoriasVisiveis = dados.categorias.map((c) => ({
+      id: String(c._id),
+      name: c.name,
+      description: c.description || "",
+    }));
+
+    const validas = new Set(categoriasVisiveis.map((c) => c.id));
+
+    res.setHeader("Cache-Control", "public, max-age=60");
+
+    res.send({
+      moeda: dados.moeda,
+      categorias: categoriasVisiveis,
+      cadencias: recorrencia.paraTela(req.t),
+      planos: dados.planos.map((p) => ({
+        id: String(p._id),
+        name: p.name,
+        description: p.description || "",
+        amount: p.amount || 0,
+        currency: p.currency || dados.moeda,
+        cadencia: p.cadencia,
+        fidelidadeMeses: p.fidelidadeMeses || 0,
+        destaque: p.destaque === true,
+        // Categoria DESATIVADA some do cartão junto com a linha da tabela:
+        // deixá-la aqui faria o cartão prometer um benefício que a comparação
+        // nem lista.
+        categorias: (p.categorias || []).map(String).filter((id) => validas.has(id)),
+      })),
+    });
   });
 
   // ── Categorias: as linhas da tabela de comparação ───────────────────────
