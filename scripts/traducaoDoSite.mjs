@@ -27,7 +27,10 @@ const DESTINO = path.join(AQUI, "..", "lib", "i18n", "documentos");
 // As PARTES que um documento usa. `avaliacoes` traz os rótulos das medidas e dos
 // ângulos de foto; `comum` traz as palavras que todo documento reaproveita.
 // Quando a folha da dieta nascer, `dietas` entra nesta lista.
-const PARTES = ["avaliacoes", "comum", "dietas"];
+//
+// `financeiro` entrou em 17/09/2026, com o EXTRATO da pessoa: "Cobrado",
+// "Recebido", "Vence", os nomes das sete formas de pagamento de fábrica.
+const PARTES = ["avaliacoes", "comum", "dietas", "financeiro"];
 const IDIOMAS = ["pt-BR", "en", "es", "fr"];
 
 if (!fs.existsSync(SITE)) {

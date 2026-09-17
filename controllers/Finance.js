@@ -1,4 +1,8 @@
 const arquivos = require("../lib/arquivos.js");
+const statusDeCobranca = require("../lib/statusDeCobranca.js");
+const { documentoFinanceiro } = require("../lib/documentoFinanceiro.js");
+const { registrarRotasDeDocumento } = require("../lib/rotasDeDocumento.js");
+const { logoDaCasa } = require("../lib/logoDaCasa.js");
 // O fuso da conta, sem poder derrubar quem o pediu.
 //
 // A janela do mês é melhor COM ele; o relatório é obrigatório SEM ele. É a mesma
@@ -89,6 +93,10 @@ module.exports = function (app) {
       resumo,
       currency: moedas.currency,
       currencies: moedas.currencies,
+      // O CATÁLOGO DE ESTADOS, para a tela desenhar os filtros sem conhecê-los.
+      // Ver `lib/statusDeCobranca.js`: acrescentar um estado lá o faz aparecer
+      // aqui, e a tela não muda.
+      status: statusDeCobranca.paraTela(req.t),
     });
   });
 
@@ -137,6 +145,18 @@ module.exports = function (app) {
     });
 
     res.status(201).send(criada);
+  });
+
+  // Os pagamentos de uma cobrança, para o diálogo de edição mostrar de onde vem
+  // o "Paga". `finance.view` e não `manage`: é leitura.
+  app.get("/charges/:id/payments", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "finance.view");
+    if (trainer === false) return;
+
+    const cobranca = await app.api.finance.chargeData(req.params.id);
+    if (!cobranca) return res.status(404).send({ msg: req.t("errors.chargeNotFound") });
+
+    res.send({ rows: await app.api.finance.paymentsOfCharge(req.params.id) });
   });
 
   app.put("/charges/:id", async function (req, res) {
@@ -468,4 +488,179 @@ module.exports = function (app) {
     res.send({ msg: req.t("ok.paymentMethodRemoved") });
   });
 
+  // ── O EXTRATO FINANCEIRO DE UMA PESSOA ────────────────────────────────
+  //
+  // As mesmas três rotas da avaliação e do plano alimentar (ver, baixar em PDF,
+  // mandar por e-mail), pela mesma fábrica. Aqui fica só o que é do extrato:
+  // quais lançamentos entram e como a folha se monta.
+  //
+  // Pedido do Marlon em 17/09/2026: *"pode exportar xlsx e pdf com a logo bonita
+  // foto e dados do cliente"*. A PLANILHA sai na tela — ninguém abre planilha
+  // para olhar, abre para somar. O papel, que é o que se entrega, vem daqui.
+  //
+  // ── `:id` É A PESSOA, e não um lançamento ───────────────────────────
+  //
+  // A fábrica monta `/finance/:id/documento`, e nas outras duas o `:id` é o
+  // documento em si (uma coleta, um plano). Aqui não existe "um extrato" no
+  // banco: ele é o recorte que alguém pediu. O dono do recorte é a PESSOA.
+  //
+  // ── E O RECORTE VIAJA NA QUERY ──────────────────────────────────────
+  //
+  // `?ids=a,b,c` são as cobranças marcadas na tela. Sem ele, o extrato é a vida
+  // financeira inteira da pessoa — que é o que se quer ao entregar um
+  // comprovante de quitação, e o que ninguém quer ao imprimir só o mês.
+  //
+  // Os TOTAIS são do que ficou na folha, e não o saldo da conta: três cobranças
+  // marcadas com o "Cobrado" da conta inteira em cima seria um número que não
+  // bate com nenhuma linha abaixo dele.
+  function pedidas(req) {
+    const bruto = String(req.query.ids || "").trim();
+    if (!bruto) return null;
+
+    const ids = bruto
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
+
+    return ids.length ? new Set(ids) : null;
+  }
+
+  registrarRotasDeDocumento(app, {
+    base: "finance",
+    prefixoDoArquivo: "extrato",
+    chaveDoAssunto: "email.statement.subject",
+    chaveDeOk: "ok.statementEmailed",
+    acao: "email_statement",
+
+    montar: async function (req, res) {
+      const trainer = await app.helpers.ReqProtected.can(req, res, "finance.view");
+      if (trainer === false) return null;
+
+      // `dataStudent` já filtra pelo profissional: quem não acompanha a pessoa
+      // recebe 404, e não o extrato dela.
+      const student = await app.api.user.dataStudent(trainer._id, req.params.id);
+      if (!student) {
+        res.status(404).send({ msg: req.t("errors.personNotFound") });
+        return null;
+      }
+
+      const [todasAsCobrancas, todosOsPagamentos, moedas, fuso, casa, catalogo] = await Promise.all([
+        app.api.finance.listCharges(student._id),
+        app.api.finance.listPayments(student._id),
+        app.api.tenant.currencyOfInstance(),
+        app.api.tenant.timezoneOfInstance(),
+        app.api.tenant.dataOfInstance(),
+        // COM as desativadas: um pagamento antigo em boleto continua tendo de
+        // dizer "Boleto" depois de o boleto sair de uso.
+        app.api.paymentMethod.list(),
+      ]);
+
+      const escolhidas = pedidas(req);
+
+      const charges = escolhidas
+        ? todasAsCobrancas.filter((c) => escolhidas.has(String(c._id)))
+        : todasAsCobrancas;
+
+      // Com recorte, só os pagamentos DAS cobranças escolhidas: um avulso no
+      // meio de três cobranças marcadas seria dinheiro que a pessoa não pediu
+      // para ver, somado num total que ela vai conferir.
+      const payments = escolhidas
+        ? todosOsPagamentos.filter((p) => p.charge && escolhidas.has(String(p.charge)))
+        : todosOsPagamentos;
+
+      const formas = {};
+      for (const f of catalogo || []) if (f.name) formas[f.key] = f.name;
+
+      // ── A FOTO DA PESSOA, embutida ──────────────────────────────────
+      //
+      // `data:` URI, e não a URL de `/avatars/:id`: aquela exige sessão, e um
+      // `<img>` apontando para ela sai em branco no e-mail, no PDF e no
+      // `expo-print`. Embutida, a folha funciona salva em disco, meses depois.
+      //
+      // Sem foto a folha sai sem ela — o desenho já prevê isso, e um quadrado
+      // cinza no lugar seria pior do que nada.
+      let bytesDaFoto = null;
+      let mimeDaFoto = "image/jpeg";
+
+      try {
+        const avatar = await app.api.avatar.data(student._id);
+        if (avatar) {
+          // `bytesDoDocumento` já devolve Buffer, venha a foto do R2 ou do
+          // campo `data` do banco — ele resolve as duas pontas da migração.
+          const crus = await arquivos.bytesDoDocumento(avatar);
+          // Um Buffer de zero bytes é VERDADEIRO em JavaScript: sem o teste de
+          // tamanho sairia `data:image/jpeg;base64,` — um URI de sintaxe
+          // perfeita e nenhuma imagem, que vira ícone quebrado sem erro nenhum.
+          if (crus && crus.length) {
+            bytesDaFoto = crus;
+            mimeDaFoto = avatar.mime || mimeDaFoto;
+          }
+        }
+      } catch (erro) {
+        // Foto que não carrega não pode custar o extrato: o dinheiro é o
+        // conteúdo, e o retrato é enfeite.
+        console.warn("[documento:finance] foto:", erro.message);
+      }
+
+      const marca = await logoDaCasa(casa?.theme);
+      const CID_LOGO = "logo-da-casa";
+      const CID_FOTO = "foto-da-pessoa";
+
+      const desenhar = (comFoto, comMarca) =>
+        documentoFinanceiro({
+          person: student,
+          charges,
+          payments,
+          moeda: moedas.currency,
+          formas,
+          foto: comFoto,
+          lang: trainer.lang || req.language,
+          fuso,
+          marca: comMarca,
+        });
+
+      // ── DUAS VERSÕES DA MESMA FOLHA ─────────────────────────────────
+      //
+      // O Gmail DESCARTA `<img src="data:…">`, e o Chromium que gera o PDF não
+      // resolve `cid:` — ele não tem a mensagem MIME, só a página. Cada saída
+      // recebe a versão que sabe ler, e as duas nascem do mesmo dado.
+      const fotos = [];
+
+      if (bytesDaFoto) {
+        fotos.push({
+          cid: CID_FOTO,
+          filename: `foto.${(mimeDaFoto.split("/")[1] || "jpg")}`,
+          content: bytesDaFoto,
+          contentType: mimeDaFoto,
+        });
+      }
+
+      if (marca) {
+        const [cabecalho, base64] = marca.split(",");
+        fotos.push({
+          cid: CID_LOGO,
+          filename: "logo.png",
+          content: Buffer.from(base64 || "", "base64"),
+          contentType: (cabecalho.match(/data:([^;]+)/) || [])[1] || "image/png",
+        });
+      }
+
+      const embutida = bytesDaFoto
+        ? `data:${mimeDaFoto};base64,${bytesDaFoto.toString("base64")}`
+        : null;
+
+      return {
+        trainer,
+        pessoa: student,
+        html: desenhar(embutida, marca),
+        htmlDeEmail: desenhar(
+          bytesDaFoto ? `cid:${CID_FOTO}` : null,
+          marca ? `cid:${CID_LOGO}` : null
+        ),
+        fotos,
+        nome: student.name,
+        data: new Date(),
+      };
+    },
+  });
 };

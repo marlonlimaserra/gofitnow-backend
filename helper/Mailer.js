@@ -128,7 +128,7 @@ Mailer.prototype.send = async function ({ to, subject, html, text, attachments }
 
   const from =
     process.env.SMTP_FROM ||
-    (process.env.SMTP_USER ? `GoFitNow <${process.env.SMTP_USER}>` : "GoFitNow <nao-responda@gofitnow.fit>");
+    (process.env.SMTP_USER ? `VAFIT <${process.env.SMTP_USER}>` : "VAFIT <nao-responda@gofitnow.fit>");
 
   const info = await transport.sendMail({
     from,

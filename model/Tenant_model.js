@@ -236,11 +236,25 @@ Tenant_model.prototype.saveTheme = async function (userId, entrada) {
 // Fica no TENANT e não na conta de cada usuário: é uma característica do
 // negócio, não uma preferência de quem está logado. Dois profissionais da mesma
 // clínica cobrando em moedas diferentes tornariam o caixa impossível de somar.
-Tenant_model.prototype.saveCurrency = async function (userId, code, lista) {
+// ── UMA MOEDA POR CONTA ───────────────────────────────────────────────────
+//
+// Decisão do Marlon em 17/09/2026: *"eu falei para você que apenas 1 moeda
+// seria permitida"*.
+//
+// Existia uma moeda PADRÃO e uma lista de ACEITAS, e cada formulário de
+// lançamento trazia um seletor para escolher entre elas. Isso custava um campo
+// em cada cobrança e em cada pagamento — e era capaz de fechar a conta errada,
+// porque quem soma o recebido soma `amount` sem olhar moeda.
+//
+// O campo `currencies` CONTINUA no documento, com um item só. Não é resíduo:
+// `currencyFor` valida contra ele, e um array de um mantém essa validação
+// funcionando sem um segundo formato para ler. Apagá-lo obrigaria a mexer em
+// todo mundo que o lê, para ganhar nada.
+Tenant_model.prototype.saveCurrency = async function (userId, code) {
   const col = await this.collection();
 
   const padrao = currencies.normalize(code);
-  const habilitadas = currencies.normalizeList(lista, padrao);
+  const habilitadas = [padrao];
 
   await col.updateOne(
     CHAVE,

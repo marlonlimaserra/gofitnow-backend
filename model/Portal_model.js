@@ -1,4 +1,5 @@
 const instanceContext = require("../lib/instance.js");
+const dominio = require("../lib/domain.js");
 
 // De QUEM é este e-mail.
 //
@@ -151,12 +152,34 @@ Portal_model.prototype.instancesForEmail = async function (email) {
 // Instância sem host cai fora. Ela existe (`ensure` cria com `hosts: []`), e
 // mandar a pessoa para um endereço que não responde é pior que dizer que não
 // achou: ela ficaria numa página morta sem saber o que fazer.
+// ── QUAL ENDEREÇO MOSTRAR, quando a conta tem mais de um ────────────────
+//
+// Era `hosts[0]` — o primeiro que foi gravado. Como as contas nasceram antes de
+// `vafit.app` existir, o primeiro é o endereço em `gofitnow.fit`, e a tela de
+// "você tem acesso a mais de uma conta" listava todas elas na marca antiga.
+//
+// Agora vale a regra que o resto do sistema já segue (ver `lib/domain.js`):
+// LER aceita todos os domínios, MOSTRAR usa o canônico. Quem tiver endereço no
+// `BASE_DOMAIN` aparece com ele; quem não tiver cai no primeiro, que é melhor
+// que não aparecer.
+//
+// É por DOMÍNIO e não por posição de propósito: depender da ordem de um array
+// gravado meses atrás é o defeito que isto conserta, e repeti-lo com outra
+// ordem só o adia.
+function paraMostrar(hosts) {
+  const canonico = hosts.find((h) => String(h).endsWith("." + dominio.BASE_DOMAIN));
+  return canonico || hosts[0];
+}
+
 Portal_model.prototype.destinosParaEmail = async function (email) {
   const achadas = await this.instancesForEmail(email);
 
   return achadas
     .filter((r) => Array.isArray(r.hosts) && r.hosts.length)
-    .map((r) => ({ host: r.hosts[0], name: r.name || r.hosts[0] }));
+    .map((r) => {
+      const host = paraMostrar(r.hosts);
+      return { host, name: r.name || host };
+    });
 };
 
 // ── O NOME DA INSTÂNCIA de quem se cadastra sozinho ────────────────────────

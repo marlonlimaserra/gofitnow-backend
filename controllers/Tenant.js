@@ -584,7 +584,9 @@ module.exports = function (app) {
     if (user === false) return;
 
     const body = req.body || {};
-    const salvas = await app.api.tenant.saveCurrency(user._id, body.currency, body.currencies);
+    // Só a moeda. A lista de aceitas saiu da tela e do contrato: uma conta tem
+    // UMA moeda, e `saveCurrency` grava a lista com ela sozinha.
+    const salvas = await app.api.tenant.saveCurrency(user._id, body.currency);
 
     app.insertUserActionHistory(req, user, "update_currency", {
       category: "admin",

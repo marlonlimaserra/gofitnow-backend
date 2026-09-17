@@ -4,7 +4,7 @@ const { version } = require("../package.json");
 
 module.exports = function (app) {
   app.get("/", async function (req, res) {
-    res.send({ app: "GoFitNow API", version: version, status: "ok" });
+    res.send({ app: "VAFIT API", version: version, status: "ok" });
   });
 
   // Health check: confirma que a API responde E que o Mongo está de pé.

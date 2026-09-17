@@ -1,6 +1,7 @@
 const { ObjectId } = require("mongodb");
 const { centavos } = require("./Service_model.js");
 const tempo = require("../lib/tempo.js");
+const statusDeCobranca = require("../lib/statusDeCobranca.js");
 const { parseDataUri } = require("../lib/imageDataUri.js");
 
 // O financeiro de cada pessoa.
@@ -194,11 +195,37 @@ Finance_model.prototype.insertCharge = async function (studentId, obj, createdBy
   return r.insertedId;
 };
 
+// ── EDITAR É MUDAR O QUE VEIO, NÃO REESCREVER TUDO ────────────────────────
+//
+// `limparCobranca` monta o documento INTEIRO a partir do que recebe, com padrão
+// para o que falta — que é o certo ao CRIAR e destrutivo ao editar. Um PUT com
+// `{ status: "canceled" }` gravava `amount: 0`, `description: ""`, `note: ""` e
+// o vencimento de HOJE.
+//
+// Passou despercebido porque o único chamador era o formulário, que manda todos
+// os campos sempre. Na primeira chamada parcial — as ações em lote de
+// 17/09/2026 — cinco cobranças de verdade perderam valor, descrição e
+// vencimento. O relato foi uma pergunta: *"quando eu coloco reabrir, o que
+// acontece?"*.
+//
+// Agora só entra no `$set` o campo que veio no corpo. O que a chamada não
+// menciona, ela não toca.
+const CAMPOS_DA_COBRANCA = {
+  amount: (v) => centavos(v),
+  dueDate: (v) => dataOuHoje(v),
+  description: (v) => String(v || "").trim().slice(0, 200),
+  status: (v) => (STATUS.includes(v) ? v : "open"),
+  note: (v) => String(v || "").trim().slice(0, 2000),
+};
+
 Finance_model.prototype.updateCharge = async function (id, obj) {
   if (!ObjectId.isValid(id)) return false;
   const col = await this.charges();
 
-  const mudanca = { ...limparCobranca(obj), updatedAt: new Date() };
+  const mudanca = { updatedAt: new Date() };
+  for (const [campo, limpar] of Object.entries(CAMPOS_DA_COBRANCA)) {
+    if (obj[campo] !== undefined) mudanca[campo] = limpar(obj[campo]);
+  }
   // A moeda só muda quando vem explícita e já validada pela rota: um corpo sem
   // ela não pode zerar a moeda de um lançamento antigo.
   if (obj.currency) mudanca.currency = obj.currency;
@@ -321,8 +348,6 @@ Finance_model.prototype.carteira = async function ({ de, ate, status, busca, fus
     if (ate) filtro.dueDate.$lte = fimDoDia(ate, fuso);
   }
 
-  if (status === "open" || status === "paid" || status === "canceled") filtro.status = status;
-
   const lista = await charges.find(filtro).sort({ dueDate: -1 }).toArray();
 
   // ── O QUE JÁ FOI PAGO DE CADA COBRANÇA ────────────────────────────────
@@ -359,6 +384,10 @@ Finance_model.prototype.carteira = async function ({ de, ate, status, busca, fus
       pago,
       falta,
       dueDate: c.dueDate,
+      // QUANDO A COBRANÇA NASCEU, que é outra pergunta que o vencimento não
+      // responde: "lancei isso quando?" separa o que se combinou em janeiro do
+      // que se combinou ontem, mesmo os dois vencendo no mesmo dia.
+      createdAt: c.createdAt || null,
       status: c.status,
       currency: c.currency || null,
       // De onde ela nasceu: compromisso, aulão, ou a mão de alguém. É o que
@@ -373,7 +402,28 @@ Finance_model.prototype.carteira = async function ({ de, ate, status, busca, fus
     };
   });
 
-  const visiveis = status === "late" ? linhas.filter((l) => l.atrasada) : linhas;
+  // ── O RECORTE, QUE ACEITA VÁRIOS ────────────────────────────────────────
+  //
+  // Acontece AQUI, sobre as linhas já montadas — depois de o resumo ter visto a
+  // janela inteira (ver acima).
+  //
+  // `status` chega como texto único ("open") ou como lista ("open,late"): a
+  // tela virou multisseleção em 17/09/2026, e "em aberto MAIS atrasadas" é a
+  // pergunta de quem vai cobrar. Vazio ou nada reconhecido = tudo, que é o que
+  // "nenhum filtro" quer dizer.
+  //
+  // "late" continua sendo caso à parte porque não é status gravado: é uma
+  // cobrança aberta cuja data passou.
+  // A lista de estados válidos vem de `lib/statusDeCobranca.js` — um lugar só,
+  // que é também o que a tela recebe. Antes era esta linha e os chips do
+  // frontend, e acrescentar um estado pedia acertar os dois.
+  const pedidos = statusDeCobranca.pedidos(status);
+
+  const visiveis = pedidos.size
+    ? linhas.filter(
+        (l) => pedidos.has(l.status) || (pedidos.has("late") && l.atrasada)
+      )
+    : linhas;
 
   return { rows: visiveis, resumo: resumoDe(linhas) };
 };
@@ -406,6 +456,26 @@ Finance_model.prototype.listPayments = async function (studentId) {
 
   return await col
     .find({ student: new ObjectId(studentId) })
+    .sort({ date: -1 })
+    .toArray();
+};
+
+// Os pagamentos de UMA cobrança.
+//
+// Existe porque o diálogo de editar mostra "Paga" e, sem a lista, isso é uma
+// afirmação que a pessoa não tem como conferir: *"a cobrança tem pagamentos,
+// certo? mais fácil exibir os pagamentos aqui nesse dialog"*.
+//
+// A ficha da pessoa já tinha os dados (ela carrega TODOS os pagamentos dela e
+// separa por cobrança), mas a lista do financeiro é de gente diferente em cada
+// linha — carregar o extrato inteiro de alguém para abrir uma cobrança seria
+// pagar caro por três linhas.
+Finance_model.prototype.paymentsOfCharge = async function (chargeId) {
+  if (!ObjectId.isValid(chargeId)) return [];
+  const col = await this.payments();
+
+  return await col
+    .find({ charge: new ObjectId(chargeId) })
     .sort({ date: -1 })
     .toArray();
 };

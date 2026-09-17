@@ -257,7 +257,7 @@ const servir = async () => {
   }
 
   const servidor = app.listen(PORT, HOST, () => {
-    console.log(`GoFitNow API running on ${HOST}:${PORT} (pid ${process.pid})`);
+    console.log(`VAFIT API running on ${HOST}:${PORT} (pid ${process.pid})`);
   });
 
   // O canal de tempo real sobe em cima do MESMO servidor HTTP: uma porta só

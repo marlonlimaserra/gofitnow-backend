@@ -71,7 +71,7 @@
     "deletionWrongPassword": "Contraseña incorrecta. Escribe la contraseña de tu cuenta para confirmar.",
     "dietNotFound": "Plan no encontrado.",
     "domainTaken": "Ese dominio ya está en otra cuenta.",
-    "emailAlreadyHasAccess": "Este correo ya tiene acceso a GoFitNow. Entra en vez de crear una cuenta nueva.",
+    "emailAlreadyHasAccess": "Este correo ya tiene acceso a VAFIT. Entra en vez de crear una cuenta nueva.",
     "emailInUse": "Ese correo ya está en uso.",
     "emailIsLogin": "Esta persona entra en la app con ese correo. Quítale el acceso antes de eliminar la dirección.",
     "emailIsTeamUser": "Ese correo es de un usuario del equipo, no de un cliente. Míralo en Configuración → Usuarios.",
@@ -253,7 +253,8 @@
     "paymentMethodSaved": "Forma de pago guardada.",
     "paymentMethodRemoved": "Forma de pago eliminada.",
     "assessmentEmailed": "Evaluación enviada por correo electrónico.",
-    "dietEmailed": "Plan alimentario enviado por correo electrónico."
+    "dietEmailed": "Plan alimentario enviado por correo electrónico.",
+    "statementEmailed": "Extracto enviado por correo electrónico."
   },
   "permissions": {
     "groups": {
@@ -680,12 +681,12 @@
     "greeting": "Hola",
     "fallbackLink": "Si el botón no funciona, copia y pega esta dirección en el navegador:",
     "reset": {
-      "subject": "Restablecer tu contraseña de GoFitNow",
+      "subject": "Restablecer tu contraseña de VAFIT",
       "title": "{{name}}, vamos a restablecer tu contraseña",
-      "body": "Pediste restablecer la contraseña de tu cuenta en GoFitNow. Haz clic en el botón de abajo para elegir una nueva. El enlace vale por <strong>{{minutes}} minutos</strong> y solo puede usarse una vez.",
+      "body": "Pediste restablecer la contraseña de tu cuenta en VAFIT. Haz clic en el botón de abajo para elegir una nueva. El enlace vale por <strong>{{minutes}} minutos</strong> y solo puede usarse una vez.",
       "button": "Crear nueva contraseña",
       "footer": "Si no fuiste tú quien lo pidió, ignora este correo — tu contraseña sigue igual y nadie accedió a tu cuenta.",
-      "text": "{{name}}, pediste restablecer la contraseña de GoFitNow.\n\nAbre esta dirección para elegir una nueva contraseña (vale por {{minutes}} minutos y solo puede usarse una vez):\n{{url}}\n\nSi no fuiste tú, ignora este correo — tu contraseña sigue igual."
+      "text": "{{name}}, pediste restablecer la contraseña de VAFIT.\n\nAbre esta dirección para elegir una nueva contraseña (vale por {{minutes}} minutos y solo puede usarse una vez):\n{{url}}\n\nSi no fuiste tú, ignora este correo — tu contraseña sigue igual."
     },
     "anamnesis": {
       "subject": "{{professional}} te pidió responder algunas preguntas",
@@ -696,20 +697,20 @@
       "text": "{{name}}, {{professional}} necesita algunos datos sobre tu salud y tu rutina para armar tu acompañamiento.\n\nAbre esta dirección para responder (vale por {{days}} días):\n{{url}}\n\nSi no esperabas este correo, ignóralo."
     },
     "invite": {
-      "subject": "Tu acceso a GoFitNow está listo",
+      "subject": "Tu acceso a VAFIT está listo",
       "title": "{{name}}, tu acceso está habilitado",
-      "body": "<strong>{{trainerName}}</strong> habilitó tu acceso a GoFitNow. Allí sigues tus entrenamientos y tu ficha.<br><br>Entra con el correo <strong>{{email}}</strong> y la contraseña que {{trainerName}} acordó contigo.",
-      "button": "Acceder a GoFitNow",
+      "body": "<strong>{{trainerName}}</strong> habilitó tu acceso a VAFIT. Allí sigues tus entrenamientos y tu ficha.<br><br>Entra con el correo <strong>{{email}}</strong> y la contraseña que {{trainerName}} acordó contigo.",
+      "button": "Acceder a VAFIT",
       "footer": "¿No sabes tu contraseña? Usa la opción \"Olvidé mi contraseña\" en la pantalla de inicio de sesión, o habla con tu profesional.",
-      "text": "{{name}}, {{trainerName}} habilitó tu acceso a GoFitNow.\n\nEntra en {{url}} con el correo {{email}} y la contraseña acordada con {{trainerName}}.\n\n¿No sabes la contraseña? Usa \"Olvidé mi contraseña\" en la pantalla de inicio de sesión."
+      "text": "{{name}}, {{trainerName}} habilitó tu acceso a VAFIT.\n\nEntra en {{url}} con el correo {{email}} y la contraseña acordada con {{trainerName}}.\n\n¿No sabes la contraseña? Usa \"Olvidé mi contraseña\" en la pantalla de inicio de sesión."
     },
     "request": {
-      "subject": "{{professionalName}} quiere acompañarte en GoFitNow",
+      "subject": "{{professionalName}} quiere acompañarte en VAFIT",
       "title": "{{name}}, {{professionalName}} pidió acceso a tu historial",
-      "body": "<strong>{{professionalName}}</strong> ({{professionalEmail}}) quiere acompañarte en GoFitNow.<br><br>Si das acceso, esta persona verá tu historial y armará planes junto con los otros profesionales que ya te cuidan. Puedes quitar este acceso cuando quieras.<br><br>El enlace vale por <strong>{{days}} días</strong>.",
+      "body": "<strong>{{professionalName}}</strong> ({{professionalEmail}}) quiere acompañarte en VAFIT.<br><br>Si das acceso, esta persona verá tu historial y armará planes junto con los otros profesionales que ya te cuidan. Puedes quitar este acceso cuando quieras.<br><br>El enlace vale por <strong>{{days}} días</strong>.",
       "button": "Ver y responder la solicitud",
       "footer": "¿No conoces a quien pide? Ignora este correo — sin tu confirmación nadie ve nada.",
-      "text": "{{name}}, {{professionalName}} ({{professionalEmail}}) quiere acompañarte en GoFitNow.\n\nSi das acceso, esta persona verá tu historial. Puedes quitar el acceso cuando quieras.\n\nAbre esta dirección para responder (vale por {{days}} días):\n{{url}}\n\n¿No conoces a quien pide? Ignora este correo — sin tu confirmación nadie ve nada."
+      "text": "{{name}}, {{professionalName}} ({{professionalEmail}}) quiere acompañarte en VAFIT.\n\nSi das acceso, esta persona verá tu historial. Puedes quitar el acceso cuando quieras.\n\nAbre esta dirección para responder (vale por {{days}} días):\n{{url}}\n\n¿No conoces a quien pide? Ignora este correo — sin tu confirmación nadie ve nada."
     },
     "assessment": {
       "subject": "Tu evaluación física"
@@ -723,7 +724,7 @@
       "body": "Alguien pidió, desde dentro de tu cuenta, eliminarla. <strong>No se borró nada.</strong> Vamos a ponernos en contacto para entender qué pasó y acordar los próximos pasos — si de verdad quieres irte, lo resolvemos contigo.<br><br><strong>Si no fuiste tú</strong>, cancela la solicitud en la dirección de abajo y cambia tu contraseña.",
       "button": "Ver o cancelar la solicitud",
       "footer": "Mientras tanto tu cuenta sigue funcionando con normalidad, con todos tus datos en su lugar.",
-      "text": "{{name}}, recibimos una solicitud para eliminar tu cuenta de GoFitNow.\\n\\nNo se borró nada. Vamos a ponernos en contacto para entender qué pasó y acordar los próximos pasos.\\n\\nSi no fuiste tú, cancela la solicitud aquí y cambia tu contraseña:\\n{{url}}\\n\\nMientras tanto tu cuenta sigue funcionando con normalidad."
+      "text": "{{name}}, recibimos una solicitud para eliminar tu cuenta de VAFIT.\\n\\nNo se borró nada. Vamos a ponernos en contacto para entender qué pasó y acordar los próximos pasos.\\n\\nSi no fuiste tú, cancela la solicitud aquí y cambia tu contraseña:\\n{{url}}\\n\\nMientras tanto tu cuenta sigue funcionando con normalidad."
     },
     "booking": {
       "subject": "{{person}} reservó {{service}} — {{when}}",
@@ -732,6 +733,9 @@
       "button": "Abrir la agenda",
       "footer": "El horario ya está en tu agenda — no hay que confirmar nada. Si no puedes atender, desde allí se reprograma o cancela.",
       "text": "{{name}}, {{person}} reservó {{service}} para {{when}}. Contacto: {{contact}}. Abre la agenda: {{url}}"
+    },
+    "statement": {
+      "subject": "Tu extracto financiero"
     }
   },
   "apiDocs": {
@@ -826,5 +830,13 @@
     "workoutTemplates": "plantillas de entrenamiento",
     "workouts": "entrenamientos",
     "aulaoes": "clases grupales"
+  },
+  "finance": {
+    "status": {
+      "open": "Pendiente",
+      "late": "Atrasada",
+      "paid": "Pagada",
+      "canceled": "Cancelada"
+    }
   }
 }

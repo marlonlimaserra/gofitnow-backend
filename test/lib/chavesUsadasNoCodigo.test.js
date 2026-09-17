@@ -44,6 +44,10 @@ const OUTRO_CATALOGO = new Set([
   "lib/documentoDieta.js",
   "lib/documentoAvaliacao.js",
   "lib/documentoReceita.js",
+  // O extrato financeiro da ficha (17/09/2026). Mesma razão dos três de cima:
+  // os rótulos dele são os da TELA ("Cobrado", "Vence", "Pix"), espelhados em
+  // `lib/i18n/documentos` — não o catálogo de mensagens do backend.
+  "lib/documentoFinanceiro.js",
   "lib/rotulosDeDocumento.js",
 ]);
 

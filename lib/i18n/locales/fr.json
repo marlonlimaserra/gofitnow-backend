@@ -71,7 +71,7 @@
     "deletionWrongPassword": "Mot de passe incorrect. Saisissez celui de votre compte pour confirmer.",
     "dietNotFound": "Plan introuvable.",
     "domainTaken": "Ce domaine est déjà sur un autre compte.",
-    "emailAlreadyHasAccess": "Cet e-mail a déjà accès à GoFitNow. Connectez-vous au lieu de créer un compte.",
+    "emailAlreadyHasAccess": "Cet e-mail a déjà accès à VAFIT. Connectez-vous au lieu de créer un compte.",
     "emailInUse": "Cet e-mail est déjà utilisé.",
     "emailIsLogin": "Cette personne se connecte à l'app avec cet e-mail. Retirez son accès avant de supprimer l'adresse.",
     "emailIsTeamUser": "Cet e-mail appartient à un utilisateur de l'équipe, pas à un client. Voir Configuration → Utilisateurs.",
@@ -253,7 +253,8 @@
     "paymentMethodSaved": "Moyen de paiement enregistré.",
     "paymentMethodRemoved": "Moyen de paiement supprimé.",
     "assessmentEmailed": "Bilan envoyé par e-mail.",
-    "dietEmailed": "Plan alimentaire envoyé par e-mail."
+    "dietEmailed": "Plan alimentaire envoyé par e-mail.",
+    "statementEmailed": "Relevé envoyé par e-mail."
   },
   "permissions": {
     "groups": {
@@ -680,12 +681,12 @@
     "greeting": "Bonjour",
     "fallbackLink": "Si le bouton ne fonctionne pas, copiez et collez cette adresse dans le navigateur :",
     "reset": {
-      "subject": "Réinitialiser votre mot de passe GoFitNow",
+      "subject": "Réinitialiser votre mot de passe VAFIT",
       "title": "{{name}}, réinitialisons votre mot de passe",
-      "body": "Vous avez demandé à réinitialiser le mot de passe de votre compte GoFitNow. Cliquez sur le bouton ci-dessous pour en choisir un nouveau. Le lien est valable <strong>{{minutes}} minutes</strong> et ne sert qu’une fois.",
+      "body": "Vous avez demandé à réinitialiser le mot de passe de votre compte VAFIT. Cliquez sur le bouton ci-dessous pour en choisir un nouveau. Le lien est valable <strong>{{minutes}} minutes</strong> et ne sert qu’une fois.",
       "button": "Créer un nouveau mot de passe",
       "footer": "Si ce n’est pas vous qui l’avez demandé, ignorez cet e-mail — votre mot de passe reste le même et personne n’a accédé à votre compte.",
-      "text": "{{name}}, vous avez demandé à réinitialiser votre mot de passe GoFitNow.\n\nOuvrez cette adresse pour choisir un nouveau mot de passe (valable {{minutes}} minutes, usage unique) :\n{{url}}\n\nSi ce n’est pas vous, ignorez cet e-mail — votre mot de passe reste le même."
+      "text": "{{name}}, vous avez demandé à réinitialiser votre mot de passe VAFIT.\n\nOuvrez cette adresse pour choisir un nouveau mot de passe (valable {{minutes}} minutes, usage unique) :\n{{url}}\n\nSi ce n’est pas vous, ignorez cet e-mail — votre mot de passe reste le même."
     },
     "anamnesis": {
       "subject": "{{professional}} vous demande de répondre à quelques questions",
@@ -696,20 +697,20 @@
       "text": "{{name}}, {{professional}} a besoin de quelques informations sur votre santé et votre routine pour préparer votre suivi.\n\nOuvrez cette adresse pour répondre (valable {{days}} jours) :\n{{url}}\n\nSi vous n'attendiez pas cet e-mail, ignorez-le."
     },
     "invite": {
-      "subject": "Votre accès à GoFitNow est prêt",
+      "subject": "Votre accès à VAFIT est prêt",
       "title": "{{name}}, votre accès est ouvert",
-      "body": "<strong>{{trainerName}}</strong> vous a ouvert l’accès à GoFitNow. Vous y suivez vos entraînements et votre fiche.<br><br>Connectez-vous avec l’e-mail <strong>{{email}}</strong> et le mot de passe convenu avec {{trainerName}}.",
-      "button": "Accéder à GoFitNow",
+      "body": "<strong>{{trainerName}}</strong> vous a ouvert l’accès à VAFIT. Vous y suivez vos entraînements et votre fiche.<br><br>Connectez-vous avec l’e-mail <strong>{{email}}</strong> et le mot de passe convenu avec {{trainerName}}.",
+      "button": "Accéder à VAFIT",
       "footer": "Vous ne connaissez pas votre mot de passe ? Utilisez « J’ai oublié mon mot de passe » sur l’écran de connexion, ou parlez-en à votre professionnel.",
-      "text": "{{name}}, {{trainerName}} vous a ouvert l’accès à GoFitNow.\n\nConnectez-vous sur {{url}} avec l’e-mail {{email}} et le mot de passe convenu avec {{trainerName}}.\n\nVous ne connaissez pas le mot de passe ? Utilisez « J’ai oublié mon mot de passe » sur l’écran de connexion."
+      "text": "{{name}}, {{trainerName}} vous a ouvert l’accès à VAFIT.\n\nConnectez-vous sur {{url}} avec l’e-mail {{email}} et le mot de passe convenu avec {{trainerName}}.\n\nVous ne connaissez pas le mot de passe ? Utilisez « J’ai oublié mon mot de passe » sur l’écran de connexion."
     },
     "request": {
-      "subject": "{{professionalName}} souhaite vous suivre sur GoFitNow",
+      "subject": "{{professionalName}} souhaite vous suivre sur VAFIT",
       "title": "{{name}}, {{professionalName}} a demandé l’accès à votre historique",
-      "body": "<strong>{{professionalName}}</strong> ({{professionalEmail}}) souhaite vous suivre sur GoFitNow.<br><br>Si vous acceptez, cette personne verra votre historique et construira des plans avec les autres professionnels qui prennent déjà soin de vous. Vous pouvez retirer cet accès quand vous voulez.<br><br>Le lien est valable <strong>{{days}} jours</strong>.",
+      "body": "<strong>{{professionalName}}</strong> ({{professionalEmail}}) souhaite vous suivre sur VAFIT.<br><br>Si vous acceptez, cette personne verra votre historique et construira des plans avec les autres professionnels qui prennent déjà soin de vous. Vous pouvez retirer cet accès quand vous voulez.<br><br>Le lien est valable <strong>{{days}} jours</strong>.",
       "button": "Voir et répondre à la demande",
       "footer": "Vous ne savez pas qui demande ? Ignorez cet e-mail — sans votre confirmation personne ne voit rien.",
-      "text": "{{name}}, {{professionalName}} ({{professionalEmail}}) souhaite vous suivre sur GoFitNow.\n\nSi vous acceptez, cette personne verra votre historique. Vous pouvez retirer l’accès quand vous voulez.\n\nOuvrez cette adresse pour répondre (valable {{days}} jours) :\n{{url}}\n\nVous ne savez pas qui demande ? Ignorez cet e-mail — sans votre confirmation personne ne voit rien."
+      "text": "{{name}}, {{professionalName}} ({{professionalEmail}}) souhaite vous suivre sur VAFIT.\n\nSi vous acceptez, cette personne verra votre historique. Vous pouvez retirer l’accès quand vous voulez.\n\nOuvrez cette adresse pour répondre (valable {{days}} jours) :\n{{url}}\n\nVous ne savez pas qui demande ? Ignorez cet e-mail — sans votre confirmation personne ne voit rien."
     },
     "assessment": {
       "subject": "Votre bilan physique"
@@ -723,7 +724,7 @@
       "body": "Quelqu'un a demandé, depuis votre compte, de le supprimer. <strong>Rien n'a été supprimé.</strong> Nous allons vous contacter pour comprendre ce qui s'est passé et convenir des prochaines étapes — si vous voulez vraiment partir, nous nous en occupons avec vous.<br><br><strong>Si ce n'était pas vous</strong>, annulez la demande à l'adresse ci-dessous et changez votre mot de passe.",
       "button": "Voir ou annuler la demande",
       "footer": "Entre-temps, votre compte fonctionne normalement, avec toutes vos données en place.",
-      "text": "{{name}}, nous avons reçu une demande de suppression de votre compte GoFitNow.\\n\\nRien n'a été supprimé. Nous allons vous contacter pour comprendre ce qui s'est passé et convenir des prochaines étapes.\\n\\nSi ce n'était pas vous, annulez la demande ici et changez votre mot de passe :\\n{{url}}\\n\\nEntre-temps, votre compte fonctionne normalement."
+      "text": "{{name}}, nous avons reçu une demande de suppression de votre compte VAFIT.\\n\\nRien n'a été supprimé. Nous allons vous contacter pour comprendre ce qui s'est passé et convenir des prochaines étapes.\\n\\nSi ce n'était pas vous, annulez la demande ici et changez votre mot de passe :\\n{{url}}\\n\\nEntre-temps, votre compte fonctionne normalement."
     },
     "booking": {
       "subject": "{{person}} a réservé {{service}} — {{when}}",
@@ -732,6 +733,9 @@
       "button": "Ouvrir l'agenda",
       "footer": "Le créneau est déjà dans votre agenda — rien à confirmer. Si vous ne pouvez pas, c'est là qu'on replanifie ou annule.",
       "text": "{{name}}, {{person}} a réservé {{service}} pour {{when}}. Contact : {{contact}}. Ouvrez l'agenda : {{url}}"
+    },
+    "statement": {
+      "subject": "Votre relevé financier"
     }
   },
   "apiDocs": {
@@ -826,5 +830,13 @@
     "workoutTemplates": "modèles de séance",
     "workouts": "séances",
     "aulaoes": "cours collectifs"
+  },
+  "finance": {
+    "status": {
+      "open": "En attente",
+      "late": "En retard",
+      "paid": "Payée",
+      "canceled": "Annulée"
+    }
   }
 }
