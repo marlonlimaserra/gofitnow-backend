@@ -200,6 +200,35 @@ User_model.prototype.namesByIds = async function (ids) {
   return new Map(docs.map((d) => [String(d._id), d.name]));
 };
 
+// Nome, e-mail e WhatsApp de várias contas de uma vez — o que a PLANILHA do
+// financeiro precisa.
+//
+// Existe separado de `namesByIds` pela mesma razão do `briefByIds`: aquele
+// devolve um Map de id → nome cru, consumido em vários lugares para escrever um
+// nome solto. Acrescentar campo lá mudaria o formato para todos eles.
+//
+// O contato entra na exportação, e não na tela: *"coloque o e-mail e whatsapp
+// também"*. Quem recebe a planilha para cobrar precisa de por onde falar, e
+// abrir a ficha de trinta pessoas para copiar trinta telefones é o trabalho que
+// a exportação existe para tirar. Quem pode chamar isto já é `finance.view`, que
+// é a mesma permissão que abre a lista de pessoas com os contatos à mostra.
+User_model.prototype.contactsByIds = async function (ids) {
+  const validos = [...new Set((ids || []).map(String))]
+    .filter((id) => ObjectId.isValid(id))
+    .map((id) => new ObjectId(id));
+
+  if (!validos.length) return new Map();
+
+  const col = await this.collection();
+  const docs = await col
+    .find({ _id: { $in: validos } }, { projection: { name: 1, email: 1, phone: 1 } })
+    .toArray();
+
+  return new Map(
+    docs.map((d) => [String(d._id), { name: d.name, email: d.email || "", phone: d.phone || "" }])
+  );
+};
+
 // Nome e avatar de várias contas de uma vez — o mínimo para desenhar uma
 // pessoa numa lista.
 //

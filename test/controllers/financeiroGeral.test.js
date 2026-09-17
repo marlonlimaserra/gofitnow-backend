@@ -33,10 +33,14 @@ function monta(rows, resumo, { tenantQuebrado = false } = {}) {
       // errei na primeira versão: acesso por colchete num Map dá `undefined`
       // sem erro, e o relatório sairia com "—" em toda linha.
       user: {
-        async namesByIds() {
+        // `contactsByIds` desde 17/09/2026: a rota passou a resolver nome,
+        // e-mail e WhatsApp numa consulta só, porque os dois contatos vão para a
+        // PLANILHA. O Map continua sendo Map — acesso por colchete nele dá
+        // `undefined` sem erro, e o relatório sairia com "—" em toda linha.
+        async contactsByIds() {
           return new Map([
-            [ANA, "Ana Paula"],
-            [BIA, "Bia Souza"],
+            [ANA, { name: "Ana Paula", email: "ana@exemplo.com", phone: "(21) 90000-0001" }],
+            [BIA, { name: "Bia Souza", email: "", phone: "" }],
           ]);
         },
       },
@@ -82,6 +86,21 @@ test("o relatório resolve o NOME de quem deve", async () => {
 
   assert.equal(r.status, 200);
   assert.equal(r.body.rows[0].studentName, "Ana Paula");
+});
+
+test("o contato vai junto — a planilha é para cobrar", async () => {
+  // *"coloque o e-mail e whatsapp também"*. Quem exporta a carteira vai ligar e
+  // mandar mensagem; sem isto, o caminho é abrir a ficha de trinta pessoas.
+  const { app } = monta([LINHA, { ...LINHA, _id: "z9", student: BIA }]);
+  const r = await call(app, "get", "/finance");
+
+  assert.equal(r.body.rows[0].studentPhone, "(21) 90000-0001");
+  assert.equal(r.body.rows[0].studentEmail, "ana@exemplo.com");
+  // Quem não tem contato sai com string vazia, e não com "undefined" escrito na
+  // célula da planilha.
+  const daBia = r.body.rows.find((x) => x.studentName === "Bia Souza");
+  assert.equal(daBia.studentPhone, "");
+  assert.equal(daBia.studentEmail, "");
 });
 
 test("a busca acha por nome e por descrição", async () => {

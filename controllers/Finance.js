@@ -68,7 +68,10 @@ module.exports = function (app) {
       fuso: await fusoDaConta(app),
     });
 
-    const nomes = await app.api.user.namesByIds([...new Set(rows.map((r) => r.student))]);
+    // Nome, e-mail e WhatsApp: os três numa consulta só. O contato vai para a
+    // PLANILHA — quem exporta para cobrar precisa de por onde falar.
+    const pessoas = await app.api.user.contactsByIds([...new Set(rows.map((r) => r.student))]);
+    const nomes = new Map([...pessoas].map(([id, p]) => [id, p.name]));
 
     const termo = String(req.query.q || "").trim().toLowerCase();
 
@@ -88,7 +91,12 @@ module.exports = function (app) {
     const moedas = await app.api.tenant.currencyOfInstance();
 
     res.send({
-      rows: visiveis.map((r) => ({ ...r, studentName: nomes.get(r.student) || "—" })),
+      rows: visiveis.map((r) => ({
+        ...r,
+        studentName: pessoas.get(r.student)?.name || "—",
+        studentEmail: pessoas.get(r.student)?.email || "",
+        studentPhone: pessoas.get(r.student)?.phone || "",
+      })),
       // O resumo é de TODA a janela, não da busca — ver o comentário no modelo.
       resumo,
       currency: moedas.currency,

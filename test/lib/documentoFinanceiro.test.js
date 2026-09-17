@@ -105,6 +105,19 @@ test("a situação de cada cobrança é calculada, não lida do campo", () => {
   assert.ok(html.includes("Vencida") || html.includes("Em aberto"));
 });
 
+test("cancelada nao mostra 'falta' — ela saiu do cobrado", () => {
+  const html = documentoFinanceiro({
+    person: PESSOA,
+    charges: [{ _id: "c9", amount: 4000, description: "Aulão", dueDate: "2026-09-01", status: "canceled" }],
+    payments: [],
+  });
+
+  // A coluna sai com travessão. Escrever "R$ 40,00" ali faria a soma das faltas
+  // não bater com o "A receber" do topo, que ignora canceladas.
+  assert.ok(html.includes("Cancelada"));
+  assert.ok(!html.includes("R$ 40,00"), "cancelada nao tem o que faltar");
+});
+
 test("saldo negativo vira CRÉDITO, e não um 'a receber' negativo", () => {
   const html = documentoFinanceiro({
     person: PESSOA,
