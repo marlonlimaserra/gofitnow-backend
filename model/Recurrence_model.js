@@ -137,6 +137,21 @@ Recurrence_model.prototype.remove = async function (id) {
   return r.deletedCount > 0;
 };
 
+// ── AS REGRAS ATIVAS DA CONTA, só o id ───────────────────────────────────
+//
+// É o que a rotina diária publica na fila: uma mensagem por recorrência, com o
+// id dela e o da instância.
+//
+// Projeção mínima de propósito. Quem decide se há o que gerar é o consumidor,
+// dentro do contexto do cliente — mandar o documento inteiro na mensagem faria a
+// fila carregar uma cópia do valor e do vencimento que podem ter mudado entre
+// publicar e consumir.
+Recurrence_model.prototype.idsAtivos = async function () {
+  const col = await this.collection();
+  const docs = await col.find({ active: true }, { projection: { _id: 1 } }).toArray();
+  return docs.map((d) => String(d._id));
+};
+
 Recurrence_model.prototype.deleteAllOfStudent = async function (studentId) {
   if (!ObjectId.isValid(studentId)) return 0;
   const col = await this.collection();
@@ -153,7 +168,19 @@ Recurrence_model.prototype.deleteAllOfStudent = async function (studentId) {
 // de duas telas, e uma recorrência com data estranha não pode derrubar o
 // financeiro de ninguém. Falha aqui vira linha de log — a próxima leitura tenta
 // de novo, porque tudo aqui é idempotente.
-Recurrence_model.prototype.gerar = async function ({ student = null, hoje = new Date() } = {}) {
+Recurrence_model.prototype.gerar = async function ({
+  student = null,
+  // UMA regra só — é por onde o consumidor da fila entra. A mensagem carrega o
+  // id da recorrência, e ele gera exatamente a dela.
+  //
+  // Repare que o consumidor NÃO decide nada: ele chama a mesma função que a
+  // leitura da tela chama, com um filtro a mais. Um segundo caminho que
+  // decidisse por conta própria divergiria do primeiro na primeira regra nova —
+  // e divergiria calado, porque ninguém compara o que a fila gerou com o que a
+  // tela geraria.
+  recurrence = null,
+  hoje = new Date(),
+} = {}) {
   try {
     const col = await this.collection();
 
@@ -161,6 +188,10 @@ Recurrence_model.prototype.gerar = async function ({ student = null, hoje = new 
     if (student) {
       if (!ObjectId.isValid(student)) return 0;
       filtro.student = new ObjectId(student);
+    }
+    if (recurrence) {
+      if (!ObjectId.isValid(recurrence)) return 0;
+      filtro._id = new ObjectId(recurrence);
     }
 
     const regras = await col.find(filtro).toArray();

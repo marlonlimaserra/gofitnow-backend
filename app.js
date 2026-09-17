@@ -14,6 +14,8 @@ const instanceGate = require("./lib/instanceGate.js");
 const rateLimit = require("./lib/rateLimit.js");
 const tentativasDeLogin = require("./lib/tentativasDeLogin.js");
 const travaDeEnvio = require("./lib/travaDeEnvio.js");
+const fila = require("./lib/fila.js");
+const rotinaDiaria = require("./lib/rotinaDiaria.js");
 const appRoutes = require("./appRoutes.js");
 const appModels = require("./appModels.js");
 const appHelpers = require("./appHelpers.js");
@@ -246,6 +248,16 @@ const preparar = async () => {
     console.error("[boot] could not prepare MongoDB:", error.message);
     process.exit(1);
   }
+
+  // ── O TIQUE DIÁRIO SOBE NO PRIMÁRIO ───────────────────────────────────
+  //
+  // Aqui e não em `servir`: `preparar` roda UMA vez, no processo que coordena.
+  // Um tique por worker publicaria o mesmo dia N vezes — a trava do Redis
+  // existe para a segunda MÁQUINA, não para consertar N cópias na mesma.
+  //
+  // Depois do schema, e não antes: a primeira coisa que a rotina faz é ler a
+  // lista de clientes.
+  rotinaDiaria.ligar(app);
 };
 
 const servir = async () => {
@@ -263,6 +275,28 @@ const servir = async () => {
   // O canal de tempo real sobe em cima do MESMO servidor HTTP: uma porta só
   // para atravessar o nginx, e nada de segundo processo para manter de pé.
   tempoReal.iniciar(servidor, app);
+
+  // ── O CONSUMIDOR DA FILA VIVE NOS WORKERS ─────────────────────────────
+  //
+  // Nos workers, e não no primário: são eles que têm conexão com o banco no
+  // caminho quente, e N consumidores numa fila é exatamente para o que a fila
+  // serve — quem terminar pega a próxima (`prefetch` 1).
+  //
+  // O consumidor NÃO decide nada. Ele entra no contexto da instância que veio na
+  // mensagem e chama a MESMA função que a leitura da tela chama. Um segundo
+  // caminho que decidisse por conta própria divergiria do primeiro na primeira
+  // regra nova — calado, porque ninguém compara os dois.
+  //
+  // Entrega é at-least-once: mensagem reentregue gera de novo, e o índice único
+  // em (recorrência, período) é quem impede a cobrança em dobro.
+  fila
+    .consumir(async ({ instancia, recorrencia }) => {
+      if (!instancia || !recorrencia) return;
+      await instanceContext.run(instancia, () =>
+        app.api.recurrence.gerar({ recurrence: recorrencia })
+      );
+    })
+    .catch((erro) => console.error("[fila]", erro?.message || erro));
 
   return servidor;
 };
