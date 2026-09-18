@@ -85,6 +85,10 @@ module.exports = function (app) {
       // que não existe mais nenhuma; ordenar a página daria a ordem das vinte e
       // cinco, e não as vinte e cinco primeiras de trezentas.
       busca: req.query.q,
+      // A LENTE DA UNIDADE, escolhida no alto da tela. Ela vale para os
+      // cartões do topo também — números que não batem com a lista do lado
+      // são piores que números ausentes.
+      unit: req.query.unit,
       ordem: req.query.sort,
       direcao: req.query.dir,
       pagina: req.query.page,

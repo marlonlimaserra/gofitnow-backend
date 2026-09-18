@@ -407,6 +407,8 @@ Finance_model.prototype.carteira = async function ({
   direcao,
   pagina,
   limite,
+  // A unidade escolhida no alto da tela. Vazia é "todas".
+  unit,
 } = {}) {
   const charges = await this.charges();
 
@@ -470,7 +472,7 @@ Finance_model.prototype.carteira = async function ({
         // si vem por uma rota própria, com sessão, porque `<img src>` não manda
         // cabeçalho e voltaria 401. O que a lista precisa é só saber SE existe
         // uma, e qual versão, para não mostrar a antiga depois da troca.
-        { $project: { name: 1, email: 1, phone: 1, avatarAt: 1 } },
+        { $project: { name: 1, email: 1, phone: 1, avatarAt: 1, unit: 1 } },
       ],
       as: "pessoa",
     },
@@ -483,6 +485,12 @@ Finance_model.prototype.carteira = async function ({
       studentEmail: { $ifNull: [{ $arrayElemAt: ["$pessoa.email", 0] }, ""] },
       studentPhone: { $ifNull: [{ $arrayElemAt: ["$pessoa.phone", 0] }, ""] },
       studentAvatarAt: { $ifNull: [{ $arrayElemAt: ["$pessoa.avatarAt", 0] }, null] },
+      // A UNIDADE de quem deve. Ela é da PESSOA, e não da cobrança: uma
+      // cobrança não acontece num lugar, ela pertence a alguém que atende num.
+      //
+      // Guardá-la na cobrança criaria a pergunta "e quando o aluno muda de
+      // unidade?" — e a resposta honesta seria "as cobranças antigas mentem".
+      studentUnit: { $ifNull: [{ $arrayElemAt: ["$pessoa.unit", 0] }, null] },
     },
   };
 
@@ -613,8 +621,13 @@ Finance_model.prototype.carteira = async function ({
       studentEmail: 1,
       studentPhone: 1,
       studentAvatarAt: 1,
+      studentUnit: { $toString: "$studentUnit" },
     },
   };
+
+  // A unidade escolhida no alto da tela. Id inválido é ignorado — um id sujo
+  // na URL não pode esvaziar o financeiro de ninguém.
+  const lente = ObjectId.isValid(unit) ? new ObjectId(unit) : null;
 
   const [saida] = await charges
     .aggregate(
@@ -623,6 +636,16 @@ Finance_model.prototype.carteira = async function ({
         juntarPagamentos,
         juntarPessoa,
         derivados,
+        // ── A LENTE DA UNIDADE ────────────────────────────────────────────
+        //
+        // *"o financeiro ainda puxa tudo"*. Ela entra DEPOIS da junção com a
+        // pessoa, porque é ali que a unidade aparece — e ANTES do `$facet`,
+        // que é o que faz os três cartões do topo (recebido, a receber,
+        // atrasado) falarem da mesma unidade que a lista embaixo.
+        //
+        // Números que não batem com a lista que está do lado são piores que
+        // números ausentes: ninguém desconfia de um total.
+        ...(lente ? [{ $match: { studentUnit: lente } }] : []),
         contas,
         atraso,
         posto,

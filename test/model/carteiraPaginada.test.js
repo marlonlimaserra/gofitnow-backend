@@ -190,6 +190,11 @@ test("o documento da PESSOA é recortado antes de sair da junção", async () =>
   // `avatarAt` é um CARIMBO DE DATA, não a foto: diz se existe uma e de quando
   // é. A foto em si nunca passa por aqui — ela tem rota própria, com sessão.
   //
+  // `unit` é o id da unidade da pessoa. Ele entra porque a LENTE filtra por
+  // ele e a coluna o mostra — e porque a unidade é da PESSOA, não da cobrança:
+  // guardá-la na cobrança criaria a pergunta "e quando o aluno muda de
+  // unidade?", cuja resposta honesta seria "as cobranças antigas mentem".
+  //
   // Esta lista é para ser CHATA de mudar. Quem acrescentar um campo aqui está
   // decidindo mandá-lo ao navegador de quem abre o financeiro, e o teste
   // quebrando é o momento de perguntar se é isso mesmo.
@@ -199,7 +204,7 @@ test("o documento da PESSOA é recortado antes de sair da junção", async () =>
   const juncao = chamadas[0].pipeline.find((e) => e.$lookup?.from === "users");
   const projecao = juncao.$lookup.pipeline.find((e) => e.$project).$project;
 
-  assert.deepEqual(Object.keys(projecao).sort(), ["avatarAt", "email", "name", "phone"]);
+  assert.deepEqual(Object.keys(projecao).sort(), ["avatarAt", "email", "name", "phone", "unit"]);
   assert.ok(!("password" in projecao));
 });
 
@@ -277,4 +282,57 @@ test("ATRASADA é calculada, e nunca lida de um campo", async () => {
   assert.ok(condicoes.includes('"$status","open"'.replace(/"/g, '"')) || condicoes.includes("open"));
   assert.ok(condicoes.includes("$falta"), "quem já pagou não está atrasado");
   assert.ok(condicoes.includes("dueDate"));
+});
+
+// ── A LENTE DA UNIDADE NO FINANCEIRO ────────────────────────────────────
+//
+// *"o financeiro ainda puxa tudo, precisa por a coluna de unidade se eu tiver
+// filtrando por todas e se tem pelo menos 2"*.
+test("com lente, filtra pela unidade da PESSOA", async () => {
+  const { model, chamadas } = fakeModel();
+  await model.carteira({ unit: "6a80de570056d24c09f5da61" });
+
+  const filtro = chamadas[0].pipeline.find((e) => e.$match?.studentUnit);
+  assert.ok(filtro, "a consulta não recebeu a lente");
+  assert.equal(String(filtro.$match.studentUnit), "6a80de570056d24c09f5da61");
+});
+
+test("a lente entra DEPOIS da junção e ANTES do facet", async () => {
+  // Depois da junção porque é ali que a unidade aparece. Antes do `$facet`
+  // porque é o que faz os três cartões do topo falarem da mesma unidade que a
+  // lista embaixo — números que não batem com a lista do lado são piores que
+  // números ausentes.
+  const { model, chamadas } = fakeModel();
+  await model.carteira({ unit: "6a80de570056d24c09f5da61" });
+
+  const etapas = chamadas[0].pipeline;
+  const juncao = etapas.findIndex((e) => e.$lookup?.from === "users");
+  const lente = etapas.findIndex((e) => e.$match?.studentUnit);
+  const facet = etapas.findIndex((e) => e.$facet);
+
+  assert.ok(juncao < lente, "a lente veio antes da junção");
+  assert.ok(lente < facet, "a lente veio depois do facet");
+});
+
+test("sem lente, nada muda na consulta", async () => {
+  const { model, chamadas } = fakeModel();
+  await model.carteira({});
+
+  assert.equal(
+    chamadas[0].pipeline.find((e) => e.$match?.studentUnit),
+    undefined
+  );
+});
+
+test("lente com id inválido é ignorada — e não esvazia o financeiro", async () => {
+  for (const lixo of ["nada", "", "123"]) {
+    const { model, chamadas } = fakeModel();
+    await model.carteira({ unit: lixo });
+
+    assert.equal(
+      chamadas[0].pipeline.find((e) => e.$match?.studentUnit),
+      undefined,
+      String(lixo)
+    );
+  }
 });
