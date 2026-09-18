@@ -267,10 +267,11 @@ module.exports = function (app) {
     // `updatedAt` — nada disso desenha nada, e uma vitrine que devolve o
     // documento inteiro vaza o próximo campo que alguém acrescentar sem pensar
     // nisto aqui.
-    const beneficiosVisiveis = dados.beneficios.map((c) => ({
-      id: String(c._id),
-      name: c.name,
-      description: c.description || "",
+    const beneficiosVisiveis = dados.beneficios.map((b) => ({
+      id: String(b._id),
+      name: b.name,
+      description: b.description || "",
+      icone: b.icone || "",
     }));
 
     const validos = new Set(beneficiosVisiveis.map((b) => b.id));

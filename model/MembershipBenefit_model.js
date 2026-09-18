@@ -47,6 +47,17 @@ const CAMPOS = {
   // A explicação que vai no "?" ao lado da linha, quando a linha não se explica
   // sozinha. Opcional de propósito: a maioria delas se explica.
   description: (v) => String(v || "").trim().slice(0, 300),
+  // ── O ÍCONE É UM NOME, e o servidor não conhece a lista ────────────────
+  //
+  // *"nos beneficios, permita escolher icones"*. O que fica gravado é o nome do
+  // ícone no lucide ("Dumbbell", "ShowerHead") — quem tem a lista é a tela
+  // (`lib/iconesDeBeneficio.js`), porque é ela que os desenha.
+  //
+  // Validar contra a lista AQUI obrigaria a mantê-la nos dois lados, e o dia em
+  // que os dois discordassem o servidor recusaria um ícone que a tela oferece.
+  // O formato basta: nome desconhecido cai no "✓" de sempre, que é o
+  // comportamento certo para um ícone aposentado da lista.
+  icone: (v) => (/^[A-Za-z][A-Za-z0-9]{0,39}$/.test(String(v || "")) ? String(v) : ""),
   active: (v) => v !== false,
 };
 
