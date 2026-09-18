@@ -683,21 +683,22 @@ User_model.prototype.pageStudents = async function (trainerId, filtros = {}) {
   // fica visível no alto — quem não está vendo alguém sabe por quê e desfaz
   // num clique. Uma tranca invisível esconderia gente sem dizer nada.
   //
-  // ── E QUEM NÃO TEM UNIDADE APARECE SEMPRE ─────────────────────────────
+  // ── A LENTE É ESTRITA, e a primeira versão não era ────────────────────
   //
-  // É a regra que tira o pé da armadilha. Numa conta que acabou de cadastrar a
-  // primeira unidade, NINGUÉM tem unidade ainda: sem esta linha, escolher
-  // "Paraty" esvaziaria a lista inteira e pareceria que os alunos sumiram.
+  // Eu tinha deixado quem NÃO TEM unidade aparecer junto, com medo de a lista
+  // ficar vazia numa conta que acabou de cadastrar a primeira unidade.
   //
-  // E ela é a leitura certa mesmo depois: quem não foi atribuído a lugar
-  // nenhum não é de outra unidade — é de nenhuma, e precisa continuar
-  // alcançável para alguém poder atribuí-lo.
+  // O medo era real e o remédio estava errado: com quase ninguém atribuído,
+  // escolher "Paraty" continuava mostrando os cem alunos — e uma lente que não
+  // muda nada não parece cautelosa, parece quebrada. *"se eu to em paraty,
+  // deveria mostrar as coisas só de paraty"*.
+  //
+  // Então ela filtra pelo que diz filtrar. A lista vazia deixou de ser um
+  // risco a evitar e virou uma RESPOSTA: "nenhum aluno nesta unidade ainda", e
+  // a tela oferece voltar para todas num clique. Quem não foi atribuído
+  // continua alcançável em "Todas as unidades", que é onde ele de fato está.
   if (ObjectId.isValid(filtros.unit)) {
-    etapas.push({
-      $match: {
-        $or: [{ unit: new ObjectId(filtros.unit) }, { unit: null }, { unit: { $exists: false } }],
-      },
-    });
+    etapas.push({ $match: { unit: new ObjectId(filtros.unit) } });
   }
 
   // ── Cadastrado entre tal e tal dia ───────────────────────────────────────

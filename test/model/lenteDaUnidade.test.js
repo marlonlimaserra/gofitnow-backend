@@ -63,27 +63,17 @@ test("sem lente, a consulta não menciona unidade nenhuma", async () => {
   assert.equal(filtroDeUnidade(etapas), undefined);
 });
 
-test("com lente, filtra pela unidade escolhida", async () => {
+test("com lente, filtra pela unidade escolhida — e SÓ por ela", async () => {
+  // A primeira versão deixava quem NÃO TEM unidade aparecer junto, com medo de
+  // a lista ficar vazia. O medo era real e o remédio estava errado: com quase
+  // ninguém atribuído, escolher "Paraty" continuava mostrando os cem alunos —
+  // e uma lente que não muda nada não parece cautelosa, parece quebrada.
   const etapas = await rodar({ unit: UNIDADE });
   const filtro = filtroDeUnidade(etapas);
 
   assert.ok(filtro, "a consulta não recebeu a lente");
-  assert.equal(String(filtro.$match.$or[0].unit), UNIDADE);
-});
-
-test("QUEM NÃO TEM UNIDADE continua aparecendo", async () => {
-  // É a regra que tira o pé da armadilha: numa conta que acabou de cadastrar a
-  // primeira unidade, NINGUÉM tem unidade ainda — sem isto, escolher "Paraty"
-  // esvaziaria a lista e pareceria que os alunos sumiram.
-  //
-  // E é a leitura certa depois também: quem não foi atribuído a lugar nenhum
-  // não é de OUTRA unidade, é de nenhuma — e precisa continuar alcançável para
-  // alguém poder atribuí-lo.
-  const etapas = await rodar({ unit: UNIDADE });
-  const opcoes = filtroDeUnidade(etapas).$match.$or;
-
-  assert.ok(opcoes.some((o) => o.unit === null), "sem `unit: null`");
-  assert.ok(opcoes.some((o) => o.unit?.$exists === false), "sem `$exists: false`");
+  assert.equal(String(filtro.$match.unit), UNIDADE);
+  assert.ok(!filtro.$match.$or, "a lente não pode ter escape");
 });
 
 test("lente com id inválido é ignorada — e não vira lista vazia", async () => {
