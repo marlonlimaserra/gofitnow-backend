@@ -21,6 +21,7 @@
 // cartão desenha. Sem contagem de assinantes, sem quem assinou, sem nada que a
 // academia não tenha escolhido pendurar na parede.
 const recorrencia = require("../lib/recorrencia.js");
+const modelosDeCartao = require("../lib/modelosDeCartao.js");
 const instanceContext = require("../lib/instance.js");
 const arquivos = require("../lib/arquivos.js");
 const dominio = require("../lib/domain.js");
@@ -59,6 +60,9 @@ module.exports = function (app) {
       // Junto, e não numa rota própria: a tela precisa das três listas para
       // desenhar, e três chamadas a fariam piscar em três tempos.
       cadencias: recorrencia.paraTela(req.t),
+      // Os MODELOS DE COR, pela mesma razão das cadências: é um catálogo, ele
+      // viaja traduzido, e acrescentar um modelo é mexer num arquivo só.
+      modelos: modelosDeCartao.paraTela(req.t),
       currency: moedas.currency,
     });
   });
@@ -306,15 +310,25 @@ module.exports = function (app) {
         corDestaque: p.corDestaque || "",
         corBotao: p.corBotao || "",
         corBotaoTexto: p.corBotaoTexto || "",
-        // O botão só existe com destino. Sem link ele não vai a lugar nenhum,
-        // e uma porta pintada na parede é pior que parede.
-        botaoTexto: p.botaoLink ? p.botaoTexto || "" : "",
+        // ── O BOTÃO APARECE MESMO SEM LINK ──────────────────────────────
+        //
+        // *"na vitrine não aparecem os botões"*.
+        //
+        // Eu tinha escondido o botão sem destino, com o argumento de que porta
+        // pintada é pior que parede. Errado para esta tela: o cartão SEM botão
+        // não é um cartão honesto, é um cartão incompleto — ele termina na
+        // lista de benefícios e não convida a nada, e o lugar onde ele vive é
+        // justamente uma página de venda.
+        //
+        // Quem ainda não pôs o link vê o botão e entende o que falta. A tela
+        // de edição diz onde preenchê-lo.
+        botaoTexto: p.botaoTexto || "",
         botaoLink: p.botaoLink || "",
         // O DESENHO vem do nosso banco, conferido contra a lista fechada de
         // tags de `lib/iconify.js`. A vitrine nunca fala com a Iconify: ela
         // abre dentro do site do cliente, e um ícone que depende de um
         // terceiro responder é um buraco no cartão de venda dele.
-        botaoIconeSvg: p.botaoLink ? p.botaoIconeSvg || "" : "",
+        botaoIconeSvg: p.botaoIconeSvg || "",
         botaoIconeCaixa: p.botaoIconeCaixa || "",
         // Benefício DESATIVADO some do cartão junto com a linha da tabela:
         // deixá-lo aqui faria o cartão prometer algo que a comparação nem lista.
