@@ -13,7 +13,9 @@ const Finance_model = require("../../model/Finance_model.js");
 const ALUNO = new ObjectId();
 
 function fakeModel({ cobrancas = [], pagamentos = [] } = {}) {
-  const model = new Finance_model({});
+  const model = new Finance_model({
+    api: { counter: { proximo: async () => 1 } },
+  });
   model.listCharges = async () => cobrancas;
   model.listPayments = async () => pagamentos;
   return model;
@@ -133,7 +135,9 @@ test("pago quita, como sempre quitou", async () => {
 
 function fakeInsert() {
   const gravados = [];
-  const model = new Finance_model({});
+  const model = new Finance_model({
+    api: { counter: { proximo: async () => 1 } },
+  });
   model.payments = async () => ({
     async insertOne(doc) {
       gravados.push(doc);

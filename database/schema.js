@@ -54,6 +54,8 @@ const POR_INSTANCIA = [
   "booking_pages",
   "charges",
   "payments",
+  // Os numeradores de cada conta — o "#12" que se fala ao telefone.
+  "counters",
   "payment_files",
   // As RECORRÊNCIAS: "todo mês, R$ 800". Do cliente, como tudo que é dinheiro.
   "recurrences",
@@ -503,6 +505,68 @@ async function ensureUmBanco(db) {
   await db.collection("charges").createIndex({ instance: 1, student: 1, dueDate: -1 }, { name: "by_student" });
   // E pelo compromisso, que é como a cobrança automática confere se já existe.
   await db.collection("charges").createIndex({ instance: 1, appointment: 1 }, { name: "by_appointment" });
+
+  // counters — um documento por sequência, por conta. ÚNICO: dois documentos
+  // para a mesma sequência dariam dois números 12, que é exatamente o que este
+  // campo existe para impedir.
+  await db
+    .collection("counters")
+    .createIndex({ instance: 1, chave: 1 }, { unique: true, name: "chave_unique" });
+
+  // E o número, para achar pelo que a pessoa dita no telefone.
+  await db.collection("charges").createIndex({ instance: 1, numero: 1 }, { name: "by_numero" });
+  await db.collection("payments").createIndex({ instance: 1, numero: 1 }, { name: "by_numero" });
+
+  // ── O NÚMERO PARA QUEM JÁ EXISTIA ──────────────────────────────────────
+  //
+  // Sem isto, as cobranças de antes de 18/09/2026 ficariam sem número — e são
+  // justamente as que alguém vai procurar ("aquela de agosto"). Elas recebem na
+  // ordem em que nasceram, que é a ordem que faz sentido para quem numera.
+  //
+  // Por CLIENTE, porque a sequência é dele. E o contador é acertado no fim:
+  // sem isso a próxima cobrança nova recomeçaria do 1 e colidiria com todas.
+  //
+  // Idempotente: sem documento sem número, não escreve nada.
+  for (const colecao of ["charges", "payments"]) {
+    const semNumero = await db
+      .collection(colecao)
+      .find({ numero: { $exists: false } }, { projection: { instance: 1, createdAt: 1 } })
+      .sort({ createdAt: 1 })
+      .toArray();
+
+    if (!semNumero.length) continue;
+
+    // Onde cada cliente já está, para o retroativo continuar de lá — e não
+    // reiniciar em 1 numa segunda passada.
+    const proximo = new Map();
+    for (const c of await db.collection("counters").find({ chave: colecao }).toArray()) {
+      proximo.set(String(c.instance), Number(c.seq) || 0);
+    }
+
+    const escritas = [];
+    for (const doc of semNumero) {
+      const cliente = String(doc.instance);
+      const n = (proximo.get(cliente) || 0) + 1;
+      proximo.set(cliente, n);
+      escritas.push({ updateOne: { filter: { _id: doc._id }, update: { $set: { numero: n } } } });
+    }
+
+    // Em lotes: um `bulkWrite` de cem mil operações estoura o limite de 16 MB
+    // do comando.
+    for (let i = 0; i < escritas.length; i += 1000) {
+      await db.collection(colecao).bulkWrite(escritas.slice(i, i + 1000), { ordered: false });
+    }
+
+    for (const [cliente, ate] of proximo) {
+      await db.collection("counters").updateOne(
+        { instance: cliente, chave: colecao },
+        { $set: { seq: ate } },
+        { upsert: true }
+      );
+    }
+
+    console.log(`[schema] ${colecao}: ${escritas.length} numeradas`);
+  }
 
   // ── A MENSALIDADE NÃO PODE NASCER DUAS VEZES ───────────────────────────
   //

@@ -37,6 +37,9 @@ models.aulao = require("./model/Aulao_model.js");
 // — a coleta de lixo daquela apaga o que o tema não usa, e apagaria as fotos de
 // todo aulão no primeiro salvamento de aparência.
 models.aulaoImage = require("./model/AulaoImage_model.js");
+// O numerador de cada conta: é dele que sai o "#12" que se fala ao telefone.
+// O `_id` do Mongo tem 24 caracteres e não serve para isso.
+models.counter = require("./model/Counter_model.js");
 models.finance = require("./model/Finance_model.js");
 // A mensalidade, a anuidade, o pacote trimestral — a REGRA que gera cobrança.
 // Collection própria e não um campo na cobrança: a regra é infinita e a cobrança

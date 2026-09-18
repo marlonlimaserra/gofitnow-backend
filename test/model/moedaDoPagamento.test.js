@@ -22,7 +22,9 @@ const EM_REAIS = new ObjectId();
 const PAGAMENTO = new ObjectId();
 
 function fakeModel() {
-  const model = new Finance_model({});
+  const model = new Finance_model({
+    api: { counter: { proximo: async () => 1 } },
+  });
 
   const cobrancas = [{ _id: EM_REAIS, amount: 2500, currency: "BRL", status: "open" }];
   const pagamentos = [{ _id: PAGAMENTO, amount: 2500, currency: "BRL", charge: EM_REAIS }];

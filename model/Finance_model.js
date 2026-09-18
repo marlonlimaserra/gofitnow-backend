@@ -177,6 +177,12 @@ Finance_model.prototype.insertCharge = async function (studentId, obj, createdBy
 
   const r = await col.insertOne({
     student: new ObjectId(studentId),
+    // ── O NÚMERO QUE SE FALA ────────────────────────────────────────────
+    //
+    // "#12", e não o `_id` de 24 caracteres: *"para quando eu perguntar para
+    // alguém 'qual a cobrança'"*. Sequencial e POR CONTA — ver
+    // `model/Counter_model.js`.
+    numero: await this.app.api.counter.proximo("charges"),
     currency: currency || null,
     createdBy: createdBy ? new ObjectId(createdBy) : null,
     // De onde ela nasceu: um compromisso, ou a mão de alguém. É o que impede
@@ -353,6 +359,9 @@ function fimDoDia(valor, fuso) {
 // olha — o que venceu primeiro, o que ainda vai vencer depois, e o que já morreu
 // (pago, cancelado) no fim. É a mesma ordem que a tela usava.
 const ORDEM_DA_CARTEIRA = {
+  // Ordenar por número é ordenar por ordem de criação, e com um valor que a
+  // pessoa pode conferir — é o que ninguém consegue fazer por `createdAt`.
+  numero: "numero",
   person: "studentName",
   description: "description",
   dueDate: "dueDate",
@@ -576,6 +585,9 @@ Finance_model.prototype.carteira = async function ({
     $project: {
       _id: 0,
       id: { $toString: "$_id" },
+      // O número que se fala. Cobrança antiga não tem — ver a migração em
+      // `database/schema.js`; depois dela, todas têm.
+      numero: { $ifNull: ["$numero", null] },
       student: { $toString: "$student" },
       description: { $ifNull: ["$description", ""] },
       amount: { $ifNull: ["$amount", 0] },
@@ -754,6 +766,11 @@ Finance_model.prototype.insertPayment = async function (studentId, obj, createdB
 
   const r = await col.insertOne({
     student: new ObjectId(studentId),
+    // O número do RECIBO, na sequência própria dos pagamentos. Própria e não
+    // compartilhada com a cobrança: são duas perguntas diferentes ("qual a
+    // fatura?" e "qual o recebimento?"), e uma sequência só faria a fatura #12
+    // conviver com o recibo #13 sem nenhuma relação entre os dois números.
+    numero: await this.app.api.counter.proximo("payments"),
     currency: moeda || null,
     createdBy: createdBy ? new ObjectId(createdBy) : null,
     // A qual cobrança se refere, se a alguma: pagamento avulso é legítimo —
