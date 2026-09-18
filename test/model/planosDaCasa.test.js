@@ -327,3 +327,98 @@ test("a lista da tela não mostra rascunho", async () => {
   await model.list();
   assert.deepEqual(filtro, { rascunho: { $ne: true } });
 });
+
+// ── O ÍCONE DO BENEFÍCIO ──────────────────────────────────────────────────
+
+function montarBeneficioComIcone({ anterior = null, achado = undefined } = {}) {
+  const iconify = require("../../lib/iconify.js");
+  const originalBuscar = iconify.buscar;
+  const buscas = [];
+
+  iconify.buscar = async (nome) => {
+    buscas.push(nome);
+    if (achado !== undefined) return achado;
+    return { nome, body: '<path d="M1 2"/>', caixa: "0 0 24 24" };
+  };
+
+  const col = colecaoFalsa(anterior ? [anterior] : []);
+  col.findOne = async () => anterior;
+
+  const model = new MembershipBenefit_model({ api: { membership: { collection: async () => colecaoFalsa() } } });
+  model.collection = async () => col;
+
+  return { model, col, buscas, restaurar: () => { iconify.buscar = originalBuscar; } };
+}
+
+test("escolher um ícone busca o DESENHO e guarda junto", async (t) => {
+  // A vitrine abre dentro do site do cliente: um ícone que só aparece se um
+  // terceiro responder é um buraco no cartão de venda dele. Por isso o SVG é
+  // buscado uma vez, aqui, e guardado.
+  const { model, col, buscas, restaurar } = montarBeneficioComIcone();
+  t.after(restaurar);
+
+  await model.insert({ name: "Chuveiro", icone: "mdi:shower" });
+
+  assert.deepEqual(buscas, ["mdi:shower"]);
+  const doc = col.escritas.find((e) => e.inserir).inserir;
+  assert.equal(doc.iconeSvg, '<path d="M1 2"/>');
+  assert.equal(doc.iconeCaixa, "0 0 24 24");
+});
+
+test("o MESMO ícone de antes não é buscado de novo", async (t) => {
+  // É o caso de toda edição que mexe só no nome do benefício, e ele é o mais
+  // comum: sem isto, renomear "Chuveiro" para "Chuveiros" iria à internet.
+  const { model, buscas, restaurar } = montarBeneficioComIcone({
+    anterior: { _id: A, icone: "mdi:shower", iconeSvg: '<path d="M1 2"/>' },
+  });
+  t.after(restaurar);
+
+  await model.update(String(A), { name: "Chuveiros", icone: "mdi:shower" });
+  assert.deepEqual(buscas, [], "nada a buscar");
+});
+
+test("tirar o ícone apaga o desenho junto", async (t) => {
+  // Senão o cartão continuaria mostrando o de antes, e a pessoa acharia que o
+  // "sem ícone" não funcionou.
+  const { model, col, restaurar } = montarBeneficioComIcone({
+    anterior: { _id: A, icone: "mdi:shower", iconeSvg: '<path d="M1 2"/>' },
+  });
+  t.after(restaurar);
+
+  await model.update(String(A), { icone: "" });
+
+  const gravado = col.escritas.find((e) => e.atualizar).atualizar;
+  assert.equal(gravado.icone, "");
+  assert.equal(gravado.iconeSvg, "");
+});
+
+test("busca que FALHA grava o benefício sem ícone, em vez de não gravar", async (t) => {
+  // O nome do benefício é o conteúdo; o ícone é enfeite. Uma rede lenta não pode
+  // impedir alguém de cadastrar.
+  const { model, col, restaurar } = montarBeneficioComIcone({ achado: null });
+  t.after(restaurar);
+
+  await model.insert({ name: "Chuveiro", icone: "mdi:shower" });
+
+  const doc = col.escritas.find((e) => e.inserir).inserir;
+  assert.equal(doc.icone, "", "não guarda nome sem desenho — seriam dois estados para um");
+  assert.equal(doc.iconeSvg, "");
+});
+
+test("o SVG NÃO entra pelo corpo do pedido", async (t) => {
+  // Aceitá-lo seria aceitar markup arbitrário de quem controla o navegador — e
+  // ele vai inline para uma página pública.
+  const { model, col, restaurar } = montarBeneficioComIcone();
+  t.after(restaurar);
+
+  await model.insert({
+    name: "Chuveiro",
+    icone: "mdi:shower",
+    iconeSvg: "<script>alert(1)</script>",
+    iconeCaixa: "0 0 9 9",
+  });
+
+  const doc = col.escritas.find((e) => e.inserir).inserir;
+  assert.equal(doc.iconeSvg, '<path d="M1 2"/>', "o que vale é o que o servidor buscou");
+  assert.equal(doc.iconeCaixa, "0 0 24 24");
+});

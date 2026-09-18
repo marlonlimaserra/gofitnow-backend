@@ -272,6 +272,8 @@ module.exports = function (app) {
       name: b.name,
       description: b.description || "",
       icone: b.icone || "",
+      iconeSvg: b.iconeSvg || "",
+      iconeCaixa: b.iconeCaixa || "",
     }));
 
     const validos = new Set(beneficiosVisiveis.map((b) => b.id));

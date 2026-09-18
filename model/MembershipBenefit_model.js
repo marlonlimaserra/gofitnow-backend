@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const iconify = require("../lib/iconify.js");
 
 // OS BENEFÍCIOS DE UM PLANO — as linhas da tabela de comparação.
 //
@@ -47,17 +48,21 @@ const CAMPOS = {
   // A explicação que vai no "?" ao lado da linha, quando a linha não se explica
   // sozinha. Opcional de propósito: a maioria delas se explica.
   description: (v) => String(v || "").trim().slice(0, 300),
-  // ── O ÍCONE É UM NOME, e o servidor não conhece a lista ────────────────
+  // ── O ÍCONE: o nome vem da tela, o DESENHO vem do servidor ─────────────
   //
-  // *"nos beneficios, permita escolher icones"*. O que fica gravado é o nome do
-  // ícone no lucide ("Dumbbell", "ShowerHead") — quem tem a lista é a tela
-  // (`lib/iconesDeBeneficio.js`), porque é ela que os desenha.
+  // A primeira versão guardava o nome de um ícone do lucide, de uma lista de 95
+  // que eu tinha curado. *"parece que os icones estão fixos"* — e estavam.
   //
-  // Validar contra a lista AQUI obrigaria a mantê-la nos dois lados, e o dia em
-  // que os dois discordassem o servidor recusaria um ícone que a tela oferece.
-  // O formato basta: nome desconhecido cai no "✓" de sempre, que é o
-  // comportamento certo para um ícone aposentado da lista.
-  icone: (v) => (/^[A-Za-z][A-Za-z0-9]{0,39}$/.test(String(v || "")) ? String(v) : ""),
+  // Agora o nome é da Iconify ("mdi:shower"), que tem ~200 mil, e o SVG é
+  // buscado UMA VEZ pelo servidor e guardado aqui. A vitrine desenha do que está
+  // no banco e não fala com ninguém: ela abre dentro do site do cliente, e um
+  // ícone que só aparece se um terceiro responder é um buraco no cartão de venda
+  // dele.
+  //
+  // `iconeSvg` e `iconeCaixa` NÃO entram por aqui: eles vêm da rota, que os
+  // buscou. Aceitá-los do corpo do pedido seria aceitar markup arbitrário de
+  // quem controla o navegador — e ele vai inline para uma página pública.
+  icone: (v) => (iconify.NOME.test(String(v || "").trim().toLowerCase()) ? String(v).trim().toLowerCase() : ""),
   active: (v) => v !== false,
 };
 
@@ -77,6 +82,41 @@ MembershipBenefit_model.prototype.data = async function (id) {
   return (await col.findOne({ _id: new ObjectId(id) })) || undefined;
 };
 
+// ── O DESENHO SEGUE O NOME ───────────────────────────────────────────────
+//
+// Escolheu um ícone novo? busca e guarda. Tirou o ícone? apaga o desenho junto —
+// senão o cartão continuaria mostrando o de antes, e a pessoa acharia que o
+// "sem ícone" não funcionou.
+//
+// Se a busca falhar (rede lenta, Iconify fora), o benefício é gravado SEM ícone
+// em vez de não ser gravado: o nome do benefício é o conteúdo, e o ícone é
+// enfeite.
+MembershipBenefit_model.prototype.comDesenho = async function (mudanca, anterior) {
+  if (mudanca.icone === undefined) return mudanca;
+
+  if (!mudanca.icone) {
+    mudanca.iconeSvg = "";
+    mudanca.iconeCaixa = "";
+    return mudanca;
+  }
+
+  // Mesmo ícone de antes: nada a buscar. É o caso de toda edição que mexe só no
+  // nome do benefício, e ele é o mais comum.
+  if (anterior && anterior.icone === mudanca.icone && anterior.iconeSvg) return mudanca;
+
+  const achado = await iconify.buscar(mudanca.icone);
+  if (!achado) {
+    mudanca.icone = "";
+    mudanca.iconeSvg = "";
+    mudanca.iconeCaixa = "";
+    return mudanca;
+  }
+
+  mudanca.iconeSvg = achado.body;
+  mudanca.iconeCaixa = achado.caixa;
+  return mudanca;
+};
+
 MembershipBenefit_model.prototype.insert = async function (obj) {
   const col = await this.collection();
 
@@ -91,6 +131,8 @@ MembershipBenefit_model.prototype.insert = async function (obj) {
   for (const [campo, limpar] of Object.entries(CAMPOS)) doc[campo] = limpar(obj[campo]);
   if (!doc.name) return null;
 
+  await this.comDesenho(doc, null);
+
   const r = await col.insertOne(doc);
   return r.insertedId;
 };
@@ -103,6 +145,12 @@ MembershipBenefit_model.prototype.update = async function (id, obj) {
   for (const [campo, limpar] of Object.entries(CAMPOS)) {
     if (obj[campo] !== undefined) mudanca[campo] = limpar(obj[campo]);
   }
+
+  const anterior = await col.findOne(
+    { _id: new ObjectId(id) },
+    { projection: { icone: 1, iconeSvg: 1 } }
+  );
+  await this.comDesenho(mudanca, anterior);
 
   const r = await col.updateOne({ _id: new ObjectId(id) }, { $set: mudanca });
   return r.matchedCount > 0;
