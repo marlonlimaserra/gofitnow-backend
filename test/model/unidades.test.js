@@ -69,21 +69,59 @@ test("sem nome não há unidade", async () => {
   assert.equal(gravados.length, 0);
 });
 
-test("o ENDEREÇO é texto livre, e cabe um de verdade", async () => {
-  // Endereço estruturado só se paga quando alguém CALCULA com ele. Aqui ele é
-  // lido por gente — e um formulário de seis campos erra em qualquer endereço
-  // fora do padrão dos Correios, num produto que atende quatro idiomas.
+test("o endereço de UMA LINHA é derivado das partes, e nunca vem da tela", async () => {
+  // Duas fontes para o mesmo endereço divergem na primeira edição — e a errada
+  // é sempre a que aparece, porque é ela que a lista mostra.
   const { model, gravados } = monta();
   const devolver = semIconify();
 
   await model.insert({
     name: "Centro",
-    endereco: "Av. Paulista, 1000 — 4º andar, sala 42\nSão Paulo/SP",
+    logradouro: "Av. Paulista",
+    numero: "1000",
+    complemento: "sala 42",
+    bairro: "Bela Vista",
+    cidade: "São Paulo",
+    uf: "SP",
+    // Mandado pela tela, e ignorado: quem monta a linha é o servidor.
+    endereco: "MENTIRA",
   });
   devolver();
 
-  assert.match(gravados[0].endereco, /4º andar/);
-  assert.match(gravados[0].endereco, /\n/);
+  assert.equal(
+    gravados[0].endereco,
+    "Av. Paulista, 1000 — sala 42 — Bela Vista, São Paulo/SP"
+  );
+});
+
+test("as partes vazias somem sem deixar vírgula sobrando", async () => {
+  // É o que separa "Rua X" de "Rua X, , — , /" numa unidade meio preenchida.
+  const { model, gravados } = monta();
+  const devolver = semIconify();
+
+  await model.insert({ name: "Centro", logradouro: "Rua X", cidade: "Niterói" });
+  devolver();
+
+  assert.equal(gravados[0].endereco, "Rua X — Niterói");
+});
+
+test("o PONTO fora da faixa vira nada, e o zero não é 'sem ponto'", async () => {
+  // Latitude 200 não é um ponto: é um erro de digitação que poria o alfinete
+  // no meio do oceano. E `0` é um ponto de verdade (golfo da Guiné) — usá-lo
+  // como vazio mandaria para lá toda unidade que nunca escolheu um.
+  const { model, gravados } = monta();
+  const devolver = semIconify();
+
+  await model.insert({ name: "A", lat: -22.9, lng: -43.1 });
+  await model.insert({ name: "B", lat: 200, lng: -43.1 });
+  await model.insert({ name: "C", lat: 0, lng: 0 });
+  await model.insert({ name: "D" });
+  devolver();
+
+  assert.equal(gravados[0].lat, -22.9);
+  assert.equal(gravados[1].lat, null);
+  assert.equal(gravados[2].lat, 0);
+  assert.equal(gravados[3].lat, null);
 });
 
 test("o link do mapa aceita http e https, e mais nada", async () => {
@@ -121,7 +159,27 @@ test("editar MESCLA — o que a chamada não menciona, ela não toca", async () 
   const set = atualizacoes[0].$set;
   assert.equal(set.phone, "(21) 99999-0000");
   assert.ok(!("name" in set), "o nome não foi mencionado e não pode ser tocado");
-  assert.ok(!("endereco" in set));
+  assert.ok(!("logradouro" in set));
+});
+
+test("a linha única se refaz sobre o documento COMPLETO", async () => {
+  // Uma edição que mexe só no número precisa da rua que já estava lá. Montá-la
+  // com o que veio na chamada apagaria o resto do endereço — o mesmo erro
+  // destrutivo, por outro caminho.
+  const { model, atualizacoes } = monta();
+  model.app.mongodb.connectToServer = async () => ({
+    collection: () => ({
+      findOne: async () => ({ logradouro: "Av. Paulista", cidade: "São Paulo", uf: "SP" }),
+      updateOne: async (onde, mudanca) => {
+        atualizacoes.push(mudanca);
+        return { matchedCount: 1 };
+      },
+    }),
+  });
+
+  await model.update("6a80de570056d24c09f5da61", { numero: "1000" });
+
+  assert.equal(atualizacoes[0].$set.endereco, "Av. Paulista, 1000 — São Paulo/SP");
 });
 
 test("a faxina de fotos olha o que ficou GRAVADO, não o que veio na chamada", async () => {

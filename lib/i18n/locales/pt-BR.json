@@ -227,7 +227,9 @@
     "membershipBenefitNotFound": "Benefício não encontrado.",
     "membershipBenefitInUse": "Este benefício está marcado em {{count}} plano(s). Desative-o em vez de apagar.",
     "unitNotFound": "Unidade não encontrada.",
-    "unitInUse": "Esta unidade tem {{count}} pessoa(s). Desative-a em vez de apagar."
+    "unitInUse": "Esta unidade tem {{count}} pessoa(s). Desative-a em vez de apagar.",
+    "cepNotFound": "CEP não encontrado.",
+    "addressNotFound": "Não achei esse endereço no mapa."
   },
   "ok": {
     "passwordChanged": "Senha alterada.",

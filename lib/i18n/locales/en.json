@@ -227,7 +227,9 @@
     "membershipBenefitNotFound": "Benefit not found.",
     "membershipBenefitInUse": "This benefit is ticked on {{count}} plan(s). Deactivate it instead of deleting.",
     "unitNotFound": "Unit not found.",
-    "unitInUse": "This unit has {{count}} person(s). Deactivate it instead of deleting."
+    "unitInUse": "This unit has {{count}} person(s). Deactivate it instead of deleting.",
+    "cepNotFound": "Postal code not found.",
+    "addressNotFound": "Could not find that address on the map."
   },
   "ok": {
     "passwordChanged": "Password changed.",

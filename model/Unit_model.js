@@ -1,5 +1,6 @@
 const { ObjectId } = require("mongodb");
 const iconeGuardado = require("../lib/iconeGuardado.js");
+const cep = require("../lib/cep.js");
 
 // AS UNIDADES DA CASA — "Centro", "Barra", "Zona Sul".
 //
@@ -35,23 +36,53 @@ Unit_model.prototype.collection = async function () {
   return db.collection("units");
 };
 
-// ── O ENDEREÇO É TEXTO LIVRE, e isso é uma escolha ──────────────────────
+// ── O ENDEREÇO É ESTRUTURADO, e o CEP preenche o resto ──────────────────
 //
-// Nada de CEP, logradouro, número e complemento em campos separados. Endereço
-// estruturado só se paga quando alguém CALCULA com ele — frete, rota, imposto
-// — e aqui ele é lido por gente: vai num cartão, num WhatsApp, numa placa.
+// A primeira versão tinha uma caixa de texto só, e o argumento era razoável:
+// endereço em campos separados só se paga quando alguém CALCULA com ele.
 //
-// Um formulário de seis campos para escrever "Av. Paulista, 1000 — sala 4"
-// cobra seis decisões e erra em qualquer endereço fora do padrão dos Correios
-// (e este produto atende quatro idiomas). Uma caixa de texto aceita todos.
+// *"peça o endereço completo e não um text area de endereço, peça o cep
+// primeiro e preencha o resto"* — e ele está certo, porque alguém CALCULA com
+// ele agora: o ponto no mapa. Geocodificar "Av. Paulista 1000 sala 4 SP" é
+// adivinhação; geocodificar as partes é consulta.
 //
-// Quem quiser abrir o mapa tem o `mapa`, que é um link — e link é o que o
-// aplicativo de mapas entende, muito melhor do que a gente montaria.
+// E a conta do trabalho virou: com o CEP preenchendo rua, bairro, cidade e UF,
+// são DOIS campos digitados — o CEP e o número — contra uma linha inteira
+// escrita à mão.
+//
+// ── `endereco` NÃO sumiu: ele virou o DERIVADO ─────────────────────────
+//
+// A lista, o cartão e um dia a vitrine mostram uma linha só. Ela é montada na
+// gravação, a partir das partes (`lib/cep.js`), e não guardada pela tela: duas
+// fontes para o mesmo endereço divergem na primeira edição, e a errada é
+// sempre a que aparece.
+//
+// ── O CEP NÃO É OBRIGATÓRIO, e o formato não é exigido ─────────────────
+//
+// "CEP" é brasileiro. Quem cadastra uma unidade em Lisboa preenche tudo à mão
+// e nada barra o caminho — o CEP é um atalho, nunca uma cerca.
 const CAMPOS = {
   name: (v) => String(v || "").trim().slice(0, 80),
   // A frase curta: "Ao lado do metrô", "Entrada pela lateral".
   tagline: (v) => String(v || "").trim().slice(0, 120),
-  endereco: (v) => String(v || "").trim().slice(0, 300),
+  cep: (v) => String(v || "").trim().slice(0, 20),
+  logradouro: (v) => String(v || "").trim().slice(0, 160),
+  numero: (v) => String(v || "").trim().slice(0, 20),
+  complemento: (v) => String(v || "").trim().slice(0, 80),
+  bairro: (v) => String(v || "").trim().slice(0, 80),
+  cidade: (v) => String(v || "").trim().slice(0, 80),
+  uf: (v) => String(v || "").trim().slice(0, 40),
+  // ── O PONTO NO MAPA ────────────────────────────────────────────────────
+  //
+  // Guardado como dois números, e não como um link: link é para ABRIR, e
+  // coordenada é para CALCULAR. Com a coordenada dá para montar o link de
+  // qualquer mapa, medir distância e um dia listar "as unidades perto de
+  // você"; do link não se tira coordenada nenhuma.
+  //
+  // Fora da faixa vira NADA. Uma latitude de 200 não é um ponto — é um erro de
+  // digitação que poria o alfinete no meio do oceano.
+  lat: (v) => grau(v, 90),
+  lng: (v) => grau(v, 180),
   mapa: (v) => link(v),
   phone: (v) => String(v || "").trim().slice(0, 30),
   whatsapp: (v) => String(v || "").trim().slice(0, 30),
@@ -68,6 +99,15 @@ const CAMPOS = {
     return ObjectId.isValid(id) ? new ObjectId(id) : null;
   },
 };
+
+// Um grau de latitude ou longitude, ou nada. `null` e não `0`: zero é um ponto
+// de verdade (no golfo da Guiné), e usá-lo como "sem ponto" poria o alfinete
+// lá para toda unidade que nunca escolheu um.
+function grau(v, teto) {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) && Math.abs(n) <= teto ? n : null;
+}
 
 // O link do mapa. `http`/`https` só: `javascript:` num `href` é execução, e
 // este endereço pode acabar num cartão que o cliente embute no site dele.
@@ -114,6 +154,10 @@ Unit_model.prototype.insert = async function (obj) {
   for (const [campo, limpar] of Object.entries(CAMPOS)) doc[campo] = limpar(obj[campo]);
   if (!doc.name) return null;
 
+  // A linha única é DERIVADA das partes, e nunca vem da tela: duas fontes para
+  // o mesmo endereço divergem na primeira edição.
+  doc.endereco = cep.umaLinha(doc);
+
   await iconeGuardado.aplicar(doc, null, ICONE);
 
   const r = await col.insertOne(doc);
@@ -134,11 +178,13 @@ Unit_model.prototype.update = async function (id, obj) {
     if (obj[campo] !== undefined) mudanca[campo] = limpar(obj[campo]);
   }
 
-  const antes = await col.findOne(
-    { _id: new ObjectId(id) },
-    { projection: { icone: 1, iconeSvg: 1 } }
-  );
+  const antes = await col.findOne({ _id: new ObjectId(id) });
   await iconeGuardado.aplicar(mudanca, antes, ICONE);
+
+  // A linha única se refaz a cada gravação, sobre o documento COMPLETO: uma
+  // edição que mexe só no número precisa da rua que já estava lá, e montá-la
+  // só com o que veio na chamada apagaria o resto do endereço.
+  mudanca.endereco = cep.umaLinha({ ...antes, ...mudanca });
 
   const r = await col.updateOne({ _id: new ObjectId(id) }, { $set: mudanca });
 

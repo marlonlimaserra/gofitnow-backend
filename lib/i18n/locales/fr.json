@@ -227,7 +227,9 @@
     "membershipBenefitNotFound": "Avantage introuvable.",
     "membershipBenefitInUse": "Cet avantage est coché sur {{count}} formule(s). Désactivez-le au lieu de le supprimer.",
     "unitNotFound": "Unité introuvable.",
-    "unitInUse": "Cette unité compte {{count}} personne(s). Désactivez-la au lieu de la supprimer."
+    "unitInUse": "Cette unité compte {{count}} personne(s). Désactivez-la au lieu de la supprimer.",
+    "cepNotFound": "Code postal introuvable.",
+    "addressNotFound": "Adresse introuvable sur la carte."
   },
   "ok": {
     "passwordChanged": "Mot de passe modifié.",

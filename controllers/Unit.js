@@ -21,6 +21,8 @@
 // um dia a unidade aparece na vitrine, e uma foto que exige login não aparece
 // dentro do site de ninguém.
 const instanceContext = require("../lib/instance.js");
+const cep = require("../lib/cep.js");
+const geocodificar = require("../lib/geocodificar.js");
 const arquivos = require("../lib/arquivos.js");
 const dominio = require("../lib/domain.js");
 
@@ -34,6 +36,47 @@ module.exports = function (app) {
     id ? `${baseUrl()}/public/unit-image/${instancia}/${id}` : null;
 
   const paraTela = (req) => (u) => ({ ...u, photoUrl: urlDaFoto(req.instance, u.photo) });
+
+  // ── O CEP PREENCHE O RESTO ──────────────────────────────────────────────
+  //
+  // *"peça o cep primeiro e preencha o resto"*.
+  //
+  // `people.view` e não `users.manage`: é uma consulta de endereço, não uma
+  // escrita — e um dia a ficha da pessoa pede o mesmo. Mas com sessão: sem
+  // ela, esta rota seria um proxy aberto para o ViaCEP com o nosso IP.
+  //
+  // 404 quando não acha, e nunca um erro: CEP inexistente é resposta, não
+  // falha. A tela abre os campos e a pessoa preenche à mão.
+  app.get("/cep/:cep", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "people.view");
+    if (user === false) return;
+
+    const achado = await cep.buscar(req.params.cep);
+    if (!achado) return res.status(404).send({ msg: req.t("errors.cepNotFound") });
+
+    res.send(achado);
+  });
+
+  // ── O ENDEREÇO VIRA UM PONTO ────────────────────────────────────────────
+  //
+  // *"tem como abrir o google maps, ou algum mapa, para a pessoa colocar o
+  // ponto certinho?"*.
+  //
+  // O ponto é um ATALHO: quem não gostar do resultado arrasta o alfinete. Por
+  // isso "não achei" é 404 e não erro — o mapa fica onde está.
+  //
+  // Passa pelo servidor por causa da política do Nominatim: um por segundo,
+  // com o nosso nome na chamada e cache. Nada disso dá para garantir em mil
+  // navegadores. Ver `lib/geocodificar.js`.
+  app.get("/geocode", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "people.view");
+    if (user === false) return;
+
+    const ponto = await geocodificar.porEndereco((req.query || {}).q);
+    if (!ponto) return res.status(404).send({ msg: req.t("errors.addressNotFound") });
+
+    res.send(ponto);
+  });
 
   app.get("/units", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "people.view");
