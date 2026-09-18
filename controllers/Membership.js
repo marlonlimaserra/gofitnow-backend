@@ -256,14 +256,32 @@ module.exports = function (app) {
     if (instancia === false) return;
 
     const dados = await instanceContext.run(instancia, async () => {
-      const [planos, beneficios, moedas] = await Promise.all([
+      const [planos, beneficios, moedas, unidades] = await Promise.all([
         app.api.membership.listActive(),
         app.api.membershipBenefit.listActive(),
         app.api.tenant.currencyOfInstance(),
+        app.api.unit.listActive(),
       ]);
 
-      return { planos, beneficios, moeda: moedas.currency };
+      return { planos, beneficios, moeda: moedas.currency, unidades };
     });
+
+    // ── A VITRINE POR UNIDADE ────────────────────────────────────────────
+    //
+    // *"na vitrine pública teria que ter um jeito de eu escolher a unidade,
+    // pois cada unidade pode ter planos e preços diferentes"*.
+    //
+    // Plano sem unidade nenhuma vale em TODAS — é a mesma leitura de
+    // `users.units`, e é o que mantém no ar todo plano cadastrado antes desta
+    // mudança.
+    const escolhida = String(req.query.unidade || "").trim();
+    const daUnidade = (p) => {
+      const dele = (p.units || []).map(String);
+      if (!dele.length) return true;
+      return escolhida ? dele.includes(escolhida) : true;
+    };
+
+    const planosVisiveis = dados.planos.filter(daUnidade);
 
     // ── SÓ OS CAMPOS DO CARTÃO ────────────────────────────────────────────
     //
@@ -281,6 +299,7 @@ module.exports = function (app) {
     }));
 
     const validos = new Set(beneficiosVisiveis.map((b) => b.id));
+
 
     // ── A VITRINE NÃO PODE FICAR VELHA ────────────────────────────────────
     //
@@ -302,7 +321,24 @@ module.exports = function (app) {
       moeda: dados.moeda,
       beneficios: beneficiosVisiveis,
       cadencias: recorrencia.paraTela(req.t),
-      planos: dados.planos.map((p) => ({
+      // ── AS UNIDADES QUE A VITRINE OFERECE ──────────────────────────────
+      //
+      // Só as que TÊM plano: uma opção que leva a uma página vazia é pior que
+      // opção nenhuma, e quem abre a vitrine é um cliente em potencial, não
+      // alguém disposto a investigar.
+      //
+      // Só id e nome. Telefone, e-mail e endereço da unidade são dados de
+      // contato da casa, e esta rota responde sem sessão para qualquer um —
+      // ela devolve o que o CARTÃO desenha, e nada além.
+      unidades: dados.unidades
+        .filter((u) =>
+          dados.planos.some((p) => {
+            const dele = (p.units || []).map(String);
+            return !dele.length || dele.includes(String(u._id));
+          })
+        )
+        .map((u) => ({ id: String(u._id), name: u.name })),
+      planos: planosVisiveis.map((p) => ({
         id: String(p._id),
         name: p.name,
         tagline: p.tagline || "",

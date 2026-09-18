@@ -70,6 +70,25 @@ const centavos = (v) => Math.max(0, Math.round(Number(v) || 0));
 // Nasceu `categorias` porque foi assim que ele descreveu a aba na primeira vez.
 const MAX_BENEFICIOS = 60;
 
+// As unidades em que o plano é vendido. Mesmo saneamento da lista de
+// benefícios, e pela mesma razão: id inválido some, repetido entra uma vez.
+function unidades(v) {
+  if (!Array.isArray(v)) return [];
+
+  const vistas = new Set();
+  const saida = [];
+
+  for (const x of v) {
+    const id = String(x || "");
+    if (!ObjectId.isValid(id) || vistas.has(id)) continue;
+    vistas.add(id);
+    saida.push(new ObjectId(id));
+    if (saida.length >= 50) break;
+  }
+
+  return saida;
+}
+
 function beneficios(v) {
   if (!Array.isArray(v)) return [];
 
@@ -150,6 +169,27 @@ const CAMPOS = {
   // e "12 meses" escrito à mão não decide nada.
   fidelidadeMeses: (v) => Math.min(Math.max(Math.round(Number(v) || 0), 0), 120),
   beneficios,
+  // ── EM QUAIS UNIDADES ESTE PLANO É VENDIDO ──────────────────────────────
+  //
+  // *"também posso escolher em qual unidade o plano vai estar disponível, pois
+  // cada unidade pode ter planos e preços diferentes"*.
+  //
+  // LISTA, e não um id: o mesmo "Mensal" costuma valer em duas ou três
+  // unidades, e obrigar a clonar o plano para cada uma criaria três cadastros
+  // que precisam ser editados juntos — e um dia não serão.
+  //
+  // VAZIO QUER DIZER TODAS, como em `users.units`. É a leitura que não estraga
+  // nada: todo plano que existe hoje tem a lista vazia, e nenhum pode sumir da
+  // vitrine amanhã porque alguém cadastrou uma unidade.
+  //
+  // ── E O PREÇO POR UNIDADE? ─────────────────────────────────────────────
+  //
+  // Ele não é um campo daqui. "Preços diferentes" se faz com PLANOS
+  // diferentes: "Mensal Paraty" a 100 e "Mensal Centro" a 150, cada um na sua
+  // unidade. Um `precoPorUnidade` dentro do plano faria a recorrência ter de
+  // saber de qual unidade a pessoa é para copiar o valor certo — e a
+  // recorrência copia o valor no dia em que nasce, de propósito.
+  units: unidades,
   // O "Mais vantajoso" da vitrine. Mais de um destaque não destaca nada, e quem
   // garante isso é a gravação — ver `insert` e `update`.
   destaque: (v) => v === true,
@@ -437,6 +477,9 @@ Membership_model.prototype.duplicate = async function (id) {
     cadencia: origem.cadencia,
     fidelidadeMeses: origem.fidelidadeMeses || 0,
     beneficios: [...(origem.beneficios || [])],
+    // As UNIDADES vêm junto: clonar existe para não remontar o plano, e
+    // "onde ele é vendido" é parte do que se montou.
+    units: [...(origem.units || [])],
     // A capa entra logo abaixo, com bytes PRÓPRIOS — ver `copiarCapa`.
     cover: null,
     destaque: false,

@@ -56,6 +56,13 @@ function monta({ planos = PLANOS, beneficios = BENEFICIOS } = {}) {
           return beneficios;
         },
       },
+      // A vitrine passou a oferecer a escolha da unidade, então ela pergunta
+      // por elas também — ver os casos no fim do arquivo.
+      unit: {
+        async listActive() {
+          return [];
+        },
+      },
       tenant: {
         async currencyOfInstance() {
           return { currency: "BRL" };
@@ -137,4 +144,100 @@ test("host desconhecido é 404 seco, sem mensagem traduzida", async () => {
 
   const r = await call(app, "get", "/public/memberships", { query: { host: "ninguem.com" } });
   assert.equal(r.status, 404);
+});
+
+// ── A VITRINE POR UNIDADE ───────────────────────────────────────────────
+//
+// *"também posso escolher em qual unidade o plano vai estar disponível... na
+// vitrine pública teria que ter um jeito de eu escolher a unidade, pois cada
+// unidade pode ter planos e preços diferentes"*.
+//
+// A regra que atravessa tudo: **plano sem unidade vale em TODAS**. É o que
+// mantém no ar cada plano cadastrado antes desta mudança — nenhum deles pode
+// sumir da vitrine porque alguém cadastrou uma unidade.
+const UNIDADES = [
+  { _id: "un1", name: "Centro", active: true },
+  { _id: "un2", name: "Paraty", active: true },
+];
+
+function comUnidades({ planos, unidades = UNIDADES } = {}) {
+  const app = fakeApp({
+    api: {
+      center: { async byHost() { return { instance: "marlon", active: true }; } },
+      membership: { async listActive() { return planos; } },
+      membershipBenefit: { async listActive() { return BENEFICIOS; } },
+      unit: { async listActive() { return unidades; } },
+      tenant: { async currencyOfInstance() { return { currency: "BRL" }; } },
+    },
+    helpers: { ReqProtected: { async can() { return { _id: "u1" }; } } },
+  });
+
+  MembershipController(app);
+  return app;
+}
+
+const PLANO_CENTRO = { ...PLANOS[0], _id: "m1", name: "Centro 100", units: ["un1"] };
+const PLANO_PARATY = { ...PLANOS[0], _id: "m2", name: "Paraty 70", units: ["un2"] };
+const PLANO_TODAS = { ...PLANOS[0], _id: "m3", name: "Vale em todas", units: [] };
+
+const pedirUnidade = (app, unidade) =>
+  call(app, "get", "/public/memberships", { query: { host: "x.vafit.app", unidade } });
+
+test("sem escolher unidade, a vitrine mostra tudo", async () => {
+  const app = comUnidades({ planos: [PLANO_CENTRO, PLANO_PARATY, PLANO_TODAS] });
+  const r = await pedirUnidade(app);
+
+  assert.equal(r.body.planos.length, 3);
+});
+
+test("escolhendo Paraty, só os planos de Paraty", async () => {
+  const app = comUnidades({ planos: [PLANO_CENTRO, PLANO_PARATY, PLANO_TODAS] });
+  const r = await pedirUnidade(app, "un2");
+
+  assert.deepEqual(
+    r.body.planos.map((p) => p.name).sort(),
+    ["Paraty 70", "Vale em todas"]
+  );
+});
+
+test("plano SEM unidade vale em todas — é o que mantém o cadastro antigo no ar", async () => {
+  // Nenhum plano de hoje tem a lista preenchida. Se "sem unidade" quisesse
+  // dizer "nenhuma", a vitrine de todo mundo esvaziaria no dia em que alguém
+  // cadastrasse a primeira unidade.
+  const app = comUnidades({ planos: [PLANO_TODAS] });
+
+  assert.equal((await pedirUnidade(app, "un1")).body.planos.length, 1);
+  assert.equal((await pedirUnidade(app, "un2")).body.planos.length, 1);
+});
+
+test("a vitrine devolve as unidades para o seletor", async () => {
+  const app = comUnidades({ planos: [PLANO_CENTRO, PLANO_PARATY] });
+  const r = await pedirUnidade(app);
+
+  assert.deepEqual(r.body.unidades, [
+    { id: "un1", name: "Centro" },
+    { id: "un2", name: "Paraty" },
+  ]);
+});
+
+test("unidade SEM plano nenhum não entra no seletor", async () => {
+  // Uma opção que leva a uma página vazia é pior que opção nenhuma — e quem
+  // abre a vitrine é um cliente em potencial, não alguém disposto a
+  // investigar.
+  const app = comUnidades({ planos: [PLANO_CENTRO] });
+  const r = await pedirUnidade(app);
+
+  assert.deepEqual(r.body.unidades, [{ id: "un1", name: "Centro" }]);
+});
+
+test("do seletor saem só id e nome — nada de telefone nem endereço", async () => {
+  // Esta rota responde sem sessão para qualquer um. Ela devolve o que o CARTÃO
+  // desenha, e nada além.
+  const app = comUnidades({
+    planos: [PLANO_TODAS],
+    unidades: [{ ...UNIDADES[0], phone: "(21) 99999-0000", endereco: "Rua X", email: "a@b.c" }],
+  });
+  const r = await pedirUnidade(app);
+
+  assert.deepEqual(Object.keys(r.body.unidades[0]).sort(), ["id", "name"]);
 });
