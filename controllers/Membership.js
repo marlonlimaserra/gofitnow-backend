@@ -310,6 +310,12 @@ module.exports = function (app) {
         // e uma porta pintada na parede é pior que parede.
         botaoTexto: p.botaoLink ? p.botaoTexto || "" : "",
         botaoLink: p.botaoLink || "",
+        // O DESENHO vem do nosso banco, conferido contra a lista fechada de
+        // tags de `lib/iconify.js`. A vitrine nunca fala com a Iconify: ela
+        // abre dentro do site do cliente, e um ícone que depende de um
+        // terceiro responder é um buraco no cartão de venda dele.
+        botaoIconeSvg: p.botaoLink ? p.botaoIconeSvg || "" : "",
+        botaoIconeCaixa: p.botaoIconeCaixa || "",
         // Benefício DESATIVADO some do cartão junto com a linha da tabela:
         // deixá-lo aqui faria o cartão prometer algo que a comparação nem lista.
         beneficios: (p.beneficios || []).map(String).filter((id) => validos.has(id)),

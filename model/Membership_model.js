@@ -1,5 +1,6 @@
 const { ObjectId } = require("mongodb");
 const recorrencia = require("../lib/recorrencia.js");
+const iconeGuardado = require("../lib/iconeGuardado.js");
 
 // OS PLANOS QUE A CASA VENDE — "Black", "Fit", "Smart".
 //
@@ -189,7 +190,18 @@ const CAMPOS = {
   // aparece sempre — é lá que se escolhem as cores dele.
   botaoTexto: (v) => String(v || "").trim().slice(0, 40),
   botaoLink: link,
+
+  // ── O ÍCONE DO BOTÃO ────────────────────────────────────────────────────
+  //
+  // *"permita escolher ícone para esse botão"*. Só o NOME entra por aqui: o
+  // desenho quem busca é o servidor, logo abaixo. SVG vindo do navegador é
+  // markup que ninguém conferiu indo para uma página pública.
+  botaoIcone: iconeGuardado.nome,
 };
+
+// Os nomes dos campos do ícone DO BOTÃO. A regra é a mesma da linha da tabela
+// de benefícios — ver `lib/iconeGuardado.js`; só os nomes mudam.
+const ICONE_DO_BOTAO = { nome: "botaoIcone", svg: "botaoIconeSvg", caixa: "botaoIconeCaixa" };
 
 // A lista da TELA. Rascunho fica de fora: ele é um plano que alguém começou e
 // não terminou, e uma linha vazia no meio do cardápio é confusão sem nenhum
@@ -238,6 +250,7 @@ Membership_model.prototype.insert = async function (obj, currency) {
   };
 
   for (const [campo, limpar] of Object.entries(CAMPOS)) doc[campo] = limpar(obj[campo]);
+  await iconeGuardado.aplicar(doc, null, ICONE_DO_BOTAO);
 
   const r = await col.insertOne(doc);
   if (doc.destaque) await this.apenasUmDestaque(r.insertedId);
@@ -273,6 +286,14 @@ Membership_model.prototype.update = async function (id, obj) {
   for (const [campo, limpar] of Object.entries(CAMPOS)) {
     if (obj[campo] !== undefined) mudanca[campo] = limpar(obj[campo]);
   }
+
+  // O desenho do ícone do botão segue o nome escolhido. `anterior` evita
+  // buscar de novo na edição que não mexeu no ícone — que é quase toda.
+  const antes = await col.findOne(
+    { _id: new ObjectId(id) },
+    { projection: { botaoIcone: 1, botaoIconeSvg: 1 } }
+  );
+  await iconeGuardado.aplicar(mudanca, antes, ICONE_DO_BOTAO);
 
   // Gravar TIRA o carimbo: a partir daqui ele é um plano como outro qualquer, e
   // a faxina de rascunhos abandonados não pode mais alcançá-lo.

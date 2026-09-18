@@ -1,5 +1,5 @@
 const { ObjectId } = require("mongodb");
-const iconify = require("../lib/iconify.js");
+const iconeGuardado = require("../lib/iconeGuardado.js");
 
 // OS BENEFÍCIOS DE UM PLANO — as linhas da tabela de comparação.
 //
@@ -62,7 +62,7 @@ const CAMPOS = {
   // `iconeSvg` e `iconeCaixa` NÃO entram por aqui: eles vêm da rota, que os
   // buscou. Aceitá-los do corpo do pedido seria aceitar markup arbitrário de
   // quem controla o navegador — e ele vai inline para uma página pública.
-  icone: (v) => (iconify.NOME.test(String(v || "").trim().toLowerCase()) ? String(v).trim().toLowerCase() : ""),
+  icone: iconeGuardado.nome,
   active: (v) => v !== false,
 };
 
@@ -82,39 +82,11 @@ MembershipBenefit_model.prototype.data = async function (id) {
   return (await col.findOne({ _id: new ObjectId(id) })) || undefined;
 };
 
-// ── O DESENHO SEGUE O NOME ───────────────────────────────────────────────
-//
-// Escolheu um ícone novo? busca e guarda. Tirou o ícone? apaga o desenho junto —
-// senão o cartão continuaria mostrando o de antes, e a pessoa acharia que o
-// "sem ícone" não funcionou.
-//
-// Se a busca falhar (rede lenta, Iconify fora), o benefício é gravado SEM ícone
-// em vez de não ser gravado: o nome do benefício é o conteúdo, e o ícone é
-// enfeite.
+// O DESENHO SEGUE O NOME — a regra mora em `lib/iconeGuardado.js`, porque o
+// botão de comprar de um plano faz exatamente a mesma coisa com outros nomes
+// de campo. Continua sendo um método para os chamadores não mudarem.
 MembershipBenefit_model.prototype.comDesenho = async function (mudanca, anterior) {
-  if (mudanca.icone === undefined) return mudanca;
-
-  if (!mudanca.icone) {
-    mudanca.iconeSvg = "";
-    mudanca.iconeCaixa = "";
-    return mudanca;
-  }
-
-  // Mesmo ícone de antes: nada a buscar. É o caso de toda edição que mexe só no
-  // nome do benefício, e ele é o mais comum.
-  if (anterior && anterior.icone === mudanca.icone && anterior.iconeSvg) return mudanca;
-
-  const achado = await iconify.buscar(mudanca.icone);
-  if (!achado) {
-    mudanca.icone = "";
-    mudanca.iconeSvg = "";
-    mudanca.iconeCaixa = "";
-    return mudanca;
-  }
-
-  mudanca.iconeSvg = achado.body;
-  mudanca.iconeCaixa = achado.caixa;
-  return mudanca;
+  return iconeGuardado.aplicar(mudanca, anterior);
 };
 
 MembershipBenefit_model.prototype.insert = async function (obj) {
