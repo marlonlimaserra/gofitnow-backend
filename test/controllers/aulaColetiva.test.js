@@ -13,7 +13,7 @@ const AULA = {
   _id: "a1",
   name: "Spinning",
   dias: [1, 3, 5],
-  horaMinutos: 7 * 60,
+  horarios: [{ inicio: 7 * 60, fim: 7 * 60 + 50 }],
   checkinAbre: 30,
   checkinFecha: 15,
   active: true,

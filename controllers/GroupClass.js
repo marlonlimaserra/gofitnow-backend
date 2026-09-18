@@ -66,8 +66,9 @@ module.exports = function (app) {
       rows: comEstado.map(({ aula, estado }) => ({
         ...aula,
         aberta: estado.aberta,
-        abreEm: estado.abreEm,
-        fechaEm: estado.fechaEm,
+        // CADA horário com a sua janela: a aula das 07:00 e das 18:00 é a
+        // mesma aula, mas às 07:10 só a primeira está aberta.
+        horarios: estado.horarios,
         presentes: contagem[String(aula._id)] || 0,
       })),
     });

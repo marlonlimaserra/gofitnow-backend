@@ -17,14 +17,32 @@ const tempo = require("../lib/tempo.js");
 // A aula coletiva é uma GRADE: "Spinning, seg/qua/sex às 07:00". Ela não
 // acaba, não tem data, e a lista dela zera à meia-noite.
 //
-// ── E POR ISSO A HORA AQUI É TEXTO, e não um instante ──────────────────
+// ── E POR ISSO A HORA AQUI É RELÓGIO DE PAREDE, e não um instante ──────
 //
-// `"07:00"` mais os dias da semana, no fuso da conta. Um instante seria a
-// modelagem errada: 07:00 de segunda é 07:00 também no domingo de horário de
-// verão, e guardar um instante faria a aula andar uma hora sozinha duas vezes
-// por ano — a academia não muda a grade porque o relógio mudou.
+// Minutos desde a meia-noite, no fuso da conta. Um instante seria a modelagem
+// errada: 07:00 de segunda é 07:00 também no domingo de horário de verão, e
+// guardar um instante faria a aula andar uma hora sozinha duas vezes por ano —
+// a academia não muda a grade porque o relógio mudou.
 //
 // É a mesma escolha da agenda semanal (`lib/slots.js`).
+//
+// ── VÁRIOS HORÁRIOS, com INÍCIO e FIM ──────────────────────────────────
+//
+// *"permita escolher os horários manualmente início e fim, aí posso ir
+// adicionando vários"*.
+//
+// A primeira versão tinha um horário e uma DURAÇÃO. Duas coisas erradas nela,
+// e ele apontou as duas numa frase:
+//
+//   1. UMA aula acontece várias vezes por dia. Spinning às 07:00 e às 18:00 é
+//      a mesma aula, e obrigar a cadastrar duas daria dois nomes, duas
+//      descrições e duas salas para manter iguais.
+//   2. DURAÇÃO é uma conta que a pessoa faz de cabeça para saber a que horas
+//      acaba. Quem monta grade pensa "das 7 às 7h50", não "50 minutos".
+//
+// Os DIAS continuam da aula, e não de cada horário: "Spinning, seg/qua/sex,
+// 07:00 e 18:00" é uma linha de grade. Quem tiver horário diferente por dia
+// cadastra outra aula — que é como a grade se lê na parede também.
 //
 // ── "RESETAR TODO O DIA" É NÃO GUARDAR NADA AQUI ───────────────────────
 //
@@ -69,6 +87,49 @@ function inteiro(v, padrao, { min, max }) {
   return Math.min(Math.max(n, min), max);
 }
 
+// ── OS HORÁRIOS: uma lista de { inicio, fim } em minutos ────────────────
+//
+// Ordenados pelo início, porque uma grade fora de ordem de relógio não é uma
+// grade. Duplicados saem: dois "07:00 às 07:50" na mesma aula seriam duas
+// linhas idênticas que ninguém consegue distinguir para apagar.
+//
+// O que não tem início e fim válidos não entra — e um fim ANTES do início
+// também não: ele viraria uma janela negativa, e a aula nunca estaria aberta.
+const MAX_HORARIOS = 24;
+
+function horarios(v) {
+  if (!Array.isArray(v)) return [];
+
+  const vistos = new Set();
+  const saida = [];
+
+  for (const x of v) {
+    const inicio = minutosDe(x?.inicio);
+    const fim = minutosDe(x?.fim);
+    if (inicio === null || fim === null || fim <= inicio) continue;
+
+    const chave = `${inicio}-${fim}`;
+    if (vistos.has(chave)) continue;
+
+    vistos.add(chave);
+    saida.push({ inicio, fim });
+    if (saida.length >= MAX_HORARIOS) break;
+  }
+
+  return saida.sort((a, b) => a.inicio - b.inicio);
+}
+
+// Aceita "07:30" e 450: a tela manda relógio, e uma chamada de API pode mandar
+// minutos. Converter nos dois sentidos num lugar só é o que impede a terceira
+// tela de converter errado.
+function minutosDe(v) {
+  if (typeof v === "number") {
+    const n = Math.round(v);
+    return Number.isFinite(n) && n >= 0 && n < MINUTOS_NO_DIA ? n : null;
+  }
+  return minutosDaHora(v);
+}
+
 // Os dias da semana, 0 (domingo) a 6. Sem dia não há grade — e uma aula sem
 // dia nenhum nunca aconteceria, então ela é recusada na gravação.
 function dias(v) {
@@ -110,17 +171,7 @@ const CAMPOS = {
   sala: (v) => String(v || "").trim().slice(0, 80),
   dias,
   units: unidades,
-
-  // ── QUANDO ───────────────────────────────────────────────────────────────
-  //
-  // Minutos desde a meia-noite, no fuso da conta. Guardado como NÚMERO e não
-  // como "07:00": a comparação com "agora" é aritmética, e fazer essa conta a
-  // partir de texto em três lugares diferentes é errar em um deles.
-  horaMinutos: (v) => {
-    const m = typeof v === "number" ? v : minutosDaHora(v);
-    return m === null || m === undefined ? null : inteiro(m, 0, { min: 0, max: MINUTOS_NO_DIA - 1 });
-  },
-  minutes: (v) => inteiro(v, 60, { min: 5, max: MINUTOS_NO_DIA }),
+  horarios,
 
   // ── AS VAGAS ─────────────────────────────────────────────────────────────
   //
@@ -148,12 +199,12 @@ const CAMPOS = {
 
 GroupClass_model.prototype.list = async function () {
   const col = await this.collection();
-  return col.find({}).sort({ horaMinutos: 1, order: 1 }).toArray();
+  return col.find({}).sort({ order: 1, createdAt: 1 }).toArray();
 };
 
 GroupClass_model.prototype.listActive = async function () {
   const col = await this.collection();
-  return col.find({ active: true }).sort({ horaMinutos: 1, order: 1 }).toArray();
+  return col.find({ active: true }).sort({ order: 1, createdAt: 1 }).toArray();
 };
 
 GroupClass_model.prototype.data = async function (id) {
@@ -162,28 +213,14 @@ GroupClass_model.prototype.data = async function (id) {
   return (await col.findOne({ _id: new ObjectId(id) })) || undefined;
 };
 
-// ── A TELA MANDA "07:30"; O BANCO GUARDA 450 ────────────────────────────
-//
-// A tela tem um campo de hora, e é isso que ela manda. O banco guarda minutos
-// porque a comparação com "agora" é aritmética.
-//
-// A tradução acontece AQUI, num lugar só. Deixá-la na tela faria cada tela que
-// um dia criar uma aula — o painel, o app, a API — ter de saber converter, e a
-// terceira converteria errado.
-function entradaDe(obj) {
-  return { ...obj, horaMinutos: obj.horaMinutos ?? obj.hora };
-}
-
 GroupClass_model.prototype.insert = async function (obj) {
   const col = await this.collection();
-  const entrada = entradaDe(obj);
-
   const doc = { order: await col.countDocuments({}), createdAt: new Date(), updatedAt: new Date() };
-  for (const [campo, limpar] of Object.entries(CAMPOS)) doc[campo] = limpar(entrada[campo]);
+  for (const [campo, limpar] of Object.entries(CAMPOS)) doc[campo] = limpar(obj[campo]);
 
-  // Sem nome, sem hora ou sem dia não existe aula: ela nunca aconteceria, e
+  // Sem nome, sem horário ou sem dia não existe aula: ela nunca aconteceria, e
   // uma linha assim na grade é só confusão.
-  if (!doc.name || doc.horaMinutos === null || !doc.dias.length) return null;
+  if (!doc.name || !doc.horarios.length || !doc.dias.length) return null;
 
   const r = await col.insertOne(doc);
   return r.insertedId;
@@ -195,16 +232,14 @@ GroupClass_model.prototype.update = async function (id, obj) {
   if (!ObjectId.isValid(id)) return false;
   const col = await this.collection();
 
-  const entrada = entradaDe(obj);
-
   const mudanca = { updatedAt: new Date() };
   for (const [campo, limpar] of Object.entries(CAMPOS)) {
-    if (entrada[campo] !== undefined) mudanca[campo] = limpar(entrada[campo]);
+    if (obj[campo] !== undefined) mudanca[campo] = limpar(obj[campo]);
   }
 
-  // Uma edição não pode deixar a aula sem hora nem sem dia — seria apagá-la
+  // Uma edição não pode deixar a aula sem horário nem sem dia — seria apagá-la
   // pela metade, e ela continuaria na lista sem nunca acontecer.
-  if (mudanca.horaMinutos === null) return false;
+  if (mudanca.horarios && !mudanca.horarios.length) return false;
   if (mudanca.dias && !mudanca.dias.length) return false;
 
   const r = await col.updateOne({ _id: new ObjectId(id) }, { $set: mudanca });
@@ -243,21 +278,35 @@ GroupClass_model.prototype.reorder = async function (ids) {
 GroupClass_model.prototype.estadoAgora = function (aula, agora, fuso) {
   const parede = tempo.paredeDe(agora || new Date(), fuso);
   const hoje = aula.dias?.includes(parede.diaDaSemana);
-  if (!hoje) return { hoje: false, aberta: false, data: parede.data };
+  if (!hoje) return { hoje: false, aberta: false, data: parede.data, horarios: [] };
 
   const minutosAgora = parede.hora * 60 + parede.minuto;
-  const abre = aula.horaMinutos - (aula.checkinAbre ?? 0);
-  const fecha = aula.horaMinutos + (aula.checkinFecha ?? 0);
+
+  // CADA horário tem a sua janela. A aula das 07:00 e das 18:00 é a mesma
+  // aula, mas às 07:10 só a primeira está aberta — e é ela que a tela precisa
+  // nomear, senão "Spinning, aberta" às 18h confirmaria presença na aula da
+  // manhã.
+  const janelas = (aula.horarios || []).map((h) => {
+    const abre = h.inicio - (aula.checkinAbre ?? 0);
+    const fecha = h.inicio + (aula.checkinFecha ?? 0);
+
+    return {
+      inicio: horaDeMinutos(h.inicio),
+      fim: horaDeMinutos(h.fim),
+      // A JANELA não atravessa a meia-noite de propósito: uma aula às 00:30
+      // com 60 minutos de antecedência abriria "ontem às 23:30", e o dia da
+      // lista passaria a ser outro.
+      aberta: minutosAgora >= abre && minutosAgora <= fecha,
+      abreEm: horaDeMinutos(Math.max(abre, 0)),
+      fechaEm: horaDeMinutos(Math.min(fecha, MINUTOS_NO_DIA - 1)),
+    };
+  });
 
   return {
     hoje: true,
-    // A JANELA não atravessa a meia-noite de propósito: uma aula às 00:30 com
-    // 60 minutos de antecedência abriria "ontem às 23:30", e o dia da lista
-    // passaria a ser outro. Quem marca aula à meia-noite escolhe uma janela que
-    // caiba no dia.
-    aberta: minutosAgora >= abre && minutosAgora <= fecha,
-    abreEm: horaDeMinutos(Math.max(abre, 0)),
-    fechaEm: horaDeMinutos(Math.min(fecha, MINUTOS_NO_DIA - 1)),
+    // A aula está aberta se ALGUM horário dela está.
+    aberta: janelas.some((j) => j.aberta),
+    horarios: janelas,
     data: parede.data,
   };
 };

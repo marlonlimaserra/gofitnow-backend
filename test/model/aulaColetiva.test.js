@@ -41,40 +41,98 @@ function monta() {
 
 const SP = "America/Sao_Paulo";
 
-test("a hora vira MINUTOS, e não um instante", async () => {
-  // Um instante seria a modelagem errada: 07:00 de segunda é 07:00 também no
-  // domingo de horário de verão, e guardar instante faria a aula andar uma
-  // hora sozinha duas vezes por ano.
+const UM = [{ inicio: "07:30", fim: "08:20" }];
+
+test("o horário vira MINUTOS, e guarda início e FIM", async () => {
+  // *"permita escolher os horários manualmente início e fim"*. Duração era uma
+  // conta que a pessoa fazia de cabeça: quem monta grade pensa "das 7 às
+  // 7h50", não "50 minutos".
   const { model, gravados } = monta();
 
-  await model.insert({ name: "Spinning", hora: "07:30", dias: [1, 3, 5] });
+  await model.insert({ name: "Spinning", horarios: UM, dias: [1, 3, 5] });
 
-  assert.equal(gravados[0].horaMinutos, 450);
+  assert.deepEqual(gravados[0].horarios, [{ inicio: 450, fim: 500 }]);
 });
 
-test("sem nome, sem hora ou sem dia NÃO existe aula", async () => {
+test("VÁRIOS horários na mesma aula, ordenados pelo relógio", async () => {
+  // *"aí posso ir adicionando vários"*. Spinning às 07:00 e às 18:00 é a MESMA
+  // aula — cadastrar duas daria dois nomes e duas descrições para manter
+  // iguais. E uma grade fora de ordem de relógio não é uma grade.
+  const { model, gravados } = monta();
+
+  await model.insert({
+    name: "Spinning",
+    dias: [1],
+    horarios: [
+      { inicio: "18:00", fim: "18:50" },
+      { inicio: "07:00", fim: "07:50" },
+    ],
+  });
+
+  assert.deepEqual(gravados[0].horarios, [
+    { inicio: 420, fim: 470 },
+    { inicio: 1080, fim: 1130 },
+  ]);
+});
+
+test("horário repetido entra uma vez só", async () => {
+  // Duas linhas idênticas na mesma aula são duas que ninguém consegue
+  // distinguir para apagar.
+  const { model, gravados } = monta();
+
+  await model.insert({
+    name: "X",
+    dias: [1],
+    horarios: [
+      { inicio: "07:00", fim: "07:50" },
+      { inicio: "07:00", fim: "07:50" },
+    ],
+  });
+
+  assert.equal(gravados[0].horarios.length, 1);
+});
+
+test("fim ANTES do início é descartado, e não vira janela negativa", async () => {
+  const { model } = monta();
+
+  assert.equal(
+    await model.insert({ name: "X", dias: [1], horarios: [{ inicio: "08:00", fim: "07:00" }] }),
+    null
+  );
+  assert.equal(
+    await model.insert({ name: "X", dias: [1], horarios: [{ inicio: "08:00", fim: "08:00" }] }),
+    null
+  );
+});
+
+test("sem nome, sem horário ou sem dia NÃO existe aula", async () => {
   // Ela nunca aconteceria, e uma linha assim na grade é só confusão.
   const { model, gravados } = monta();
 
-  assert.equal(await model.insert({ hora: "07:00", dias: [1] }), null);
+  assert.equal(await model.insert({ horarios: UM, dias: [1] }), null);
   assert.equal(await model.insert({ name: "X", dias: [1] }), null);
-  assert.equal(await model.insert({ name: "X", hora: "07:00", dias: [] }), null);
+  assert.equal(await model.insert({ name: "X", horarios: UM, dias: [] }), null);
   assert.equal(gravados.length, 0);
 });
 
-test("hora inválida é recusada, e não vira meia-noite", async () => {
+test("hora inválida é descartada, e não vira meia-noite", async () => {
   // `"25:00"` virando 0 marcaria a aula para a madrugada sem ninguém pedir.
   const { model } = monta();
 
   for (const ruim of ["25:00", "07:70", "sete", "", "7h"]) {
-    assert.equal(await model.insert({ name: "X", hora: ruim, dias: [1] }), null, String(ruim));
+    const r = await model.insert({
+      name: "X",
+      dias: [1],
+      horarios: [{ inicio: ruim, fim: "09:00" }],
+    });
+    assert.equal(r, null, String(ruim));
   }
 });
 
 test("os dias saem ordenados e sem repetição", async () => {
   const { model, gravados } = monta();
 
-  await model.insert({ name: "X", hora: "07:00", dias: [5, 1, 1, 9, "3", -2] });
+  await model.insert({ name: "X", horarios: UM, dias: [5, 1, 1, 9, "3", -2] });
 
   assert.deepEqual(gravados[0].dias, [1, 3, 5]);
 });
@@ -84,8 +142,8 @@ test("a janela de check-in é RELATIVA ao início, e tem padrão", async () => {
   // 08:00; "abre às 06:30" viraria uma janela errada calada.
   const { model, gravados } = monta();
 
-  await model.insert({ name: "X", hora: "07:00", dias: [1] });
-  await model.insert({ name: "Y", hora: "07:00", dias: [1], checkinAbre: 60, checkinFecha: 5 });
+  await model.insert({ name: "X", horarios: UM, dias: [1] });
+  await model.insert({ name: "Y", horarios: UM, dias: [1], checkinAbre: 60, checkinFecha: 5 });
 
   assert.equal(gravados[0].checkinAbre, 30);
   assert.equal(gravados[0].checkinFecha, 15);
@@ -97,7 +155,7 @@ test("editar não pode deixar a aula sem hora nem sem dia", async () => {
   // Seria apagá-la pela metade: ela continuaria na lista sem nunca acontecer.
   const { model } = monta();
 
-  assert.equal(await model.update("6a80de570056d24c09f5da61", { hora: "xx" }), false);
+  assert.equal(await model.update("6a80de570056d24c09f5da61", { horarios: [] }), false);
   assert.equal(await model.update("6a80de570056d24c09f5da61", { dias: [] }), false);
   assert.equal(await model.update("6a80de570056d24c09f5da61", { name: "Novo nome" }), true);
 });
@@ -110,7 +168,15 @@ function describe_estado() {
   // Calculada no fuso de quem atende, e não no do servidor. Sem isso, uma
   // academia em Manaus veria a janela abrir uma hora adiantada — e o defeito
   // apareceria só para ela, que é o pior tipo.
-  const AULA = { dias: [1], horaMinutos: 7 * 60, checkinAbre: 30, checkinFecha: 15 };
+  const AULA = {
+    dias: [1],
+    horarios: [
+      { inicio: 7 * 60, fim: 7 * 60 + 50 },
+      { inicio: 18 * 60, fim: 18 * 60 + 50 },
+    ],
+    checkinAbre: 30,
+    checkinFecha: 15,
+  };
 
   // Segunda-feira, 22/09/2026. As horas abaixo são de São Paulo (UTC-3).
   const emSP = (hhmm) => new Date(`2026-09-21T${hhmm}:00-03:00`);
@@ -170,7 +236,34 @@ function describe_estado() {
     const { model } = monta();
     const r = model.estadoAgora(AULA, emSP("06:00"), SP);
 
-    assert.equal(r.abreEm, "06:30");
-    assert.equal(r.fechaEm, "07:15");
+    assert.equal(r.horarios[0].abreEm, "06:30");
+    assert.equal(r.horarios[0].fechaEm, "07:15");
+  });
+
+  test("CADA horário tem a sua janela — só o da vez abre", () => {
+    // Às 07:10 a aula está aberta, mas é a das 07:00. Sem dizer QUAL, a tela
+    // confirmaria presença na aula da manhã às seis da tarde.
+    const { model } = monta();
+    const r = model.estadoAgora(AULA, emSP("07:10"), SP);
+
+    assert.equal(r.aberta, true);
+    assert.equal(r.horarios[0].aberta, true);
+    assert.equal(r.horarios[1].aberta, false);
+  });
+
+  test("entre os dois, a aula está fechada", () => {
+    const { model } = monta();
+    const r = model.estadoAgora(AULA, emSP("12:00"), SP);
+
+    assert.equal(r.aberta, false);
+    assert.ok(r.horarios.every((h) => !h.aberta));
+  });
+
+  test("e o horário mostra o FIM, que é o que se confere na grade", () => {
+    const { model } = monta();
+    const r = model.estadoAgora(AULA, emSP("06:00"), SP);
+
+    assert.equal(r.horarios[0].inicio, "07:00");
+    assert.equal(r.horarios[0].fim, "07:50");
   });
 }
