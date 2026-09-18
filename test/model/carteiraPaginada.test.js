@@ -183,15 +183,23 @@ test("a junção com pagamentos só soma o que ENTROU, e NÃO por `status: paid`
 });
 
 test("o documento da PESSOA é recortado antes de sair da junção", async () => {
-  // Ela tem senha, sal e ficha inteira. Três campos é o que a tela e a planilha
-  // usam — trazer o resto seria mandar a senha de todo mundo para o navegador.
+  // Ela tem senha, sal e ficha inteira. Quatro campos é o que a tela e a
+  // planilha usam — trazer o resto seria mandar a senha de todo mundo para o
+  // navegador.
+  //
+  // `avatarAt` é um CARIMBO DE DATA, não a foto: diz se existe uma e de quando
+  // é. A foto em si nunca passa por aqui — ela tem rota própria, com sessão.
+  //
+  // Esta lista é para ser CHATA de mudar. Quem acrescentar um campo aqui está
+  // decidindo mandá-lo ao navegador de quem abre o financeiro, e o teste
+  // quebrando é o momento de perguntar se é isso mesmo.
   const { model, chamadas } = fakeModel();
   await model.carteira({});
 
   const juncao = chamadas[0].pipeline.find((e) => e.$lookup?.from === "users");
   const projecao = juncao.$lookup.pipeline.find((e) => e.$project).$project;
 
-  assert.deepEqual(Object.keys(projecao).sort(), ["email", "name", "phone"]);
+  assert.deepEqual(Object.keys(projecao).sort(), ["avatarAt", "email", "name", "phone"]);
   assert.ok(!("password" in projecao));
 });
 

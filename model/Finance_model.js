@@ -464,8 +464,13 @@ Finance_model.prototype.carteira = async function ({
           },
         },
         // O documento da pessoa NÃO sai daqui inteiro: ela tem senha, sal e
-        // ficha. Três campos, e é o que a tela e a planilha usam.
-        { $project: { name: 1, email: 1, phone: 1 } },
+        // ficha. Quatro campos, e é o que a tela e a planilha usam.
+        //
+        // `avatarAt` não é a FOTO — é o carimbo de quando ela mudou. A foto em
+        // si vem por uma rota própria, com sessão, porque `<img src>` não manda
+        // cabeçalho e voltaria 401. O que a lista precisa é só saber SE existe
+        // uma, e qual versão, para não mostrar a antiga depois da troca.
+        { $project: { name: 1, email: 1, phone: 1, avatarAt: 1 } },
       ],
       as: "pessoa",
     },
@@ -477,6 +482,7 @@ Finance_model.prototype.carteira = async function ({
       studentName: { $ifNull: [{ $arrayElemAt: ["$pessoa.name", 0] }, ""] },
       studentEmail: { $ifNull: [{ $arrayElemAt: ["$pessoa.email", 0] }, ""] },
       studentPhone: { $ifNull: [{ $arrayElemAt: ["$pessoa.phone", 0] }, ""] },
+      studentAvatarAt: { $ifNull: [{ $arrayElemAt: ["$pessoa.avatarAt", 0] }, null] },
     },
   };
 
@@ -606,6 +612,7 @@ Finance_model.prototype.carteira = async function ({
       studentName: 1,
       studentEmail: 1,
       studentPhone: 1,
+      studentAvatarAt: 1,
     },
   };
 
