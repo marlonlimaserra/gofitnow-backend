@@ -61,7 +61,8 @@ const POR_INSTANCIA = [
   // um plano com o outro. `membership` porque "plan" neste servidor é o plano do
   // PRODUTO — ver appModels.js.
   "memberships",
-  "membership_categories",
+  "membership_benefits",
+  "membership_images",
   "conversations",
   "messages",
   "message_files",
@@ -534,10 +535,49 @@ async function ensureUmBanco(db) {
   // memberships e membership_categories — listas curtas, sempre lidas inteiras e
   // sempre na ORDEM escolhida (a da vitrine, e a das linhas da tabela).
   await db.collection("memberships").createIndex({ instance: 1, order: 1 }, { name: "by_order" });
-  await db.collection("membership_categories").createIndex({ instance: 1, order: 1 }, { name: "by_order" });
-  // E pela categoria: é como se descobre quantos planos marcaram uma linha antes
+  await db.collection("membership_benefits").createIndex({ instance: 1, order: 1 }, { name: "by_order" });
+  // E pelo benefício: é como se descobre quantos planos marcaram uma linha antes
   // de deixar alguém apagá-la.
-  await db.collection("memberships").createIndex({ instance: 1, categorias: 1 }, { name: "by_categoria" });
+  await db.collection("memberships").createIndex({ instance: 1, beneficios: 1 }, { name: "by_beneficio" });
+  // A capa é sempre buscada pelo plano dono — é assim que a faxina acha o que
+  // ninguém referencia mais.
+  await db.collection("membership_images").createIndex({ instance: 1, membership: 1 }, { name: "by_membership" });
+
+  // ── DE "CATEGORIA" PARA "BENEFÍCIO" ────────────────────────────────────
+  //
+  // A palavra nasceu errada e durou uma hora: *"troque o nome categorias para
+  // beneficios"* — e é a certa, porque é a que a própria tabela usa ("Compare os
+  // benefícios de cada plano").
+  //
+  // A troca foi até o fim, collection inclusive, e não só no rótulo: nome na
+  // tela diferente do nome no código é o que diverge na primeira mudança
+  // seguinte.
+  //
+  // COPIAR E APAGAR, e não `renameCollection`: aquele exige privilégio de
+  // administrador do banco, que este usuário não tem no Atlas — e falharia no
+  // boot, derrubando o servidor por causa de uma renomeação.
+  //
+  // Idempotente pelos dois lados: sem a collection velha, não faz nada; com a
+  // nova já povoada, também não.
+  const velhas = await db.listCollections({ name: "membership_categories" }).toArray();
+  if (velhas.length) {
+    const daVelha = await db.collection("membership_categories").find({}).toArray();
+    const jaTem = await db.collection("membership_benefits").countDocuments({});
+
+    if (daVelha.length && !jaTem) {
+      await db.collection("membership_benefits").insertMany(daVelha);
+      console.log(`[schema] benefícios migrados de membership_categories: ${daVelha.length}`);
+    }
+
+    await db.collection("membership_categories").drop().catch(() => {});
+  }
+
+  // E o campo no plano. `$rename` não toca em quem já não o tem.
+  await db
+    .collection("memberships")
+    .updateMany({ categorias: { $exists: true } }, { $rename: { categorias: "beneficios" } });
+
+  await dropIndexIfPresent(db, "memberships", "by_categoria");
   // A recorrência guarda o plano que a originou — é por aqui que se recusa
   // apagar um plano que alguém já assinou.
   await db.collection("recurrences").createIndex({ instance: 1, membership: 1 }, { name: "by_membership" });

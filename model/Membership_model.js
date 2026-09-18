@@ -17,7 +17,7 @@ const recorrencia = require("../lib/recorrencia.js");
 // Na TELA os dois se chamam "Planos", porque é o que cada público entende.
 //
 //   { name, description, amount, currency, cadencia, fidelidadeMeses,
-//     categorias: [id], destaque, active, order }
+//     beneficios: [id], destaque, active, order }
 //
 // Pedido do Marlon em 17/09/2026, com a página da Smart Fit ao lado: *"como
 // pretendo oferecer para academias, ai eu crio a recorrencia com um plano"*.
@@ -60,11 +60,15 @@ const centavos = (v) => Math.max(0, Math.round(Number(v) || 0));
 // planos precisam falar da mesma linha — e "Acesso a aulas coletivas" num,
 // "Aulas coletivas" no outro viram duas linhas que ninguém alinha.
 //
-// Agora eles apontam para o catálogo (`membership_categories`), e "não" é ausência:
-// o que não está na lista sai com o "×" cinza. Ver o modelo das categorias.
-const MAX_CATEGORIAS = 60;
+// Agora eles apontam para o CATÁLOGO (`membership_benefits`), e "não" é
+// ausência: o que não está na lista sai com o "×" cinza.
+//
+// O nome voltou a ser `beneficios` em 17/09/2026, por pedido dele — e é o certo:
+// é a palavra que a própria tabela usa ("Compare os benefícios de cada plano").
+// Nasceu `categorias` porque foi assim que ele descreveu a aba na primeira vez.
+const MAX_BENEFICIOS = 60;
 
-function categorias(v) {
+function beneficios(v) {
   if (!Array.isArray(v)) return [];
 
   const vistos = new Set();
@@ -75,7 +79,7 @@ function categorias(v) {
     if (!ObjectId.isValid(id) || vistos.has(id)) continue;
     vistos.add(id);
     saida.push(new ObjectId(id));
-    if (saida.length >= MAX_CATEGORIAS) break;
+    if (saida.length >= MAX_BENEFICIOS) break;
   }
 
   return saida;
@@ -92,21 +96,40 @@ const CAMPOS = {
   // ele vai decidir alguma coisa — quanto falta para poder cancelar sem multa —
   // e "12 meses" escrito à mão não decide nada.
   fidelidadeMeses: (v) => Math.min(Math.max(Math.round(Number(v) || 0), 0), 120),
-  categorias,
+  beneficios,
   // O "Mais vantajoso" da vitrine. Mais de um destaque não destaca nada, e quem
   // garante isso é a gravação — ver `insert` e `update`.
   destaque: (v) => v === true,
   active: (v) => v !== false,
+  // ── A CAPA: só o ID, nunca a URL ────────────────────────────────────────
+  //
+  // A tela manda o endereço que recebeu do upload; aqui fica só o id. Guardar a
+  // URL inteira prenderia o plano ao endereço do backend do dia em que a foto
+  // subiu — e este sistema já mudou de endereço uma vez.
+  //
+  // `""` é uma EDIÇÃO: tirar a capa é uma escolha, e precisa ser gravável.
+  cover: (v) => {
+    const id = String(v || "").split("/").pop();
+    return ObjectId.isValid(id) ? new ObjectId(id) : null;
+  },
 };
 
+// A lista da TELA. Rascunho fica de fora: ele é um plano que alguém começou e
+// não terminou, e uma linha vazia no meio do cardápio é confusão sem nenhum
+// ganho. Quem o abandonou não vai procurá-lo.
 Membership_model.prototype.list = async function () {
   const col = await this.collection();
-  return col.find({}).sort({ order: 1, createdAt: 1 }).toArray();
+  return col.find({ rascunho: { $ne: true } }).sort({ order: 1, createdAt: 1 }).toArray();
 };
 
+// A lista da VITRINE. `active: true` já exclui o rascunho, que nasce falso — o
+// filtro extra está aqui para dizer, e não porque precisa.
 Membership_model.prototype.listActive = async function () {
   const col = await this.collection();
-  return col.find({ active: true }).sort({ order: 1, createdAt: 1 }).toArray();
+  return col
+    .find({ active: true, rascunho: { $ne: true } })
+    .sort({ order: 1, createdAt: 1 })
+    .toArray();
 };
 
 Membership_model.prototype.data = async function (id) {
@@ -141,8 +164,25 @@ Membership_model.prototype.insert = async function (obj, currency) {
 
   const r = await col.insertOne(doc);
   if (doc.destaque) await this.apenasUmDestaque(r.insertedId);
+  await this.recolherCapas(r.insertedId, doc.cover);
 
   return r.insertedId;
+};
+
+// As capas que o plano NÃO usa mais.
+//
+// Roda em toda gravação e não só quando a capa muda: quem trocou a foto três
+// vezes antes de salvar enviou três, e duas ficariam penduradas no bucket para
+// sempre. O dono da verdade é o plano salvo.
+//
+// Nunca estoura: é faxina, e faxina que falha não pode impedir alguém de salvar
+// um plano. A próxima gravação tenta de novo.
+Membership_model.prototype.recolherCapas = async function (id, cover) {
+  try {
+    await this.app.api.membershipImage.pruneUnused(id, cover ? [String(cover)] : []);
+  } catch (erro) {
+    console.error("[planos] faxina de capa:", erro?.message || erro);
+  }
 };
 
 // Mescla, como `updateCharge` passou a fazer depois de reescrever o documento
@@ -157,10 +197,121 @@ Membership_model.prototype.update = async function (id, obj) {
     if (obj[campo] !== undefined) mudanca[campo] = limpar(obj[campo]);
   }
 
+  // Gravar TIRA o carimbo: a partir daqui ele é um plano como outro qualquer, e
+  // a faxina de rascunhos abandonados não pode mais alcançá-lo.
+  mudanca.rascunho = false;
+
   const r = await col.updateOne({ _id: new ObjectId(id) }, { $set: mudanca });
   if (mudanca.destaque) await this.apenasUmDestaque(id);
 
+  // A faxina olha o que ficou GRAVADO, e não o que veio na chamada: uma edição
+  // que não menciona a capa mantém a de antes, e apagá-la aqui seria o mesmo
+  // erro destrutivo do `updateCharge`.
+  const depois = await col.findOne({ _id: new ObjectId(id) }, { projection: { cover: 1 } });
+  await this.recolherCapas(id, depois?.cover);
+
   return r.matchedCount > 0;
+};
+
+// ── O RASCUNHO ───────────────────────────────────────────────────────────
+//
+// Nasce vazio e FORA DE VENDA, no clique de "Novo plano" — antes de a pessoa
+// digitar qualquer coisa.
+//
+// Pedido dele, e ele está certo sobre o porquê: *"quando clicar em criar você já
+// pode criar um rascunho, assim já deixa enviar a foto. A mesma coisa no aulão,
+// precisar criar pra depois editar e mandar a foto é ruim"*.
+//
+// A foto pertence a UM plano — a rota é `/memberships/:id/cover` — e um plano
+// que não existe não tem id. Sem o rascunho, as saídas eram esconder o campo de
+// capa até salvar (e capa é a PRIMEIRA coisa que se escolhe, não a última) ou
+// aceitar imagem solta, que criaria bytes sem dono que a faxina nunca alcança.
+//
+// O preço é o rascunho abandonado: quem abre e fecha deixa um plano vazio. Dois
+// cuidados cobrem isso — ele nasce `active: false`, então nunca chega à vitrine;
+// e a tela APAGA o que abriu e não salvou.
+Membership_model.prototype.rascunho = async function (currency) {
+  const col = await this.collection();
+
+  const r = await col.insertOne({
+    name: "",
+    description: "",
+    amount: 0,
+    currency: currency || null,
+    cadencia: recorrencia.PADRAO,
+    fidelidadeMeses: 0,
+    beneficios: [],
+    cover: null,
+    destaque: false,
+    active: false,
+    // `rascunho` é o que separa "nunca foi salvo" de "salvo e fora de venda".
+    // Sem ele não haveria como apagar o abandonado sem apagar o desativado de
+    // propósito — e os dois parecem iguais no banco.
+    rascunho: true,
+    order: await col.countDocuments({}),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  return r.insertedId;
+};
+
+// ── CLONAR ───────────────────────────────────────────────────────────────
+//
+// *"bote um botão para clonar"*, e o pedido cai no lugar certo: os planos de uma
+// academia são quase o mesmo plano. O "Fit" é o "Black" sem duas linhas, o
+// "Smart" é o "Fit" sem mais uma. Montar o terceiro do zero é remarcar oito
+// benefícios para mudar um.
+//
+// A cópia nasce FORA DE VENDA e SEM DESTAQUE, e as duas coisas são de propósito:
+//
+//   fora de venda   ela é um rascunho — "Black (cópia)" na vitrine, com o mesmo
+//                   preço do Black, é o tipo de coisa que alguém publica sem
+//                   querer e descobre pelo cliente.
+//   sem destaque    destaque é único por conta; clonar o destacado tiraria o
+//                   selo do original sem ninguém pedir.
+//
+// ── A LISTA É COPIADA, mas NÃO com `structuredClone` ────────────────────
+//
+// Copiar é necessário: sem isso as duas apontariam para o mesmo array, e marcar
+// um benefício na cópia marcaria no original.
+//
+// Mas `structuredClone` DESTRÓI ObjectId — ele vira um objeto comum, sem a
+// classe, e a lista da cópia deixa de casar com benefício nenhum. Foi o que o
+// teste pegou: `[object Object]` no lugar do id. O treino usa `structuredClone`
+// e está certo lá, porque o que ele copia são séries, que são dados puros.
+//
+// Aqui basta copiar o ARRAY: ObjectId é valor imutável, e o risco de aliasing
+// era do array, não dos ids dentro dele.
+Membership_model.prototype.duplicate = async function (id) {
+  const origem = await this.data(id);
+  if (!origem) return undefined;
+
+  const col = await this.collection();
+
+  const r = await col.insertOne({
+    name: `${origem.name} (cópia)`,
+    description: origem.description || "",
+    amount: origem.amount || 0,
+    currency: origem.currency || null,
+    cadencia: origem.cadencia,
+    fidelidadeMeses: origem.fidelidadeMeses || 0,
+    beneficios: [...(origem.beneficios || [])],
+    // A CAPA NÃO É COPIADA, e é a única coisa que fica de fora.
+    //
+    // Duas linhas apontando para a MESMA imagem fariam a faxina de uma apagar a
+    // foto da outra: o dono da verdade é cada plano, e o da cópia não referencia
+    // nada até alguém enviar. Clonar os bytes seria a alternativa, e ninguém
+    // quer três cópias do mesmo JPEG no bucket para ver a mesma foto.
+    cover: null,
+    destaque: false,
+    active: false,
+    order: await col.countDocuments({}),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  return r.insertedId;
 };
 
 // ── APAGAR UM PLANO EM USO É RECUSADO ────────────────────────────────────
@@ -184,6 +335,10 @@ Membership_model.prototype.remove = async function (id) {
   if (recorrencias > 0) return { erro: "inUse", quantas: recorrencias };
 
   await col.deleteOne({ _id: new ObjectId(id) });
+  // Sem isto os bytes ficariam no bucket apontando para um plano que não existe:
+  // nenhuma tela os alcançaria e nada os apagaria depois.
+  await this.app.api.membershipImage.removeAllOf(id).catch(() => {});
+
   return { ok: true };
 };
 
@@ -207,4 +362,4 @@ Membership_model.prototype.reorder = async function (ids) {
 };
 
 module.exports = Membership_model;
-module.exports.MAX_CATEGORIAS = MAX_CATEGORIAS;
+module.exports.MAX_BENEFICIOS = MAX_BENEFICIOS;

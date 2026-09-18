@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { ObjectId } = require("mongodb");
 
 const Membership_model = require("../../model/Membership_model.js");
-const MembershipCategory_model = require("../../model/MembershipCategory_model.js");
+const MembershipBenefit_model = require("../../model/MembershipBenefit_model.js");
 
 // OS PLANOS QUE A ACADEMIA VENDE, e as linhas que os comparam.
 //
@@ -28,7 +28,7 @@ function colecaoFalsa(docs = []) {
     countDocuments: async (f) => {
       if (!f || !Object.keys(f).length) return docs.length;
       escritas.push({ contar: f });
-      return docs.filter((d) => String(d.categorias?.[0] || d.membership || "") === String(Object.values(f)[0])).length;
+      return docs.filter((d) => String(d.beneficios?.[0] || d.membership || "") === String(Object.values(f)[0])).length;
     },
     insertOne: async (doc) => {
       escritas.push({ inserir: doc });
@@ -49,14 +49,32 @@ function colecaoFalsa(docs = []) {
 function montarPlano({ planos = [], recorrencias = [] } = {}) {
   const col = colecaoFalsa(planos);
   const recs = colecaoFalsa(recorrencias);
+  const faxina = [];
 
-  const model = new Membership_model({ api: { recurrence: { collection: async () => recs } } });
+  const model = new Membership_model({
+    api: {
+      recurrence: { collection: async () => recs },
+      // A FAXINA DE CAPAS roda em toda gravação. O dobro registra o que ela
+      // mandaria manter — é o que permite afirmar que uma edição que não
+      // menciona a capa não apaga a que já existe.
+      membershipImage: {
+        async pruneUnused(id, emUso) {
+          faxina.push({ id: String(id), emUso });
+          return 0;
+        },
+        async removeAllOf(id) {
+          faxina.push({ apagouTudo: String(id) });
+          return 0;
+        },
+      },
+    },
+  });
   model.collection = async () => col;
 
-  return { model, col, recs };
+  return { model, col, recs, faxina };
 }
 
-test("o plano guarda IDS de categoria, sem repetir e sem lixo", async () => {
+test("o plano guarda IDS de benefício, sem repetir e sem lixo", async () => {
   // A lista chega do formulário e pode vir com o mesmo id duas vezes (dois
   // cliques) ou com texto que não é id nenhum. Guardar os dois faria a tabela
   // desenhar a mesma linha duas vezes.
@@ -65,12 +83,12 @@ test("o plano guarda IDS de categoria, sem repetir e sem lixo", async () => {
   await model.insert({
     name: "Black",
     amount: 15990,
-    categorias: [String(A), String(A), "não é id", String(B), null],
+    beneficios: [String(A), String(A), "não é id", String(B), null],
   });
 
   const doc = col.escritas.find((e) => e.inserir).inserir;
-  assert.equal(doc.categorias.length, 2);
-  assert.deepEqual(doc.categorias.map(String), [String(A), String(B)]);
+  assert.equal(doc.beneficios.length, 2);
+  assert.deepEqual(doc.beneficios.map(String), [String(A), String(B)]);
 });
 
 test("só UM destaque por conta — o novo tira o dos outros", async () => {
@@ -94,8 +112,11 @@ test("editar MESCLA — o que a chamada não menciona, ela não toca", async () 
   await model.update(String(A), { active: false });
 
   const gravado = col.escritas.find((e) => e.atualizar).atualizar;
-  assert.deepEqual(Object.keys(gravado).sort(), ["active", "updatedAt"]);
+  // `rascunho: false` entra em toda gravação de propósito — é o que promove o
+  // rascunho a plano. O que NÃO pode entrar é campo que a chamada não mencionou.
+  assert.deepEqual(Object.keys(gravado).sort(), ["active", "rascunho", "updatedAt"]);
   assert.equal(gravado.amount, undefined, "o preço não pode ser zerado por tabela");
+  assert.equal(gravado.name, undefined, "nem o nome");
 });
 
 test("apagar um plano que alguém assinou é RECUSADO, com o número", async () => {
@@ -130,13 +151,13 @@ test("a fidelidade é número de MESES, contida em faixa sã", async () => {
   assert.equal(col.escritas.find((e) => e.inserir).inserir.fidelidadeMeses, 0, "sem fidelidade");
 });
 
-// ── AS CATEGORIAS: as linhas da tabela ────────────────────────────────────
+// ── OS BENEFÍCIOS: as linhas da tabela ────────────────────────────────────
 
-function montarCategoria({ categorias = [], planos = [] } = {}) {
-  const col = colecaoFalsa(categorias);
+function montarBeneficio({ beneficios = [], planos = [] } = {}) {
+  const col = colecaoFalsa(beneficios);
   const dosPlanos = colecaoFalsa(planos);
 
-  const model = new MembershipCategory_model({
+  const model = new MembershipBenefit_model({
     api: { membership: { collection: async () => dosPlanos } },
   });
   model.collection = async () => col;
@@ -144,19 +165,19 @@ function montarCategoria({ categorias = [], planos = [] } = {}) {
   return { model, col };
 }
 
-test("categoria sem nome não entra", async () => {
+test("benefício sem nome não entra", async () => {
   // Uma linha em branco na tabela de comparação é uma linha que ninguém
   // consegue responder sim nem não.
-  const { model } = montarCategoria();
+  const { model } = montarBeneficio();
   assert.equal(await model.insert({ name: "   " }), null);
 });
 
-test("apagar uma categoria marcada em algum plano é RECUSADO", async () => {
+test("apagar um benefício marcado em algum plano é RECUSADO", async () => {
   // Apagar mudaria calado o que três planos oferecem, e quem apagou não veria
   // nenhum deles.
-  const { model } = montarCategoria({
-    categorias: [{ _id: A, name: "Acesso a aulas coletivas" }],
-    planos: [{ _id: B, categorias: [A] }],
+  const { model } = montarBeneficio({
+    beneficios: [{ _id: A, name: "Acesso a aulas coletivas" }],
+    planos: [{ _id: B, beneficios: [A] }],
   });
 
   const r = await model.remove(String(A));
@@ -166,7 +187,7 @@ test("apagar uma categoria marcada em algum plano é RECUSADO", async () => {
 
 test("a ordem é gravada inteira, de uma vez", async () => {
   // "Meio reordenada" é um estado que ninguém sabe consertar olhando a tela.
-  const { model, col } = montarCategoria();
+  const { model, col } = montarBeneficio();
   await model.reorder([String(B), String(A)]);
 
   const ordens = col.escritas.filter((e) => e.atualizar).map((e) => e.atualizar.order);
@@ -174,8 +195,135 @@ test("a ordem é gravada inteira, de uma vez", async () => {
 });
 
 test("reordenar com lixo no meio não grava lixo", async () => {
-  const { model, col } = montarCategoria();
+  const { model, col } = montarBeneficio();
   await model.reorder([String(A), "não é id", String(B)]);
 
   assert.equal(col.escritas.filter((e) => e.atualizar).length, 2);
+});
+
+
+// ── CLONAR ────────────────────────────────────────────────────────────────
+
+test("clonar copia o plano e nasce FORA DE VENDA", async () => {
+  // *"bote um botão para clonar"*. Os planos de uma academia são quase o mesmo
+  // plano — o "Fit" é o "Black" sem duas linhas.
+  //
+  // Fora de venda porque a cópia é rascunho: "Black (cópia)" na vitrine, com o
+  // mesmo preço do Black, é o tipo de coisa que alguém publica sem querer e
+  // descobre pelo cliente.
+  const { model, col } = montarPlano({
+    planos: [
+      {
+        _id: A,
+        name: "Black",
+        amount: 15990,
+        cadencia: "monthly",
+        fidelidadeMeses: 12,
+        beneficios: [B],
+        destaque: true,
+        active: true,
+        cover: B,
+      },
+    ],
+  });
+
+  await model.duplicate(String(A));
+  const copia = col.escritas.find((e) => e.inserir).inserir;
+
+  assert.equal(copia.name, "Black (cópia)");
+  assert.equal(copia.amount, 15990);
+  assert.equal(copia.fidelidadeMeses, 12);
+  assert.deepEqual(copia.beneficios.map(String), [String(B)]);
+  assert.equal(copia.active, false, "nasce fora de venda");
+  // Destaque é único por conta: clonar o destacado tiraria o selo do original.
+  assert.equal(copia.destaque, false);
+});
+
+test("a cópia NÃO leva a capa", async () => {
+  // Duas linhas apontando para a MESMA imagem fariam a faxina de uma apagar a
+  // foto da outra — o dono da verdade é cada plano.
+  const { model, col } = montarPlano({
+    planos: [{ _id: A, name: "Black", beneficios: [], cover: B }],
+  });
+
+  await model.duplicate(String(A));
+  assert.equal(col.escritas.find((e) => e.inserir).inserir.cover, null);
+});
+
+test("clonar o que não existe devolve nada, e não um plano vazio", async () => {
+  const { model } = montarPlano();
+  assert.equal(await model.duplicate(String(A)), undefined);
+});
+
+// ── A CAPA ────────────────────────────────────────────────────────────────
+
+test("a capa guarda o ID, mesmo quando a tela manda a URL inteira", async () => {
+  // A tela manda de volta o endereço que recebeu do upload. Guardar a URL
+  // prenderia o plano ao endereço do backend do dia em que a foto subiu.
+  const { model, col } = montarPlano();
+
+  await model.insert({ name: "Black", cover: `https://backend.exemplo/public/membership-image/marlon/${A}` });
+  const doc = col.escritas.find((e) => e.inserir).inserir;
+
+  assert.equal(String(doc.cover), String(A));
+});
+
+test("uma edição que não menciona a capa não apaga a que existe", async () => {
+  // A faxina olha o que ficou GRAVADO, e não o que veio na chamada — é o mesmo
+  // erro destrutivo do `updateCharge`, um andar abaixo.
+  const { model, faxina } = montarPlano({ planos: [{ _id: A, name: "Black", cover: B }] });
+
+  await model.update(String(A), { amount: 19990 });
+
+  const ultima = faxina[faxina.length - 1];
+  assert.deepEqual(ultima.emUso, [String(B)], "a capa gravada continua em uso");
+});
+
+test("apagar o plano apaga a capa junto", async () => {
+  // Sem isto os bytes ficariam no bucket apontando para um plano que não
+  // existe: nenhuma tela os alcançaria e nada os apagaria.
+  const { model, faxina } = montarPlano({ planos: [{ _id: A, name: "Black" }] });
+
+  await model.remove(String(A));
+  assert.ok(faxina.some((f) => f.apagouTudo === String(A)));
+});
+
+// ── O RASCUNHO ────────────────────────────────────────────────────────────
+
+test("o rascunho nasce vazio e FORA DE VENDA", async () => {
+  // *"quando clicar em criar você já pode criar um rascunho, assim já deixa
+  // enviar a foto"*. A capa pertence a um plano, e um plano que não existe não
+  // tem id para ela.
+  const { model, col } = montarPlano();
+
+  await model.rascunho("BRL");
+  const doc = col.escritas.find((e) => e.inserir).inserir;
+
+  assert.equal(doc.name, "");
+  assert.equal(doc.active, false, "nunca chega à vitrine");
+  assert.equal(doc.rascunho, true);
+  assert.equal(doc.cover, null);
+});
+
+test("gravar TIRA o carimbo de rascunho", async () => {
+  // A partir daí ele é um plano como outro qualquer, e a faxina de abandonados
+  // não pode mais alcançá-lo.
+  const { model, col } = montarPlano({ planos: [{ _id: A, name: "", rascunho: true }] });
+
+  await model.update(String(A), { name: "Black" });
+  assert.equal(col.escritas.find((e) => e.atualizar).atualizar.rascunho, false);
+});
+
+test("a lista da tela não mostra rascunho", async () => {
+  // Uma linha vazia no meio do cardápio é confusão sem ganho nenhum: quem
+  // abandonou não vai procurá-la.
+  const { model, col } = montarPlano();
+  let filtro = null;
+  col.find = (f) => {
+    filtro = f;
+    return { sort: () => ({ toArray: async () => [] }) };
+  };
+
+  await model.list();
+  assert.deepEqual(filtro, { rascunho: { $ne: true } });
 });

@@ -1,12 +1,17 @@
 const { ObjectId } = require("mongodb");
 
-// AS CATEGORIAS DE PLANO — as linhas da tabela de comparação.
+// OS BENEFÍCIOS DE UM PLANO — as linhas da tabela de comparação.
 //
 //   { name, description, order, active }
 //
 // Pedido do Marlon em 17/09/2026, com a tabela "Compare os benefícios de cada
 // plano" da Smart Fit ao lado: *"dentro de planos crie uma aba categoria de
-// plano, pode colar essas coisas ai de sim ou nao"*.
+// plano, pode colar essas coisas ai de sim ou nao"* — e, logo depois, *"troque
+// o nome categorias para beneficios"*.
+//
+// A segunda palavra é a certa, e é a que a própria tabela usa. A troca foi até o
+// fim (collection, campo, rota) e não só no rótulo: nome na tela diferente do
+// nome no código é o que diverge na primeira mudança seguinte.
 //
 // "Check-in ilimitado na unidade", "Acesso a aulas coletivas", "Uso das cadeiras
 // de massagem" — cada uma é uma LINHA, e cada plano responde sim ou não.
@@ -28,13 +33,13 @@ const { ObjectId } = require("mongodb");
 // Guardar os dois — uma lista de sim e outra de não — criaria o terceiro estado
 // que ninguém pediu: a categoria que o plano não respondeu, que a tabela não
 // saberia desenhar.
-function MembershipCategory_model(app) {
+function MembershipBenefit_model(app) {
   this.app = app;
 }
 
-MembershipCategory_model.prototype.collection = async function () {
+MembershipBenefit_model.prototype.collection = async function () {
   const db = await this.app.mongodb.connectToServer();
-  return db.collection("membership_categories");
+  return db.collection("membership_benefits");
 };
 
 const CAMPOS = {
@@ -45,23 +50,23 @@ const CAMPOS = {
   active: (v) => v !== false,
 };
 
-MembershipCategory_model.prototype.list = async function () {
+MembershipBenefit_model.prototype.list = async function () {
   const col = await this.collection();
   return col.find({}).sort({ order: 1, createdAt: 1 }).toArray();
 };
 
-MembershipCategory_model.prototype.listActive = async function () {
+MembershipBenefit_model.prototype.listActive = async function () {
   const col = await this.collection();
   return col.find({ active: true }).sort({ order: 1, createdAt: 1 }).toArray();
 };
 
-MembershipCategory_model.prototype.data = async function (id) {
+MembershipBenefit_model.prototype.data = async function (id) {
   if (!ObjectId.isValid(id)) return undefined;
   const col = await this.collection();
   return (await col.findOne({ _id: new ObjectId(id) })) || undefined;
 };
 
-MembershipCategory_model.prototype.insert = async function (obj) {
+MembershipBenefit_model.prototype.insert = async function (obj) {
   const col = await this.collection();
 
   const doc = {
@@ -79,7 +84,7 @@ MembershipCategory_model.prototype.insert = async function (obj) {
   return r.insertedId;
 };
 
-MembershipCategory_model.prototype.update = async function (id, obj) {
+MembershipBenefit_model.prototype.update = async function (id, obj) {
   if (!ObjectId.isValid(id)) return false;
   const col = await this.collection();
 
@@ -100,7 +105,7 @@ MembershipCategory_model.prototype.update = async function (id, obj) {
 //
 // Quem quer tirar a linha da tabela sem mexer em plano nenhum DESATIVA: ela some
 // da comparação e do cartão, e volta inteira se for religada.
-MembershipCategory_model.prototype.remove = async function (id) {
+MembershipBenefit_model.prototype.remove = async function (id) {
   if (!ObjectId.isValid(id)) return { erro: "notFound" };
 
   const col = await this.collection();
@@ -108,7 +113,7 @@ MembershipCategory_model.prototype.remove = async function (id) {
   if (!alvo) return { erro: "notFound" };
 
   const planos = await (await this.app.api.membership.collection()).countDocuments({
-    categorias: new ObjectId(id),
+    beneficios: new ObjectId(id),
   });
   if (planos > 0) return { erro: "inUse", quantos: planos };
 
@@ -119,7 +124,7 @@ MembershipCategory_model.prototype.remove = async function (id) {
 // A ordem das LINHAS da tabela. Escolhida, e não alfabética: "Check-in
 // ilimitado" vem antes de "Cadeira de massagem" porque é o que mais importa, e
 // não porque começa com C.
-MembershipCategory_model.prototype.reorder = async function (ids) {
+MembershipBenefit_model.prototype.reorder = async function (ids) {
   if (!Array.isArray(ids)) return false;
   const col = await this.collection();
 
@@ -135,4 +140,4 @@ MembershipCategory_model.prototype.reorder = async function (ids) {
   return true;
 };
 
-module.exports = MembershipCategory_model;
+module.exports = MembershipBenefit_model;

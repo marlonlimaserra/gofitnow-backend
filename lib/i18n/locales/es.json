@@ -222,10 +222,10 @@
     "recurrenceNotFound": "Recurrencia no encontrada.",
     "requireAmount": "Informe el importe.",
     "membershipNotFound": "Plan no encontrado.",
-    "membershipCategoryNotFound": "Categoría no encontrada.",
     "membershipInUse": "Este plan está en {{count}} recurrencia(s). Desactívelo en vez de borrarlo.",
-    "membershipCategoryInUse": "Esta categoría está marcada en {{count}} plan(es). Desactívela en vez de borrarla.",
-    "planNotFound": "Ese plan no existe."
+    "planNotFound": "Ese plan no existe.",
+    "membershipBenefitNotFound": "Beneficio no encontrado.",
+    "membershipBenefitInUse": "Este beneficio está marcado en {{count}} plan(es). Desactívelo en vez de borrarlo."
   },
   "ok": {
     "passwordChanged": "Contraseña cambiada.",
@@ -263,8 +263,8 @@
     "statementEmailed": "Extracto enviado por correo electrónico.",
     "recurrenceRemoved": "Recurrencia eliminada. Los cobros ya generados permanecen.",
     "membershipRemoved": "Plan eliminado.",
-    "membershipCategoryRemoved": "Categoría eliminada.",
-    "membershipSaved": "Orden guardado."
+    "membershipSaved": "Orden guardado.",
+    "membershipBenefitRemoved": "Beneficio eliminado."
   },
   "permissions": {
     "groups": {

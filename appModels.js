@@ -44,14 +44,18 @@ models.finance = require("./model/Finance_model.js");
 // não existe.
 models.recurrence = require("./model/Recurrence_model.js");
 // O CARDÁPIO que a casa vende aos ALUNOS dela — "Black", "Fit", "Smart" — e as
-// linhas da tabela que compara um com o outro. Dois modelos porque são duas
-// coisas: o plano é o que se vende, a categoria é o que se compara.
+// linhas da tabela que compara um com o outro. Modelos separados porque são
+// coisas separadas: o plano é o que se vende, o benefício é o que se compara.
 //
 // `membership` e não `plan`: "plano" neste servidor já é o do PRODUTO, o que
 // nós vendemos para a academia (`controllers/Plan.js`, com a Stripe). Duas
 // camadas de assinatura, dois nomes.
 models.membership = require("./model/Membership_model.js");
-models.membershipCategory = require("./model/MembershipCategory_model.js");
+models.membershipBenefit = require("./model/MembershipBenefit_model.js");
+// A capa de cada plano. Collection própria pela mesma razão da do aulão: a
+// coleta de lixo da marca apagaria as fotos no primeiro salvamento de
+// aparência.
+models.membershipImage = require("./model/MembershipImage_model.js");
 // As formas de pagamento de cada conta. Eram uma lista fixa dentro do financeiro.
 models.paymentMethod = require("./model/PaymentMethod_model.js");
 models.availability = require("./model/Availability_model.js");

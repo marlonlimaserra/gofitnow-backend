@@ -222,10 +222,10 @@
     "recurrenceNotFound": "Récurrence introuvable.",
     "requireAmount": "Indiquez le montant.",
     "membershipNotFound": "Formule introuvable.",
-    "membershipCategoryNotFound": "Catégorie introuvable.",
     "membershipInUse": "Cette formule est utilisée par {{count}} récurrence(s). Désactivez-la au lieu de la supprimer.",
-    "membershipCategoryInUse": "Cette catégorie est cochée sur {{count}} formule(s). Désactivez-la au lieu de la supprimer.",
-    "planNotFound": "Ce forfait n'existe pas."
+    "planNotFound": "Ce forfait n'existe pas.",
+    "membershipBenefitNotFound": "Avantage introuvable.",
+    "membershipBenefitInUse": "Cet avantage est coché sur {{count}} formule(s). Désactivez-le au lieu de le supprimer."
   },
   "ok": {
     "passwordChanged": "Mot de passe modifié.",
@@ -263,8 +263,8 @@
     "statementEmailed": "Relevé envoyé par e-mail.",
     "recurrenceRemoved": "Récurrence supprimée. Les factures déjà générées restent.",
     "membershipRemoved": "Formule supprimée.",
-    "membershipCategoryRemoved": "Catégorie supprimée.",
-    "membershipSaved": "Ordre enregistré."
+    "membershipSaved": "Ordre enregistré.",
+    "membershipBenefitRemoved": "Avantage supprimé."
   },
   "permissions": {
     "groups": {

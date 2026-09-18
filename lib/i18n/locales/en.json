@@ -222,10 +222,10 @@
     "recurrenceNotFound": "Recurrence not found.",
     "requireAmount": "Enter the amount.",
     "membershipNotFound": "Plan not found.",
-    "membershipCategoryNotFound": "Category not found.",
     "membershipInUse": "This plan is used by {{count}} recurrence(s). Deactivate it instead of deleting.",
-    "membershipCategoryInUse": "This category is ticked on {{count}} plan(s). Deactivate it instead of deleting.",
-    "planNotFound": "That plan does not exist."
+    "planNotFound": "That plan does not exist.",
+    "membershipBenefitNotFound": "Benefit not found.",
+    "membershipBenefitInUse": "This benefit is ticked on {{count}} plan(s). Deactivate it instead of deleting."
   },
   "ok": {
     "passwordChanged": "Password changed.",
@@ -263,8 +263,8 @@
     "statementEmailed": "Statement sent by email.",
     "recurrenceRemoved": "Recurrence removed. Charges already generated remain.",
     "membershipRemoved": "Plan removed.",
-    "membershipCategoryRemoved": "Category removed.",
-    "membershipSaved": "Order saved."
+    "membershipSaved": "Order saved.",
+    "membershipBenefitRemoved": "Benefit removed."
   },
   "permissions": {
     "groups": {

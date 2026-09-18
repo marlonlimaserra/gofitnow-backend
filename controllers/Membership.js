@@ -22,8 +22,19 @@
 // academia não tenha escolhido pendurar na parede.
 const recorrencia = require("../lib/recorrencia.js");
 const instanceContext = require("../lib/instance.js");
+const arquivos = require("../lib/arquivos.js");
+const dominio = require("../lib/domain.js");
 
 module.exports = function (app) {
+  const baseUrl = dominio.apiBaseUrl;
+
+  // O ENDEREÇO da capa, montado aqui e não guardado no plano.
+  //
+  // O documento guarda só o ID da imagem. Guardar a URL inteira prenderia o
+  // plano ao endereço do backend do dia em que a capa foi enviada — e este
+  // sistema já mudou de endereço uma vez.
+  const urlDaCapa = (instancia, id) =>
+    id ? `${baseUrl()}/public/membership-image/${instancia}/${id}` : null;
   // ── Planos ──────────────────────────────────────────────────────────────
 
   app.get("/memberships", async function (req, res) {
@@ -38,10 +49,10 @@ module.exports = function (app) {
     const moedas = await app.api.tenant.currencyOfInstance();
 
     res.send({
-      rows,
-      // As CATEGORIAS vão junto: elas são o que cada plano marca, e a tela não
-      // consegue desenhar nem o cartão nem a tabela sem os nomes delas.
-      categorias: await app.api.membershipCategory.list(),
+      rows: rows.map((p) => ({ ...p, coverUrl: urlDaCapa(req.instance, p.cover) })),
+      // Os BENEFÍCIOS vão junto: eles são o que cada plano marca, e a tela não
+      // consegue desenhar nem o cartão nem a tabela sem os nomes deles.
+      beneficios: await app.api.membershipBenefit.list(),
       // E as CADÊNCIAS, já traduzidas — o mesmo catálogo que a recorrência usa,
       // porque é a mesma pergunta: de quanto em quanto tempo isto cobra.
       //
@@ -73,6 +84,21 @@ module.exports = function (app) {
     res.status(201).send(await app.api.membership.data(id));
   });
 
+  // O RASCUNHO, criado no clique de "Novo plano" — antes de a pessoa digitar
+  // qualquer coisa. É o que dá um id à capa desde o primeiro momento; ver o
+  // modelo.
+  //
+  // Antes do `:id` pela mesma razão do `order` logo abaixo.
+  app.post("/memberships/draft", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "finance.manage");
+    if (user === false) return;
+
+    const moeda = await app.api.tenant.currencyFor();
+    const id = await app.api.membership.rascunho(moeda);
+
+    res.status(201).send(await app.api.membership.data(id));
+  });
+
   // A ORDEM antes do `:id`: sem isso, "order" cairia na rota de baixo como se
   // fosse um id — e um id inválido vira 404 em vez de reordenar.
   app.put("/memberships/order", async function (req, res) {
@@ -100,6 +126,73 @@ module.exports = function (app) {
     });
 
     res.send(await app.api.membership.data(req.params.id));
+  });
+
+  // ── A CAPA ──────────────────────────────────────────────────────────────
+  //
+  // Sobe em `data:` no corpo, como a do aulão e a do avatar: a tela já reduz a
+  // imagem antes de enviar, e um `multipart` só para isto traria uma dependência
+  // e um caminho de erro a mais.
+  //
+  // Devolve a URL pronta — é ela que a tela põe no formulário e manda de volta
+  // no `cover` ao salvar.
+  app.post("/memberships/:id/cover", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "finance.manage");
+    if (user === false) return;
+
+    const alvo = await app.api.membership.data(req.params.id);
+    if (!alvo) return res.status(404).send({ msg: req.t("errors.membershipNotFound") });
+
+    const parsed = app.api.membershipImage.parseDataUri((req.body || {}).image);
+    if (!parsed) return res.status(400).send({ msg: req.t("errors.invalidImage") });
+
+    const salva = await app.api.membershipImage.save(req.params.id, parsed.mime, parsed.buffer);
+
+    res.status(201).send({ id: salva.id, url: urlDaCapa(req.instance, salva.id) });
+  });
+
+  // OS BYTES, sem sessão: a vitrine é pública, e a capa é parte dela.
+  //
+  // A instância vai no CAMINHO porque aqui não há de onde tirá-la: `<img src>`
+  // não manda cabeçalho nosso, e `/public/` não passa pelo portão de instância.
+  app.get("/public/membership-image/:instance/:id", async function (req, res) {
+    const instancia = instanceContext.normalize(req.params.instance);
+    if (!instancia) return res.status(404).end();
+
+    const img = await instanceContext.run(instancia, () =>
+      app.api.membershipImage.data(req.params.id)
+    );
+    // 404 seco: aqui não há quem leia mensagem traduzida.
+    if (!img) return res.status(404).end();
+
+    const etag = '"' + new Date(img.updatedAt).getTime() + '"';
+    if (req.headers["if-none-match"] === etag) return res.status(304).end();
+
+    const bytes = await arquivos.bytesDoDocumento(img);
+    if (!bytes) return res.status(404).end();
+
+    res.setHeader("Content-Type", img.mime);
+    res.setHeader("ETag", etag);
+    // Cache longo e `immutable`: o id nunca é reaproveitado — trocar a capa gera
+    // outro documento —, então não há como este endereço segurar imagem velha.
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.send(bytes);
+  });
+
+  app.post("/memberships/:id/clone", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "finance.manage");
+    if (user === false) return;
+
+    const id = await app.api.membership.duplicate(req.params.id);
+    if (!id) return res.status(404).send({ msg: req.t("errors.membershipNotFound") });
+
+    app.insertUserActionHistory(req, user, "create_membership", {
+      category: "finance",
+      local: { target_type: "memberships", target_id: String(id) },
+      extra: { clonadoDe: String(req.params.id) },
+    });
+
+    res.status(201).send(await app.api.membership.data(id));
   });
 
   app.delete("/memberships/:id", async function (req, res) {
@@ -159,13 +252,13 @@ module.exports = function (app) {
     if (instancia === false) return;
 
     const dados = await instanceContext.run(instancia, async () => {
-      const [planos, categorias, moedas] = await Promise.all([
+      const [planos, beneficios, moedas] = await Promise.all([
         app.api.membership.listActive(),
-        app.api.membershipCategory.listActive(),
+        app.api.membershipBenefit.listActive(),
         app.api.tenant.currencyOfInstance(),
       ]);
 
-      return { planos, categorias, moeda: moedas.currency };
+      return { planos, beneficios, moeda: moedas.currency };
     });
 
     // ── SÓ OS CAMPOS DO CARTÃO ────────────────────────────────────────────
@@ -174,19 +267,19 @@ module.exports = function (app) {
     // `updatedAt` — nada disso desenha nada, e uma vitrine que devolve o
     // documento inteiro vaza o próximo campo que alguém acrescentar sem pensar
     // nisto aqui.
-    const categoriasVisiveis = dados.categorias.map((c) => ({
+    const beneficiosVisiveis = dados.beneficios.map((c) => ({
       id: String(c._id),
       name: c.name,
       description: c.description || "",
     }));
 
-    const validas = new Set(categoriasVisiveis.map((c) => c.id));
+    const validos = new Set(beneficiosVisiveis.map((b) => b.id));
 
     res.setHeader("Cache-Control", "public, max-age=60");
 
     res.send({
       moeda: dados.moeda,
-      categorias: categoriasVisiveis,
+      beneficios: beneficiosVisiveis,
       cadencias: recorrencia.paraTela(req.t),
       planos: dados.planos.map((p) => ({
         id: String(p._id),
@@ -197,75 +290,75 @@ module.exports = function (app) {
         cadencia: p.cadencia,
         fidelidadeMeses: p.fidelidadeMeses || 0,
         destaque: p.destaque === true,
-        // Categoria DESATIVADA some do cartão junto com a linha da tabela:
-        // deixá-la aqui faria o cartão prometer um benefício que a comparação
-        // nem lista.
-        categorias: (p.categorias || []).map(String).filter((id) => validas.has(id)),
+        coverUrl: urlDaCapa(instancia, p.cover),
+        // Benefício DESATIVADO some do cartão junto com a linha da tabela:
+        // deixá-lo aqui faria o cartão prometer algo que a comparação nem lista.
+        beneficios: (p.beneficios || []).map(String).filter((id) => validos.has(id)),
       })),
     });
   });
 
-  // ── Categorias: as linhas da tabela de comparação ───────────────────────
+  // ── Benefícios: as linhas da tabela de comparação ───────────────────────
 
-  app.get("/membership-categories", async function (req, res) {
+  app.get("/membership-benefits", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "finance.view");
     if (user === false) return;
 
     const rows =
       req.query.todos === "1"
-        ? await app.api.membershipCategory.list()
-        : await app.api.membershipCategory.listActive();
+        ? await app.api.membershipBenefit.list()
+        : await app.api.membershipBenefit.listActive();
 
     res.send({ rows });
   });
 
-  app.post("/membership-categories", async function (req, res) {
+  app.post("/membership-benefits", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "finance.manage");
     if (user === false) return;
 
-    const id = await app.api.membershipCategory.insert(req.body || {});
+    const id = await app.api.membershipBenefit.insert(req.body || {});
     if (!id) return res.status(400).send({ msg: req.t("errors.requireName") });
 
-    res.status(201).send(await app.api.membershipCategory.data(id));
+    res.status(201).send(await app.api.membershipBenefit.data(id));
   });
 
-  app.put("/membership-categories/order", async function (req, res) {
+  app.put("/membership-benefits/order", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "finance.manage");
     if (user === false) return;
 
-    const ok = await app.api.membershipCategory.reorder((req.body || {}).ids);
+    const ok = await app.api.membershipBenefit.reorder((req.body || {}).ids);
     if (!ok) return res.status(400).send({ msg: req.t("errors.invalidOrder") });
 
     res.send({ msg: req.t("ok.membershipSaved") });
   });
 
-  app.put("/membership-categories/:id", async function (req, res) {
+  app.put("/membership-benefits/:id", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "finance.manage");
     if (user === false) return;
 
-    const existe = await app.api.membershipCategory.data(req.params.id);
-    if (!existe) return res.status(404).send({ msg: req.t("errors.membershipCategoryNotFound") });
+    const existe = await app.api.membershipBenefit.data(req.params.id);
+    if (!existe) return res.status(404).send({ msg: req.t("errors.membershipBenefitNotFound") });
 
-    await app.api.membershipCategory.update(req.params.id, req.body || {});
-    res.send(await app.api.membershipCategory.data(req.params.id));
+    await app.api.membershipBenefit.update(req.params.id, req.body || {});
+    res.send(await app.api.membershipBenefit.data(req.params.id));
   });
 
-  app.delete("/membership-categories/:id", async function (req, res) {
+  app.delete("/membership-benefits/:id", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "finance.manage");
     if (user === false) return;
 
-    const feito = await app.api.membershipCategory.remove(req.params.id);
+    const feito = await app.api.membershipBenefit.remove(req.params.id);
 
     if (feito?.erro === "notFound") {
-      return res.status(404).send({ msg: req.t("errors.membershipCategoryNotFound") });
+      return res.status(404).send({ msg: req.t("errors.membershipBenefitNotFound") });
     }
     if (feito?.erro === "inUse") {
       return res.status(409).send({
-        msg: req.t("errors.membershipCategoryInUse", { count: feito.quantos }),
+        msg: req.t("errors.membershipBenefitInUse", { count: feito.quantos }),
         code: "in_use",
       });
     }
 
-    res.send({ msg: req.t("ok.membershipCategoryRemoved") });
+    res.send({ msg: req.t("ok.membershipBenefitRemoved") });
   });
 };
