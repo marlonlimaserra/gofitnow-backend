@@ -244,3 +244,22 @@ test('a coluna do vencimento diz "Vencimento"', () => {
 
   assert.ok(html.includes("Vencimento"));
 });
+
+test("a emissão sai com data E hora, no fuso da conta", () => {
+  // *"coloque horário"*. A data sozinha não distingue duas emissões do mesmo
+  // dia — e é justamente no mesmo dia que elas acontecem: manda o extrato, o
+  // cliente paga, sai o segundo meia hora depois.
+  const html = montar({ emitidoEm: "2026-09-18T15:26:00.000Z", lang: "pt-BR" });
+
+  // 15:26 UTC são 12:26 em São Paulo. A hora do SERVIDOR na folha de quem lê
+  // seria um número errado num papel que fala de dinheiro.
+  assert.ok(html.includes("18/09/2026, 12:26"));
+  assert.ok(!html.includes("18/09/2026, 15:26"));
+});
+
+test("a hora aparece nas duas pontas — cabeçalho e rodapé", () => {
+  const html = montar({ emitidoEm: "2026-09-18T15:26:00.000Z", lang: "pt-BR" });
+  const corpo = html.slice(html.indexOf("<body"));
+
+  assert.equal(corpo.split("18/09/2026, 12:26").length - 1, 2);
+});
