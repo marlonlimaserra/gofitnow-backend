@@ -89,6 +89,18 @@ const CAMPOS = {
   email: (v) => String(v || "").trim().slice(0, 120).toLowerCase(),
   icone: iconeGuardado.nome,
   active: (v) => v !== false,
+  // ── APARECER NO MAPA DE PARCEIROS DA VAFIT ──────────────────────────────
+  //
+  // *"na unidade ponha um checkbox, exibir no mapa vafit"*.
+  //
+  // `v === true` e não `v !== false`: este é o único campo desta casa que
+  // manda um dado do cliente para uma página NOSSA, aberta a qualquer um.
+  // Ausente tem de significar NÃO — senão toda unidade já cadastrada apareceria
+  // no mapa no dia do deploy, sem ninguém ter pedido.
+  //
+  // É a diferença entre um padrão e um consentimento: `active` pode nascer
+  // ligado porque é sobre o uso interno; este não pode.
+  noMapa: (v) => v === true,
   // Só o ID da foto, nunca a URL: guardar o endereço inteiro prenderia a
   // unidade ao domínio do backend do dia em que a foto subiu — e este sistema
   // já mudou de endereço uma vez.

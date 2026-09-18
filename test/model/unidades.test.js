@@ -223,3 +223,25 @@ test("`active` só é falso quando alguém diz que é", async () => {
   assert.equal(gravados[0].active, true);
   assert.equal(gravados[1].active, false);
 });
+
+test("aparecer no mapa da VAFIT é OPT-IN — ausente quer dizer NÃO", async () => {
+  // *"ponha um checkbox, exibir no mapa vafit"*. Este é o único campo desta
+  // casa que manda um dado do cliente para uma página NOSSA, aberta a qualquer
+  // um — então ausente tem de significar não.
+  //
+  // Com a regra dos outros campos (`v !== false`), toda unidade já cadastrada
+  // apareceria no mapa no dia do deploy, sem ninguém ter pedido. É a diferença
+  // entre um padrão e um consentimento.
+  const { model, gravados } = monta();
+  const devolver = semIconify();
+
+  await model.insert({ name: "A" });
+  await model.insert({ name: "B", noMapa: true });
+  await model.insert({ name: "C", noMapa: "sim" });
+  devolver();
+
+  assert.equal(gravados[0].noMapa, false);
+  assert.equal(gravados[1].noMapa, true);
+  // Só o booleano verdadeiro conta: uma string qualquer não é um consentimento.
+  assert.equal(gravados[2].noMapa, false);
+});
