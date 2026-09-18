@@ -34,41 +34,82 @@ GroupClassCheckin_model.prototype.collection = async function () {
   return db.collection("group_class_checkins");
 };
 
-// Entrar na aula de hoje. Idempotente: dois cliques no mesmo botão não são
-// duas presenças, e o índice único é quem garante isso — não uma consulta
-// antes, que perderia a corrida entre dois cliques rápidos.
-GroupClassCheckin_model.prototype.entrar = async function (aula, dia, pessoa) {
+// ── ENTRAR NA AULA DE HOJE ────────────────────────────────────────────────
+//
+// `inicio` é o HORÁRIO da aula, em minutos: a mesma aula acontece às 07:00 e
+// às 18:00, e sem ele as duas presenças seriam a mesma linha.
+//
+// ── DOIS ÍNDICES ÚNICOS, e cada um responde uma pergunta ────────────────
+//
+// O primeiro, `{class, dia, person, inicio}`, impede a mesma pessoa de entrar
+// DUAS VEZES NO MESMO HORÁRIO. Vale sempre, e é o que faz dois toques no
+// celular com a rede ruim não virarem duas presenças.
+//
+// O segundo é PARCIAL: `{class, dia, person}` único, só nas linhas que têm
+// `unico: true`. Ele é a regra que o Marlon pediu — *"se por não, o usuário só
+// pode se inscrever uma vez por dia"* — e a marca é escrita só quando a aula
+// diz que é assim.
+//
+// Por que um índice parcial e não um `findOne` antes de inserir: a consulta
+// perde a corrida entre dois pedidos simultâneos, e dois pedidos simultâneos é
+// exatamente o que acontece quando alguém toca duas vezes num celular lento. O
+// índice não perde.
+GroupClassCheckin_model.prototype.entrar = async function (aula, dia, pessoa, opcoes = {}) {
   if (!ObjectId.isValid(aula) || !ObjectId.isValid(pessoa)) return { ok: false, erro: "invalido" };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dia))) return { ok: false, erro: "dia" };
 
-  const col = await this.collection();
-
-  try {
-    await col.insertOne({
-      class: new ObjectId(aula),
-      dia: String(dia),
-      person: new ObjectId(pessoa),
-      createdAt: new Date(),
-    });
-    return { ok: true, novo: true };
-  } catch (erro) {
-    // 11000 é o índice único: já estava dentro. Isso não é falha — é a
-    // resposta certa para o segundo clique.
-    if (erro?.code === 11000) return { ok: true, novo: false };
-    throw erro;
-  }
-};
-
-GroupClassCheckin_model.prototype.sair = async function (aula, dia, pessoa) {
-  if (!ObjectId.isValid(aula) || !ObjectId.isValid(pessoa)) return false;
+  const inicio = Number(opcoes.inicio);
+  if (!Number.isInteger(inicio) || inicio < 0) return { ok: false, erro: "horario" };
 
   const col = await this.collection();
-  const r = await col.deleteOne({
+
+  const doc = {
     class: new ObjectId(aula),
     dia: String(dia),
     person: new ObjectId(pessoa),
-  });
+    inicio,
+    createdAt: new Date(),
+  };
 
+  // A MARCA que liga o índice parcial. Só existe quando a aula é de um por
+  // dia — e é ela, e não um `if` no meio do caminho, que segura a regra.
+  if (!opcoes.variosHorarios) doc.unico = true;
+
+  try {
+    await col.insertOne(doc);
+    return { ok: true, novo: true };
+  } catch (erro) {
+    if (erro?.code !== 11000) throw erro;
+
+    // 11000 pode ser dois casos, e a resposta é diferente em cada um.
+    //
+    // Mesmo horário: já estava dentro. Não é falha — é a resposta certa para o
+    // segundo clique.
+    const mesmo = await col.findOne({ ...doc, createdAt: undefined, unico: undefined, inicio });
+    if (mesmo) return { ok: true, novo: false };
+
+    // Outro horário, numa aula de um por dia: aí é recusa, e a tela precisa
+    // saber o porquê para dizer "você já entrou na aula das 07:00".
+    return { ok: false, erro: "ja_entrou_hoje" };
+  }
+};
+
+GroupClassCheckin_model.prototype.sair = async function (aula, dia, pessoa, inicio) {
+  if (!ObjectId.isValid(aula) || !ObjectId.isValid(pessoa)) return false;
+
+  const col = await this.collection();
+  const filtro = {
+    class: new ObjectId(aula),
+    dia: String(dia),
+    person: new ObjectId(pessoa),
+  };
+
+  // Com horário, sai daquele; sem, sai do dia inteiro daquela aula. Os dois
+  // usos existem: o botão da tela sabe de qual horário está falando, e
+  // "cancelar minha presença de hoje" não precisa saber.
+  if (Number.isInteger(Number(inicio))) filtro.inicio = Number(inicio);
+
+  const r = await col.deleteMany(filtro);
   return r.deletedCount > 0;
 };
 
@@ -79,10 +120,15 @@ GroupClassCheckin_model.prototype.contagemDoDia = async function (dia) {
   const col = await this.collection();
 
   const linhas = await col
-    .aggregate([{ $match: { dia: String(dia) } }, { $group: { _id: "$class", n: { $sum: 1 } } }])
+    .aggregate([
+      { $match: { dia: String(dia) } },
+      { $group: { _id: { class: "$class", inicio: "$inicio" }, n: { $sum: 1 } } },
+    ])
     .toArray();
 
-  return Object.fromEntries(linhas.map((l) => [String(l._id), l.n]));
+  // A chave é `aula:minutos` porque a vaga é DO HORÁRIO: a de 07:00 lotar não
+  // fecha a de 18:00, e uma contagem por aula diria que sim.
+  return Object.fromEntries(linhas.map((l) => [`${l._id.class}:${l._id.inicio}`, l.n]));
 };
 
 GroupClassCheckin_model.prototype.daAula = async function (aula, dia) {

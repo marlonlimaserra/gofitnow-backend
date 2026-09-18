@@ -267,3 +267,32 @@ function describe_estado() {
     assert.equal(r.horarios[0].fim, "07:50");
   });
 }
+
+// ── UM POR DIA, OU VÁRIOS ───────────────────────────────────────────────
+//
+// *"coloque a opção permite inscrição em mais um horário sim/não. Se por não,
+// o usuário só pode se inscrever uma vez por dia"*.
+test("o padrão é NÃO permitir vários horários", async () => {
+  // É o caso comum: quem faz spinning às 07:00 não faz de novo às 18:00, e uma
+  // vaga ocupada duas vezes pela mesma pessoa é uma vaga que faltou para
+  // outra.
+  const { model, gravados } = monta();
+
+  await model.insert({ name: "X", dias: [1], horarios: UM });
+  await model.insert({ name: "Y", dias: [1], horarios: UM, variosHorarios: true });
+
+  assert.equal(gravados[0].variosHorarios, false);
+  assert.equal(gravados[1].variosHorarios, true);
+});
+
+test("o nome do campo é a RESPOSTA, e não a pergunta", async () => {
+  // `variosHorarios: false` se lê sozinho. `umPorDia: true` diria a mesma
+  // coisa invertida, e é assim que se troca o sentido de uma regra sem
+  // perceber.
+  const { model, gravados } = monta();
+
+  await model.insert({ name: "X", dias: [1], horarios: UM, variosHorarios: "sim" });
+
+  // Só o booleano verdadeiro conta: uma string qualquer não é um "sim".
+  assert.equal(gravados[0].variosHorarios, false);
+});

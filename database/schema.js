@@ -73,6 +73,7 @@ const POR_INSTANCIA = [
   // cliente — a grade de uma academia não é assunto do central.
   "group_classes",
   "group_class_checkins",
+  "group_class_images",
   "conversations",
   "messages",
   "message_files",
@@ -641,15 +642,48 @@ async function ensureUmBanco(db) {
   // ordem de horário não é uma grade.
   await db.collection("group_classes").createIndex({ instance: 1, horaMinutos: 1 }, { name: "by_hora" });
 
-  // ── O ÚNICO QUE NÃO É SÓ DESEMPENHO ────────────────────────────────────
+  // ── O ÍNDICE DE CHECK-IN MUDOU DE FORMA (18/09/2026) ───────────────────
   //
-  // `unique`. Ele é o que faz o check-in ser idempotente: dois cliques no
-  // mesmo botão, ou dois toques no celular com a rede ruim, não viram duas
-  // presenças. Conferir antes de inserir perderia a corrida entre os dois — o
-  // índice não perde.
+  // Ele nasceu `{class, dia, person}` único, quando a aula tinha um horário
+  // só. Com vários, ele proibiria a segunda presença do dia MESMO numa aula
+  // que permite.
+  //
+  // O drop vem ANTES das criações de propósito: o Mongo recusa dois índices
+  // com o mesmo nome e chaves diferentes, e a criação falharia primeiro —
+  // deixando o antigo no lugar para sempre.
+  await dropIndexIfPresent(db, "group_class_checkins", "um_por_dia");
+
+  // ── OS DOIS QUE NÃO SÃO SÓ DESEMPENHO ──────────────────────────────────
+  //
+  // O primeiro impede a mesma pessoa de entrar DUAS VEZES NO MESMO HORÁRIO.
+  // Vale sempre: é ele que faz dois toques no celular com a rede ruim não
+  // virarem duas presenças. Conferir antes de inserir perderia a corrida entre
+  // os dois; o índice não perde.
   await db
     .collection("group_class_checkins")
-    .createIndex({ instance: 1, class: 1, dia: 1, person: 1 }, { name: "um_por_dia", unique: true });
+    .createIndex(
+      { instance: 1, class: 1, dia: 1, person: 1, inicio: 1 },
+      { name: "um_por_horario", unique: true }
+    );
+
+  // O segundo é PARCIAL, e é a regra de "uma vez por dia" que o cadastro da
+  // aula liga. Ele só vale nas linhas marcadas com `unico: true` — que o
+  // modelo escreve quando a aula NÃO permite vários horários.
+  //
+  // Índice parcial e não um `findOne` antes de inserir, pela mesma razão do
+  // primeiro: a consulta perde a corrida, o índice não.
+  await db
+    .collection("group_class_checkins")
+    .createIndex(
+      { instance: 1, class: 1, dia: 1, person: 1 },
+      { name: "um_por_dia", unique: true, partialFilterExpression: { unico: true } }
+    );
+
+  // A capa é sempre buscada pela aula dona — é assim que a faxina acha o que
+  // ninguém referencia mais.
+  await db
+    .collection("group_class_images")
+    .createIndex({ instance: 1, groupClass: 1 }, { name: "by_group_class" });
 
   // E a contagem do dia, que é o que a grade mostra em cada linha.
   await db
@@ -710,6 +744,7 @@ async function ensureUmBanco(db) {
   await db.collection("recurrences").updateMany({ active: { $exists: true } }, { $unset: { active: "" } });
 
   await dropIndexIfPresent(db, "recurrences", "by_active");
+
   await db.collection("payments").createIndex({ instance: 1, student: 1, date: -1 }, { name: "by_student" });
 
   // ── E PELA COBRANÇA, que é como o dinheiro se liga ao que se deve ──────

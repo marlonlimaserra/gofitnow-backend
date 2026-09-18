@@ -31,7 +31,12 @@ function monta({ aulas = [AULA], contagem = {}, agora, permissoes = null } = {})
       groupClass: {
         async list() { return aulas; },
         async listActive() { return aulas; },
-        async data(id) { return String(id) === "a1" ? AULA : undefined; },
+        async data(id) {
+          // "sumiu" é o único id que não existe: é com ele que os casos
+          // exercitam o 404. O recém-criado tem de ser encontrável, senão o
+          // dobro contaria uma história que o banco não conta.
+          return String(id) === "sumiu" ? undefined : { ...AULA, _id: String(id) };
+        },
         async insert(obj) {
           chamadas.insert.push(obj);
           return obj.name ? "a2" : null;
@@ -49,6 +54,17 @@ function monta({ aulas = [AULA], contagem = {}, agora, permissoes = null } = {})
         async contagemDoDia() { return contagem; },
         async removeAllOf(id) {
           chamadas.removeCheckins.push(id);
+          return 0;
+        },
+      },
+      // A capa entrou em 18/09/2026: a aula virou cartão, como o aulão.
+      groupClassImage: {
+        parseDataUri: () => undefined,
+        async save() { return { id: "img1" }; },
+        async data() { return undefined; },
+        async removeAllOf(id) {
+          chamadas.removeCapas = chamadas.removeCapas || [];
+          chamadas.removeCapas.push(id);
           return 0;
         },
       },

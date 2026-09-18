@@ -195,6 +195,31 @@ const CAMPOS = {
   checkinFecha: (v) => inteiro(v, 15, { min: 0, max: MINUTOS_NO_DIA }),
 
   active: (v) => v !== false,
+
+  // ── PODE ENTRAR EM MAIS DE UM HORÁRIO NO MESMO DIA? ─────────────────────
+  //
+  // *"coloque a opção permite inscrição em mais um horário sim/não. Se por
+  // não, o usuário só pode se inscrever uma vez por dia"*.
+  //
+  // O padrão é NÃO, e é o caso comum: quem faz spinning às 07:00 não faz de
+  // novo às 18:00, e uma vaga ocupada duas vezes pela mesma pessoa é uma vaga
+  // que faltou para outra.
+  //
+  // Quem quiser o contrário — musculação assistida, aula aberta, academia que
+  // não conta vaga — marca sim.
+  //
+  // O nome é a RESPOSTA, e não a pergunta: `variosHorarios: false` se lê
+  // sozinho. `umPorDia: true` diria a mesma coisa invertida, e é assim que se
+  // troca o sentido de uma regra sem perceber.
+  variosHorarios: (v) => v === true,
+
+  // Só o ID da capa, nunca a URL: guardar o endereço prenderia a aula ao
+  // domínio do backend do dia em que a foto subiu. `""` é uma EDIÇÃO — tirar a
+  // capa é uma escolha, e precisa ser gravável.
+  cover: (v) => {
+    const id = String(v || "").split("/").pop();
+    return ObjectId.isValid(id) ? new ObjectId(id) : null;
+  },
 };
 
 GroupClass_model.prototype.list = async function () {
@@ -223,7 +248,23 @@ GroupClass_model.prototype.insert = async function (obj) {
   if (!doc.name || !doc.horarios.length || !doc.dias.length) return null;
 
   const r = await col.insertOne(doc);
+  await this.recolherCapas(r.insertedId, doc.cover);
+
   return r.insertedId;
+};
+
+// As capas que a aula NÃO usa mais. Roda em toda gravação e não só quando a
+// capa muda: quem trocou a foto três vezes antes de salvar enviou três, e duas
+// ficariam penduradas no balde para sempre.
+//
+// Nunca estoura: é faxina, e faxina que falha não pode impedir alguém de
+// salvar.
+GroupClass_model.prototype.recolherCapas = async function (id, cover) {
+  try {
+    await this.app.api.groupClassImage.pruneUnused(id, cover ? [String(cover)] : []);
+  } catch (erro) {
+    console.error("[aulas] faxina de capa:", erro?.message || erro);
+  }
 };
 
 // Mescla, como em todo o resto desta casa: o que a chamada não menciona, ela
@@ -243,6 +284,12 @@ GroupClass_model.prototype.update = async function (id, obj) {
   if (mudanca.dias && !mudanca.dias.length) return false;
 
   const r = await col.updateOne({ _id: new ObjectId(id) }, { $set: mudanca });
+
+  // A faxina olha o que ficou GRAVADO, e não o que veio na chamada: uma edição
+  // que não menciona a capa mantém a de antes.
+  const depois = await col.findOne({ _id: new ObjectId(id) }, { projection: { cover: 1 } });
+  await this.recolherCapas(id, depois?.cover);
+
   return r.matchedCount > 0;
 };
 

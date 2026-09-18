@@ -13,8 +13,12 @@
 // MEXER é `schedule.manage` — a mesma de quem organiza a agenda. Montar a
 // grade é exatamente isso: decidir o que a casa oferece e quando.
 const limiteDoPlano = require("../lib/limiteDoPlano.js");
+const instanceContext = require("../lib/instance.js");
+const arquivos = require("../lib/arquivos.js");
+const dominio = require("../lib/domain.js");
 
 module.exports = function (app) {
+  const baseUrl = dominio.apiBaseUrl;
   // A contagem do teto, fora das rotas: a chamada a `barrou` tem de caber numa
   // linha com o `return` — ver `test/lib/limitesLigados.test.js`.
   const contarAulas = limiteDoPlano.contarNa(app, "group_classes");
@@ -28,7 +32,7 @@ module.exports = function (app) {
         ? await app.api.groupClass.list()
         : await app.api.groupClass.listActive();
 
-    res.send({ rows });
+    res.send({ rows: rows.map(paraTela(req)) });
   });
 
   // ── A GRADE DE HOJE ─────────────────────────────────────────────────────
@@ -64,7 +68,7 @@ module.exports = function (app) {
       // errado quando o relógio estiver errado.
       dia: dia || app.api.groupClass.estadoAgora({ dias: [] }, agora, fuso).data,
       rows: comEstado.map(({ aula, estado }) => ({
-        ...aula,
+        ...paraTela(req)(aula),
         aberta: estado.aberta,
         // CADA horário com a sua janela: a aula das 07:00 e das 18:00 é a
         // mesma aula, mas às 07:10 só a primeira está aberta.
@@ -73,6 +77,14 @@ module.exports = function (app) {
       })),
     });
   });
+
+  // O ENDEREÇO da capa, montado aqui e não guardado na aula. O documento
+  // guarda só o ID: guardar a URL prenderia a aula ao endereço do backend do
+  // dia em que a foto subiu.
+  const urlDaCapa = (instancia, id) =>
+    id ? `${baseUrl()}/public/group-class-image/${instancia}/${id}` : null;
+
+  const paraTela = (req) => (a) => ({ ...a, coverUrl: urlDaCapa(req.instance, a.cover) });
 
   app.post("/group-classes", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "schedule.manage");
@@ -89,7 +101,7 @@ module.exports = function (app) {
       local: { target_type: "group_classes", target_id: String(id) },
     });
 
-    res.status(201).send(await app.api.groupClass.data(id));
+    res.status(201).send(paraTela(req)(await app.api.groupClass.data(id)));
   });
 
   // A ORDEM antes do `:id`, pela mesma razão do `today`.
@@ -118,7 +130,7 @@ module.exports = function (app) {
       local: { target_type: "group_classes", target_id: String(req.params.id) },
     });
 
-    res.send(await app.api.groupClass.data(req.params.id));
+    res.send(paraTela(req)(await app.api.groupClass.data(req.params.id)));
   });
 
   // ── APAGAR LEVA O HISTÓRICO JUNTO ──────────────────────────────────────
@@ -136,6 +148,9 @@ module.exports = function (app) {
 
     await app.api.groupClass.remove(req.params.id);
     await app.api.groupClassCheckin.removeAllOf(req.params.id);
+    // A capa vai junto: sem isto ela ficaria apontando para uma aula que não
+    // existe, e nada a alcançaria.
+    await app.api.groupClassImage.removeAllOf(req.params.id).catch(() => {});
 
     app.insertUserActionHistory(req, user, "delete_group_class", {
       category: "settings",
@@ -144,5 +159,49 @@ module.exports = function (app) {
     });
 
     res.send({ msg: req.t("ok.groupClassRemoved") });
+  });
+
+  // A CAPA sobe em `data:` no corpo, como a do plano e a da unidade: a tela já
+  // reduz a imagem antes de enviar, e um `multipart` só para isto traria uma
+  // dependência e um caminho de erro a mais.
+  app.post("/group-classes/:id/cover", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "schedule.manage");
+    if (user === false) return;
+
+    const alvo = await app.api.groupClass.data(req.params.id);
+    if (!alvo) return res.status(404).send({ msg: req.t("errors.groupClassNotFound") });
+
+    const parsed = app.api.groupClassImage.parseDataUri((req.body || {}).image);
+    if (!parsed) return res.status(400).send({ msg: req.t("errors.invalidImage") });
+
+    const salva = await app.api.groupClassImage.save(req.params.id, parsed.mime, parsed.buffer);
+
+    res.status(201).send({ id: salva.id, url: urlDaCapa(req.instance, salva.id) });
+  });
+
+  // OS BYTES, sem sessão. A instância vai no CAMINHO porque aqui não há de
+  // onde tirá-la: `<img src>` não manda cabeçalho nosso, e `/public/` não
+  // passa pelo portão de instância.
+  app.get("/public/group-class-image/:instance/:id", async function (req, res) {
+    const instancia = instanceContext.normalize(req.params.instance);
+    if (!instancia) return res.status(404).end();
+
+    const img = await instanceContext.run(instancia, () =>
+      app.api.groupClassImage.data(req.params.id)
+    );
+    if (!img) return res.status(404).end();
+
+    const etag = '"' + new Date(img.updatedAt).getTime() + '"';
+    if (req.headers["if-none-match"] === etag) return res.status(304).end();
+
+    const bytes = await arquivos.bytesDoDocumento(img);
+    if (!bytes) return res.status(404).end();
+
+    res.setHeader("Content-Type", img.mime);
+    res.setHeader("ETag", etag);
+    // Cache longo e `immutable`: o id nunca é reaproveitado — trocar a foto
+    // gera outro documento —, então este endereço não segura imagem velha.
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.send(bytes);
   });
 };

@@ -73,6 +73,7 @@ models.unitImage = require("./model/UnitImage_model.js");
 // check-in é do DIA.
 models.groupClass = require("./model/GroupClass_model.js");
 models.groupClassCheckin = require("./model/GroupClassCheckin_model.js");
+models.groupClassImage = require("./model/GroupClassImage_model.js");
 // As formas de pagamento de cada conta. Eram uma lista fixa dentro do financeiro.
 models.paymentMethod = require("./model/PaymentMethod_model.js");
 models.availability = require("./model/Availability_model.js");
