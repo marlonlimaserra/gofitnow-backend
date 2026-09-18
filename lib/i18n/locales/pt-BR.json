@@ -876,5 +876,16 @@
       "refunded": "Reembolsado",
       "canceled": "Cancelado"
     }
+  },
+  "memberships": {
+    "model": {
+      "brand": "Da marca",
+      "light": "Claro",
+      "dark": "Escuro",
+      "energy": "Energia",
+      "ocean": "Oceano",
+      "neon": "Neon",
+      "sand": "Areia"
+    }
   }
 }

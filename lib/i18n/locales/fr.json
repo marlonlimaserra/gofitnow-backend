@@ -876,5 +876,16 @@
       "refunded": "Remboursé",
       "canceled": "Annulé"
     }
+  },
+  "memberships": {
+    "model": {
+      "brand": "De la marque",
+      "light": "Clair",
+      "dark": "Sombre",
+      "energy": "Énergie",
+      "ocean": "Océan",
+      "neon": "Néon",
+      "sand": "Sable"
+    }
   }
 }

@@ -876,5 +876,16 @@
       "refunded": "Reembolsado",
       "canceled": "Cancelado"
     }
+  },
+  "memberships": {
+    "model": {
+      "brand": "De la marca",
+      "light": "Claro",
+      "dark": "Oscuro",
+      "energy": "Energía",
+      "ocean": "Océano",
+      "neon": "Neón",
+      "sand": "Arena"
+    }
   }
 }

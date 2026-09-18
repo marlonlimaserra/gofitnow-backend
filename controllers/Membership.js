@@ -282,7 +282,21 @@ module.exports = function (app) {
 
     const validos = new Set(beneficiosVisiveis.map((b) => b.id));
 
-    res.setHeader("Cache-Control", "public, max-age=60");
+    // ── A VITRINE NÃO PODE FICAR VELHA ────────────────────────────────────
+    //
+    // *"parece que só aparece 3 benefícios, mesmo eu tendo colocado mais"*. Os
+    // seis estavam no banco e seis saíam daqui: o que a tela mostrava era a
+    // resposta de um minuto antes, guardada pelo navegador por causa do
+    // `max-age=60` que eu mesmo tinha posto.
+    //
+    // Um minuto é pouco em teoria e é tudo na prática: o fluxo desta tela é
+    // editar no painel e olhar a vitrine em seguida, e nessa janela ela mente.
+    // Quem editou não desconfia do cache — desconfia do que acabou de salvar.
+    //
+    // `max-age=0, must-revalidate` NÃO é "não guarde": o navegador continua
+    // guardando e pergunta antes de usar. Com o ETag que o Express já manda,
+    // a resposta repetida é um 304 sem corpo — quase de graça, e nunca velha.
+    res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
 
     res.send({
       moeda: dados.moeda,

@@ -876,5 +876,16 @@
       "refunded": "Refunded",
       "canceled": "Cancelled"
     }
+  },
+  "memberships": {
+    "model": {
+      "brand": "Brand",
+      "light": "Light",
+      "dark": "Dark",
+      "energy": "Energy",
+      "ocean": "Ocean",
+      "neon": "Neon",
+      "sand": "Sand"
+    }
   }
 }
