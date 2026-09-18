@@ -284,6 +284,7 @@ module.exports = function (app) {
       planos: dados.planos.map((p) => ({
         id: String(p._id),
         name: p.name,
+        tagline: p.tagline || "",
         description: p.description || "",
         amount: p.amount || 0,
         currency: p.currency || dados.moeda,

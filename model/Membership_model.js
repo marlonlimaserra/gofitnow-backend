@@ -17,7 +17,7 @@ const recorrencia = require("../lib/recorrencia.js");
 // Na TELA os dois se chamam "Planos", porque é o que cada público entende.
 //
 //   { name, description, amount, currency, cadencia, fidelidadeMeses,
-//     beneficios: [id], destaque, active, order }
+//     tagline, beneficios: [id], destaque, active, order }
 //
 // Pedido do Marlon em 17/09/2026, com a página da Smart Fit ao lado: *"como
 // pretendo oferecer para academias, ai eu crio a recorrencia com um plano"*.
@@ -87,6 +87,19 @@ function beneficios(v) {
 
 const CAMPOS = {
   name: (v) => String(v || "").trim().slice(0, 80),
+  // ── DOIS TEXTOS, e eles não são o mesmo ────────────────────────────────
+  //
+  // No cartão da referência há uma linha curta ACIMA do nome ("Treine de
+  // qualquer lugar") e um parágrafo ABAIXO dele ("Treine em qualquer academia
+  // da Smart Fit, seja no Brasil ou na América Latina...").
+  //
+  // A primeira versão tinha um campo só, e ele não desenha nem um nem outro: em
+  // cima, um parágrafo empurra o nome para fora do olho; embaixo, uma frase de
+  // quatro palavras deixa o cartão oco.
+  //
+  // `tagline` é a promessa em uma linha — por isso o teto é curto, e o curto é
+  // o que a mantém em uma linha. `description` é a explicação.
+  tagline: (v) => String(v || "").trim().slice(0, 80),
   description: (v) => String(v || "").trim().slice(0, 500),
   amount: (v) => centavos(v),
   cadencia: (v) => recorrencia.normalizar(v),
@@ -235,6 +248,7 @@ Membership_model.prototype.rascunho = async function (currency) {
 
   const r = await col.insertOne({
     name: "",
+    tagline: "",
     description: "",
     amount: 0,
     currency: currency || null,
@@ -291,6 +305,7 @@ Membership_model.prototype.duplicate = async function (id) {
 
   const r = await col.insertOne({
     name: `${origem.name} (cópia)`,
+    tagline: origem.tagline || "",
     description: origem.description || "",
     amount: origem.amount || 0,
     currency: origem.currency || null,
