@@ -67,6 +67,12 @@ models.membershipImage = require("./model/MembershipImage_model.js");
 // que evita o dia em que alguém procura `unidade` e não acha nada.
 models.unit = require("./model/Unit_model.js");
 models.unitImage = require("./model/UnitImage_model.js");
+
+// AS AULAS COLETIVAS — a grade que se repete toda semana — e quem entrou na de
+// hoje. Duas collections porque são duas verdades: a aula é permanente, o
+// check-in é do DIA.
+models.groupClass = require("./model/GroupClass_model.js");
+models.groupClassCheckin = require("./model/GroupClassCheckin_model.js");
 // As formas de pagamento de cada conta. Eram uma lista fixa dentro do financeiro.
 models.paymentMethod = require("./model/PaymentMethod_model.js");
 models.availability = require("./model/Availability_model.js");

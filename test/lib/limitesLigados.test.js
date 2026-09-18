@@ -53,6 +53,8 @@ const APLICADOS = [
   // rápido.
   "units",
   "memberships",
+  // A grade de aulas coletivas (18/09/2026).
+  "groupClasses",
 ];
 
 test("todo limite do plano é APLICADO em alguma rota", () => {

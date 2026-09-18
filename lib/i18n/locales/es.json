@@ -229,7 +229,9 @@
     "unitNotFound": "Unidad no encontrada.",
     "unitInUse": "Esta unidad tiene {{count}} persona(s). Desactívala en vez de borrarla.",
     "cepNotFound": "Código postal no encontrado.",
-    "addressNotFound": "No encontré esa dirección en el mapa."
+    "addressNotFound": "No encontré esa dirección en el mapa.",
+    "groupClassNotFound": "Clase no encontrada.",
+    "groupClassIncomplete": "La clase necesita nombre, horario y al menos un día de la semana."
   },
   "ok": {
     "passwordChanged": "Contraseña cambiada.",
@@ -270,7 +272,9 @@
     "membershipSaved": "Orden guardado.",
     "membershipBenefitRemoved": "Beneficio eliminado.",
     "unitSaved": "Orden guardado.",
-    "unitRemoved": "Unidad eliminada."
+    "unitRemoved": "Unidad eliminada.",
+    "groupClassSaved": "Orden guardado.",
+    "groupClassRemoved": "Clase eliminada."
   },
   "permissions": {
     "groups": {
@@ -856,7 +860,8 @@
     "workouts": "entrenamientos",
     "aulaoes": "clases grupales",
     "units": "unidades",
-    "memberships": "planes"
+    "memberships": "planes",
+    "groupClasses": "clases colectivas"
   },
   "finance": {
     "status": {

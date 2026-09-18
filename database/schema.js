@@ -69,6 +69,10 @@ const POR_INSTANCIA = [
   // cliente: a lista de filiais de uma academia não é assunto do central.
   "units",
   "unit_images",
+  // AS AULAS COLETIVAS: a grade que se repete, e quem entrou na de hoje. Do
+  // cliente — a grade de uma academia não é assunto do central.
+  "group_classes",
+  "group_class_checkins",
   "conversations",
   "messages",
   "message_files",
@@ -630,6 +634,27 @@ async function ensureUmBanco(db) {
   await db
     .collection("users")
     .createIndex({ instance: 1, unit: 1 }, { name: "by_unit", sparse: true });
+
+  // ── AS AULAS COLETIVAS ─────────────────────────────────────────────────
+  //
+  // A grade é lida inteira e sempre na ordem do RELÓGIO: uma grade fora de
+  // ordem de horário não é uma grade.
+  await db.collection("group_classes").createIndex({ instance: 1, horaMinutos: 1 }, { name: "by_hora" });
+
+  // ── O ÚNICO QUE NÃO É SÓ DESEMPENHO ────────────────────────────────────
+  //
+  // `unique`. Ele é o que faz o check-in ser idempotente: dois cliques no
+  // mesmo botão, ou dois toques no celular com a rede ruim, não viram duas
+  // presenças. Conferir antes de inserir perderia a corrida entre os dois — o
+  // índice não perde.
+  await db
+    .collection("group_class_checkins")
+    .createIndex({ instance: 1, class: 1, dia: 1, person: 1 }, { name: "um_por_dia", unique: true });
+
+  // E a contagem do dia, que é o que a grade mostra em cada linha.
+  await db
+    .collection("group_class_checkins")
+    .createIndex({ instance: 1, dia: 1 }, { name: "by_dia" });
 
   // ── DE "CATEGORIA" PARA "BENEFÍCIO" ────────────────────────────────────
   //

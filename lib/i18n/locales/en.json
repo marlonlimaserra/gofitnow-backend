@@ -229,7 +229,9 @@
     "unitNotFound": "Unit not found.",
     "unitInUse": "This unit has {{count}} person(s). Deactivate it instead of deleting.",
     "cepNotFound": "Postal code not found.",
-    "addressNotFound": "Could not find that address on the map."
+    "addressNotFound": "Could not find that address on the map.",
+    "groupClassNotFound": "Class not found.",
+    "groupClassIncomplete": "The class needs a name, a time and at least one weekday."
   },
   "ok": {
     "passwordChanged": "Password changed.",
@@ -270,7 +272,9 @@
     "membershipSaved": "Order saved.",
     "membershipBenefitRemoved": "Benefit removed.",
     "unitSaved": "Order saved.",
-    "unitRemoved": "Unit removed."
+    "unitRemoved": "Unit removed.",
+    "groupClassSaved": "Order saved.",
+    "groupClassRemoved": "Class removed."
   },
   "permissions": {
     "groups": {
@@ -856,7 +860,8 @@
     "workouts": "workouts",
     "aulaoes": "group classes",
     "units": "units",
-    "memberships": "plans"
+    "memberships": "plans",
+    "groupClasses": "group classes"
   },
   "finance": {
     "status": {

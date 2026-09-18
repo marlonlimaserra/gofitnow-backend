@@ -32,6 +32,7 @@ routes.Finance = require("./controllers/Finance.js");
 // Stripe. Os dois se chamam "Planos" na tela, e só na tela.
 routes.Membership = require("./controllers/Membership.js");
 routes.Unit = require("./controllers/Unit.js");
+routes.GroupClass = require("./controllers/GroupClass.js");
 routes.Booking = require("./controllers/Booking.js");
 // Os AULÕES: aula em grupo com data, lugar e vagas. Vizinho de Booking porque
 // os dois são o calendário visto de fora.

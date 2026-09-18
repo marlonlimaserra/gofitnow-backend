@@ -229,7 +229,9 @@
     "unitNotFound": "Unité introuvable.",
     "unitInUse": "Cette unité compte {{count}} personne(s). Désactivez-la au lieu de la supprimer.",
     "cepNotFound": "Code postal introuvable.",
-    "addressNotFound": "Adresse introuvable sur la carte."
+    "addressNotFound": "Adresse introuvable sur la carte.",
+    "groupClassNotFound": "Cours introuvable.",
+    "groupClassIncomplete": "Le cours a besoin d'un nom, d'un horaire et d'au moins un jour."
   },
   "ok": {
     "passwordChanged": "Mot de passe modifié.",
@@ -270,7 +272,9 @@
     "membershipSaved": "Ordre enregistré.",
     "membershipBenefitRemoved": "Avantage supprimé.",
     "unitSaved": "Ordre enregistré.",
-    "unitRemoved": "Unité supprimée."
+    "unitRemoved": "Unité supprimée.",
+    "groupClassSaved": "Ordre enregistré.",
+    "groupClassRemoved": "Cours supprimé."
   },
   "permissions": {
     "groups": {
@@ -856,7 +860,8 @@
     "workouts": "séances",
     "aulaoes": "cours collectifs",
     "units": "unités",
-    "memberships": "forfaits"
+    "memberships": "forfaits",
+    "groupClasses": "cours collectifs"
   },
   "finance": {
     "status": {
