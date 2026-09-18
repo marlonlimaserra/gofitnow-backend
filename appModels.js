@@ -59,6 +59,14 @@ models.membershipBenefit = require("./model/MembershipBenefit_model.js");
 // coleta de lixo da marca apagaria as fotos no primeiro salvamento de
 // aparência.
 models.membershipImage = require("./model/MembershipImage_model.js");
+
+// AS UNIDADES — os lugares onde a casa atende, e a foto de cada um.
+//
+// `unit` e não `branch`/`location`: o Marlon as chamou de unidades, e é a
+// palavra que a tela mostra. Nomear o modelo pelo que ele é na conversa é o
+// que evita o dia em que alguém procura `unidade` e não acha nada.
+models.unit = require("./model/Unit_model.js");
+models.unitImage = require("./model/UnitImage_model.js");
 // As formas de pagamento de cada conta. Eram uma lista fixa dentro do financeiro.
 models.paymentMethod = require("./model/PaymentMethod_model.js");
 models.availability = require("./model/Availability_model.js");

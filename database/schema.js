@@ -65,6 +65,10 @@ const POR_INSTANCIA = [
   "memberships",
   "membership_benefits",
   "membership_images",
+  // AS UNIDADES — os lugares onde a casa atende, e a foto de cada um. Do
+  // cliente: a lista de filiais de uma academia não é assunto do central.
+  "units",
+  "unit_images",
   "conversations",
   "messages",
   "message_files",
@@ -606,6 +610,26 @@ async function ensureUmBanco(db) {
   // A capa é sempre buscada pelo plano dono — é assim que a faxina acha o que
   // ninguém referencia mais.
   await db.collection("membership_images").createIndex({ instance: 1, membership: 1 }, { name: "by_membership" });
+
+  // ── AS UNIDADES ────────────────────────────────────────────────────────
+  //
+  // Lista curta, sempre lida inteira e sempre na ordem escolhida — a mesma
+  // forma dos planos.
+  await db.collection("units").createIndex({ instance: 1, order: 1 }, { name: "by_order" });
+  // A foto é sempre buscada pela unidade dona: é assim que a faxina acha o que
+  // ninguém referencia mais.
+  await db.collection("unit_images").createIndex({ instance: 1, unit: 1 }, { name: "by_unit" });
+  // E as PESSOAS POR UNIDADE. Este índice não é para uma tela: é o que faz a
+  // pergunta "quantos alunos estão nesta unidade?" não virar uma varredura da
+  // base inteira toda vez que alguém tenta apagar uma — e um dia ele atende o
+  // relatório por unidade.
+  //
+  // `sparse` porque o vínculo é OPCIONAL: numa conta que nunca cadastrou
+  // unidade, ninguém tem o campo, e indexar o `null` de todo mundo custaria
+  // sem servir a nada.
+  await db
+    .collection("users")
+    .createIndex({ instance: 1, unit: 1 }, { name: "by_unit", sparse: true });
 
   // ── DE "CATEGORIA" PARA "BENEFÍCIO" ────────────────────────────────────
   //

@@ -225,7 +225,9 @@
     "membershipInUse": "Este plan está en {{count}} recurrencia(s). Desactívelo en vez de borrarlo.",
     "planNotFound": "Ese plan no existe.",
     "membershipBenefitNotFound": "Beneficio no encontrado.",
-    "membershipBenefitInUse": "Este beneficio está marcado en {{count}} plan(es). Desactívelo en vez de borrarlo."
+    "membershipBenefitInUse": "Este beneficio está marcado en {{count}} plan(es). Desactívelo en vez de borrarlo.",
+    "unitNotFound": "Unidad no encontrada.",
+    "unitInUse": "Esta unidad tiene {{count}} persona(s). Desactívala en vez de borrarla."
   },
   "ok": {
     "passwordChanged": "Contraseña cambiada.",
@@ -264,7 +266,9 @@
     "recurrenceRemoved": "Recurrencia eliminada. Los cobros ya generados permanecen.",
     "membershipRemoved": "Plan eliminado.",
     "membershipSaved": "Orden guardado.",
-    "membershipBenefitRemoved": "Beneficio eliminado."
+    "membershipBenefitRemoved": "Beneficio eliminado.",
+    "unitSaved": "Orden guardado.",
+    "unitRemoved": "Unidad eliminada."
   },
   "permissions": {
     "groups": {

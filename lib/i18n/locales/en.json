@@ -225,7 +225,9 @@
     "membershipInUse": "This plan is used by {{count}} recurrence(s). Deactivate it instead of deleting.",
     "planNotFound": "That plan does not exist.",
     "membershipBenefitNotFound": "Benefit not found.",
-    "membershipBenefitInUse": "This benefit is ticked on {{count}} plan(s). Deactivate it instead of deleting."
+    "membershipBenefitInUse": "This benefit is ticked on {{count}} plan(s). Deactivate it instead of deleting.",
+    "unitNotFound": "Unit not found.",
+    "unitInUse": "This unit has {{count}} person(s). Deactivate it instead of deleting."
   },
   "ok": {
     "passwordChanged": "Password changed.",
@@ -264,7 +266,9 @@
     "recurrenceRemoved": "Recurrence removed. Charges already generated remain.",
     "membershipRemoved": "Plan removed.",
     "membershipSaved": "Order saved.",
-    "membershipBenefitRemoved": "Benefit removed."
+    "membershipBenefitRemoved": "Benefit removed.",
+    "unitSaved": "Order saved.",
+    "unitRemoved": "Unit removed."
   },
   "permissions": {
     "groups": {

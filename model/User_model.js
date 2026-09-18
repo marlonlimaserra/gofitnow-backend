@@ -43,6 +43,16 @@ const TYPES = ["trainer", "student"];
 // nao informado — e como ficam as fichas cadastradas antes deste campo existir.
 const SEXES = ["female", "male"];
 
+// A UNIDADE de uma pessoa: um id, ou nada.
+//
+// Id inválido vira NADA, e não erro: o pior caso de um vínculo sujo é a pessoa
+// ficar sem unidade — que é o estado normal de quem nunca escolheu uma —, e
+// recusar a gravação inteira por causa dele perderia o resto do formulário.
+function unidade(v) {
+  const id = String(v || "").trim();
+  return ObjectId.isValid(id) ? new ObjectId(id) : null;
+}
+
 User_model.prototype.collection = async function () {
   const db = await this.app.mongodb.connectToServer();
   return db.collection("users");
@@ -902,6 +912,15 @@ User_model.prototype.insertStudent = async function (trainerId, obj) {
     birthDate: obj.birthDate ? String(obj.birthDate) : "",
     sex: SEXES.includes(String(obj.sex)) ? String(obj.sex) : "",
     goal: obj.goal ? String(obj.goal).trim() : "",
+    // ── A UNIDADE, e ela é UMA SÓ ─────────────────────────────────────
+    //
+    // *"o aluno pode fazer parte ou não, de apenas 1 unidade"*. Um campo que
+    // aceita um id só é impossível de encher com dois; uma lista precisaria
+    // de uma regra dizendo que ninguém repete em duas, e regra se esquece.
+    //
+    // `null` é "nenhuma", e é o padrão: quem atende num lugar só nunca
+    // precisa saber que esta tela existe.
+    unit: unidade(obj.unit),
     weight: obj.weight !== undefined && obj.weight !== "" ? Number(obj.weight) : null,
     height: obj.height !== undefined && obj.height !== "" ? Number(obj.height) : null,
     active: obj.active === undefined ? 1 : Number(obj.active) ? 1 : 0,
@@ -939,6 +958,9 @@ User_model.prototype.updateStudent = async function (trainerId, id, obj) {
   if (obj.birthDate !== undefined) set.birthDate = String(obj.birthDate);
   if (obj.sex !== undefined) set.sex = SEXES.includes(String(obj.sex)) ? String(obj.sex) : "";
   if (obj.goal !== undefined) set.goal = String(obj.goal).trim();
+  // Vazio é "saiu da unidade", e precisa ser gravável: sem isto não haveria
+  // como desfazer o vínculo depois de criá-lo.
+  if (obj.unit !== undefined) set.unit = unidade(obj.unit);
   if (obj.weight !== undefined) set.weight = obj.weight === "" ? null : Number(obj.weight);
   if (obj.height !== undefined) set.height = obj.height === "" ? null : Number(obj.height);
   // `active` NÃO entra aqui: na visão do profissional ele quer dizer "ativo na

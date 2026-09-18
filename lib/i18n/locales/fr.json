@@ -225,7 +225,9 @@
     "membershipInUse": "Cette formule est utilisée par {{count}} récurrence(s). Désactivez-la au lieu de la supprimer.",
     "planNotFound": "Ce forfait n'existe pas.",
     "membershipBenefitNotFound": "Avantage introuvable.",
-    "membershipBenefitInUse": "Cet avantage est coché sur {{count}} formule(s). Désactivez-le au lieu de le supprimer."
+    "membershipBenefitInUse": "Cet avantage est coché sur {{count}} formule(s). Désactivez-le au lieu de le supprimer.",
+    "unitNotFound": "Unité introuvable.",
+    "unitInUse": "Cette unité compte {{count}} personne(s). Désactivez-la au lieu de la supprimer."
   },
   "ok": {
     "passwordChanged": "Mot de passe modifié.",
@@ -264,7 +266,9 @@
     "recurrenceRemoved": "Récurrence supprimée. Les factures déjà générées restent.",
     "membershipRemoved": "Formule supprimée.",
     "membershipSaved": "Ordre enregistré.",
-    "membershipBenefitRemoved": "Avantage supprimé."
+    "membershipBenefitRemoved": "Avantage supprimé.",
+    "unitSaved": "Ordre enregistré.",
+    "unitRemoved": "Unité supprimée."
   },
   "permissions": {
     "groups": {
