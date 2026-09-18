@@ -38,6 +38,10 @@ module.exports = function (app) {
         createdTo: req.query.createdTo,
         // "current" | "expired" | "none" — a relação com os treinos.
         workout: req.query.workout,
+        // A LENTE DA UNIDADE, escolhida no alto da tela. Vazia é "todas", que
+        // é o estado de quem atende num lugar só — e de toda conta que nunca
+        // cadastrou unidade nenhuma.
+        unit: req.query.unit,
         sort: req.query.sort,
         dir: req.query.dir,
         page: req.query.page,

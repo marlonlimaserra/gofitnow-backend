@@ -53,6 +53,37 @@ function unidade(v) {
   return ObjectId.isValid(id) ? new ObjectId(id) : null;
 }
 
+// ── AS UNIDADES A QUE UM USUÁRIO DA EQUIPE TEM ACESSO ───────────────────
+//
+// *"aqui, no usuário, quero poder escolher quais unidades ele tem acesso"*.
+//
+// Plural aqui e singular na pessoa, e a assimetria é o desenho: um aluno
+// TREINA numa unidade, um recepcionista ATENDE em duas. São perguntas
+// diferentes, e usar uma lista dos dois lados faria a pessoa poder estar em
+// duas academias ao mesmo tempo.
+//
+// VAZIO QUER DIZER TODAS, e não "nenhuma". É a leitura que não estraga nada:
+// toda conta que existe hoje tem a lista vazia, e nenhuma delas pode acordar
+// amanhã sem ver ninguém. Quem quiser restringir, escolhe.
+const MAX_UNIDADES = 50;
+
+function unidades(v) {
+  if (!Array.isArray(v)) return [];
+
+  const vistas = new Set();
+  const saida = [];
+
+  for (const x of v) {
+    const id = String(x || "");
+    if (!ObjectId.isValid(id) || vistas.has(id)) continue;
+    vistas.add(id);
+    saida.push(new ObjectId(id));
+    if (saida.length >= MAX_UNIDADES) break;
+  }
+
+  return saida;
+}
+
 User_model.prototype.collection = async function () {
   const db = await this.app.mongodb.connectToServer();
   return db.collection("users");
@@ -352,6 +383,8 @@ User_model.prototype.insertTrainer = async function (obj) {
     // as an administrator.
     role: obj.role ? new ObjectId(obj.role) : null,
     admin: obj.admin === true,
+    // As unidades em que ele atende. Vazio é TODAS — ver `unidades()`.
+    units: unidades(obj.units),
     phone: obj.phone ? String(obj.phone).trim() : "",
     active: obj.active === undefined ? 1 : Number(obj.active) ? 1 : 0,
     createdAt: new Date(),
@@ -432,6 +465,9 @@ User_model.prototype.updateTrainer = async function (id, obj) {
   if (obj.active !== undefined) set.active = Number(obj.active) ? 1 : 0;
   if (obj.role !== undefined && ObjectId.isValid(obj.role)) set.role = new ObjectId(obj.role);
   if (obj.admin !== undefined) set.admin = obj.admin === true || obj.admin === 1;
+  // Lista vazia é gravável: é assim que se tira a restrição e se devolve o
+  // acesso a todas.
+  if (obj.units !== undefined) set.units = unidades(obj.units);
 
   if (obj.email !== undefined) {
     const e = normalizeEmail(obj.email);
@@ -634,6 +670,32 @@ User_model.prototype.pageStudents = async function (trainerId, filtros = {}) {
         $or: ["name", "email", "username", "phone"].map((campo) => ({
           [campo]: { $regex: escapado, $options: "i" },
         })),
+      },
+    });
+  }
+
+  // ── A LENTE DA UNIDADE ──────────────────────────────────────────────────
+  //
+  // *"se tiver acesso a mais de uma, aparece um selectzinho ali em cima, para
+  // poder escolher qual unidade eu quero navegar pelos dados"*.
+  //
+  // É uma LENTE, e não uma tranca. A tela escolhe por onde olhar, e a escolha
+  // fica visível no alto — quem não está vendo alguém sabe por quê e desfaz
+  // num clique. Uma tranca invisível esconderia gente sem dizer nada.
+  //
+  // ── E QUEM NÃO TEM UNIDADE APARECE SEMPRE ─────────────────────────────
+  //
+  // É a regra que tira o pé da armadilha. Numa conta que acabou de cadastrar a
+  // primeira unidade, NINGUÉM tem unidade ainda: sem esta linha, escolher
+  // "Paraty" esvaziaria a lista inteira e pareceria que os alunos sumiram.
+  //
+  // E ela é a leitura certa mesmo depois: quem não foi atribuído a lugar
+  // nenhum não é de outra unidade — é de nenhuma, e precisa continuar
+  // alcançável para alguém poder atribuí-lo.
+  if (ObjectId.isValid(filtros.unit)) {
+    etapas.push({
+      $match: {
+        $or: [{ unit: new ObjectId(filtros.unit) }, { unit: null }, { unit: { $exists: false } }],
       },
     });
   }
@@ -1294,6 +1356,9 @@ User_model.prototype.updateAny = async function (id, obj) {
   if (obj.active !== undefined) set.active = Number(obj.active) ? 1 : 0;
   if (obj.role !== undefined && ObjectId.isValid(obj.role)) set.role = new ObjectId(obj.role);
   if (obj.admin !== undefined) set.admin = obj.admin === true || obj.admin === 1;
+  // Lista vazia é gravável: é assim que se tira a restrição e se devolve o
+  // acesso a todas.
+  if (obj.units !== undefined) set.units = unidades(obj.units);
   if (obj.type !== undefined && TYPES.includes(String(obj.type))) set.type = String(obj.type);
 
   if (obj.email !== undefined) {
