@@ -286,6 +286,70 @@ module.exports = function (app) {
     res.status(201).send(criada);
   });
 
+  // ── UM LANÇAMENTO, COM O QUE ELE PRECISA PARA SER EDITADO ─────────────
+  //
+  // Pedido do Marlon em 18/09/2026: *"esse modal é um modal que eu gostaria de
+  // abrir de qualquer lugar, aí salve na url o id da cobrança e o id do
+  // pagamento, assim se eu der f5 ou mandar para alguém, abre onde deveria"*.
+  //
+  // E é isso que obriga estas rotas a existirem. Enquanto o diálogo só abria a
+  // partir de uma lista, a linha já estava na mão. Vindo de um LINK, não há
+  // lista nenhuma: a tela tem o id e mais nada.
+  //
+  // ── A RESPOSTA É MAIOR QUE O DOCUMENTO, de propósito ─────────────────
+  //
+  // O editor não desenha só a cobrança: ele mostra o NOME de quem deve (no
+  // título), os pagamentos que já entraram, e o catálogo de estados. Buscar
+  // cada coisa por conta faria quatro idas ao servidor para abrir uma janela —
+  // e a janela piscaria em quatro tempos.
+  app.get("/charges/:id", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "finance.view");
+    if (trainer === false) return;
+
+    const cobranca = await app.api.finance.chargeData(req.params.id);
+    if (!cobranca) return res.status(404).send({ msg: req.t("errors.chargeNotFound") });
+
+    // O VÍNCULO, e não só a existência: `dataStudent` filtra pelo profissional.
+    // Sem isto, um id adivinhado abriria a cobrança de quem não é seu — e um id
+    // que vaza num link é justamente o que esta funcionalidade cria.
+    const student = await app.api.user.dataStudent(trainer._id, cobranca.student);
+    if (!student) return res.status(404).send({ msg: req.t("errors.chargeNotFound") });
+
+    const moedas = await app.api.tenant.currencyOfInstance();
+
+    res.send({
+      charge: cobranca,
+      student: { _id: String(student._id), name: student.name },
+      payments: await app.api.finance.paymentsOfCharge(cobranca._id),
+      currency: moedas.currency,
+      paymentStatus: statusDePagamento.paraTela(req.t),
+    });
+  });
+
+  app.get("/payments/:id", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "finance.view");
+    if (trainer === false) return;
+
+    const pagamento = await app.api.finance.paymentData(req.params.id);
+    if (!pagamento) return res.status(404).send({ msg: req.t("errors.paymentNotFound") });
+
+    const student = await app.api.user.dataStudent(trainer._id, pagamento.student);
+    if (!student) return res.status(404).send({ msg: req.t("errors.paymentNotFound") });
+
+    const moedas = await app.api.tenant.currencyOfInstance();
+
+    res.send({
+      payment: pagamento,
+      student: { _id: String(student._id), name: student.name },
+      // As cobranças DA PESSOA, para o seletor "Referente a" — é o único jeito
+      // de o campo funcionar quando a janela abre de um link.
+      charges: await app.api.finance.listCharges(student._id),
+      paidByCharge: await app.api.finance.paidByCharge(student._id),
+      currency: moedas.currency,
+      paymentStatus: statusDePagamento.paraTela(req.t),
+    });
+  });
+
   // Os pagamentos de uma cobrança, para o diálogo de edição mostrar de onde vem
   // o "Paga". `finance.view` e não `manage`: é leitura.
   app.get("/charges/:id/payments", async function (req, res) {
