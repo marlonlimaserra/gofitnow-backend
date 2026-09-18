@@ -1,5 +1,6 @@
 const { ObjectId } = require("mongodb");
 const recorrencia = require("../lib/recorrencia.js");
+const arquivos = require("../lib/arquivos.js");
 const iconeGuardado = require("../lib/iconeGuardado.js");
 
 // OS PLANOS QUE A CASA VENDE — "Black", "Fit", "Smart".
@@ -355,6 +356,45 @@ Membership_model.prototype.rascunho = async function (currency) {
   return r.insertedId;
 };
 
+// ── A CAPA DO CLONE É UMA CÓPIA DOS BYTES ───────────────────────────────
+//
+// *"quando clonei, não veio a foto"*.
+//
+// Ela ficava de fora de propósito, e o argumento era o bucket: ninguém quer
+// três cópias do mesmo JPEG para ver a mesma foto. Errado na conta e errado no
+// uso.
+//
+// Na CONTA: a capa é reduzida antes de subir — são dezenas de KB, e um plano
+// se clona uma vez, não mil. Na USABILIDADE: clonar existe para não remontar o
+// plano do zero, e a foto é a primeira coisa que se escolhe ao montar um.
+//
+// E APONTAR para a mesma imagem não era saída: a faxina (`pruneUnused`) varre
+// POR PLANO, então a primeira gravação do original apagaria a foto do clone —
+// um plano ficaria com a capa quebrada sem ninguém ter mexido nele.
+//
+// Nunca derruba o clone. A foto é o enfeite; o plano é o conteúdo, e ficar sem
+// clone nenhum por causa de um byte que não veio seria o pior dos resultados.
+Membership_model.prototype.copiarCapa = async function (coverDaOrigem, destinoId) {
+  if (!coverDaOrigem) return null;
+
+  try {
+    const original = await this.app.api.membershipImage.data(String(coverDaOrigem));
+    if (!original) return null;
+
+    const bytes = await arquivos.bytesDoDocumento(original);
+    if (!bytes) return null;
+
+    const nova = await this.app.api.membershipImage.save(destinoId, original.mime, bytes);
+    const col = await this.collection();
+    await col.updateOne({ _id: destinoId }, { $set: { cover: new ObjectId(nova.id) } });
+
+    return nova.id;
+  } catch (erro) {
+    console.error("[planos] capa do clone:", erro?.message || erro);
+    return null;
+  }
+};
+
 // ── CLONAR ───────────────────────────────────────────────────────────────
 //
 // *"bote um botão para clonar"*, e o pedido cai no lugar certo: os planos de uma
@@ -397,21 +437,76 @@ Membership_model.prototype.duplicate = async function (id) {
     cadencia: origem.cadencia,
     fidelidadeMeses: origem.fidelidadeMeses || 0,
     beneficios: [...(origem.beneficios || [])],
-    // A CAPA NÃO É COPIADA, e é a única coisa que fica de fora.
-    //
-    // Duas linhas apontando para a MESMA imagem fariam a faxina de uma apagar a
-    // foto da outra: o dono da verdade é cada plano, e o da cópia não referencia
-    // nada até alguém enviar. Clonar os bytes seria a alternativa, e ninguém
-    // quer três cópias do mesmo JPEG no bucket para ver a mesma foto.
+    // A capa entra logo abaixo, com bytes PRÓPRIOS — ver `copiarCapa`.
     cover: null,
     destaque: false,
     active: false,
     order: await col.countDocuments({}),
     createdAt: new Date(),
     updatedAt: new Date(),
+
+    // ── AS CORES E O BOTÃO VÊM JUNTO ────────────────────────────────────
+    //
+    // Clonar existe para não remontar o plano do zero, e a aparência é
+    // metade do trabalho de montar um. Um clone que volta ao branco obriga a
+    // refazer as cinco cores à mão.
+    corFundo: origem.corFundo || "",
+    corTexto: origem.corTexto || "",
+    corDestaque: origem.corDestaque || "",
+    corBotao: origem.corBotao || "",
+    corBotaoTexto: origem.corBotaoTexto || "",
+    botaoTexto: origem.botaoTexto || "",
+    botaoLink: origem.botaoLink || "",
+    // O DESENHO vem copiado junto do nome: ele já passou pela conferência do
+    // `lib/iconify.js` quando o original o escolheu, e buscá-lo de novo seria
+    // ir à rede para chegar ao mesmo lugar.
+    botaoIcone: origem.botaoIcone || "",
+    botaoIconeSvg: origem.botaoIconeSvg || "",
+    botaoIconeCaixa: origem.botaoIconeCaixa || "",
   });
 
+  await this.copiarCapa(origem.cover, r.insertedId);
+
   return r.insertedId;
+};
+
+// ── A CAPA DO CLONE É UMA CÓPIA DOS BYTES ───────────────────────────────
+//
+// *"quando clonei, não veio a foto"*.
+//
+// Ela ficava de fora de propósito, e o argumento era o bucket: ninguém quer
+// três cópias do mesmo JPEG para ver a mesma foto. Errado na conta e errado no
+// uso.
+//
+// Na CONTA: a capa é reduzida antes de subir — são dezenas de KB, e um plano
+// se clona uma vez, não mil. Na USABILIDADE: clonar existe para não remontar o
+// plano do zero, e a foto é a primeira coisa que se escolhe ao montar um.
+//
+// E APONTAR para a mesma imagem não era saída: a faxina (`pruneUnused`) varre
+// POR PLANO, então a primeira gravação do original apagaria a foto do clone —
+// um plano ficaria com a capa quebrada sem ninguém ter mexido nele.
+//
+// Nunca derruba o clone. A foto é o enfeite; o plano é o conteúdo, e ficar sem
+// clone nenhum por causa de um byte que não veio seria o pior dos resultados.
+Membership_model.prototype.copiarCapa = async function (coverDaOrigem, destinoId) {
+  if (!coverDaOrigem) return null;
+
+  try {
+    const original = await this.app.api.membershipImage.data(String(coverDaOrigem));
+    if (!original) return null;
+
+    const bytes = await arquivos.bytesDoDocumento(original);
+    if (!bytes) return null;
+
+    const nova = await this.app.api.membershipImage.save(destinoId, original.mime, bytes);
+    const col = await this.collection();
+    await col.updateOne({ _id: destinoId }, { $set: { cover: new ObjectId(nova.id) } });
+
+    return nova.id;
+  } catch (erro) {
+    console.error("[planos] capa do clone:", erro?.message || erro);
+    return null;
+  }
 };
 
 // ── APAGAR UM PLANO EM USO É RECUSADO ────────────────────────────────────
