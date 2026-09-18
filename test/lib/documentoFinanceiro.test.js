@@ -179,3 +179,68 @@ test("sem lançamento nenhum, a folha diz isso em vez de sair em branco", () => 
   const html = documentoFinanceiro({ person: PESSOA, charges: [], payments: [] });
   assert.ok(html.includes("Nada lançado ainda."));
 });
+
+// ── O QUE A FOLHA NÃO REPETE, E O QUE ELA NÃO ANUNCIA ───────────────────
+//
+// Três coisas que ele viu de uma vez, olhando o extrato pronto.
+
+test("o nome aparece UMA vez — ele já é o título da folha", () => {
+  // *"ta mostrando o nome duas vezes"*. Estava no cabeçalho e de novo três
+  // linhas abaixo, em cima do contato.
+  // Só o que se VÊ: o <title> da aba não conta, e contá-lo faria este caso
+  // medir o número errado.
+  const html = montar();
+  const corpo = html.slice(html.indexOf("<body"));
+  const vezes = corpo.split("Giovana Lacerda").length - 1;
+
+  // Duas: o cabeçalho e o rodapé. O rodapé fica — ele é o que identifica a
+  // folha na segunda página impressa, onde o cabeçalho já saiu de vista.
+  assert.equal(vezes, 2);
+});
+
+test("o contato continua lá — a ficha é para onde se olha ao ligar", () => {
+  const html = montar();
+
+  assert.ok(html.includes("(21) 99999-0000"));
+  assert.ok(html.includes("giovana@exemplo.com"));
+});
+
+test('a tabela de cobranças vem SEM o título "Cobranças"', () => {
+  // *"pode remover o texto Cobranças"*. O cabeçalho das colunas já diz o que
+  // cada uma é, e o título roubava a linha que separa os totais da tabela.
+  const html = montar();
+
+  assert.ok(!html.includes(">COBRANÇAS<"));
+  assert.ok(!html.includes(">Cobranças<"));
+  // E a tabela em si continua inteira.
+  assert.ok(html.includes("Mensalidade"));
+});
+
+test("os pagamentos AVULSOS continuam com o título deles", () => {
+  // Sem ele, uma segunda tabela apareceria do nada e pareceria continuação da
+  // primeira.
+  const html = montar({
+    payments: [
+      ...PAGAMENTOS,
+      { _id: "g9", amount: 5000, date: "2026-09-14T00:00:00.000Z", method: "pix", status: "paid" },
+    ],
+  });
+
+  assert.ok(html.includes(">Pagamentos<"));
+});
+
+test("o cabeçalho do NÚMERO sai traduzido, e não como a chave", () => {
+  // Saiu "FINANCE.COLNUMBER" na folha dele: o depósito de rótulos é espelhado
+  // do site e estava velho. Ver o bloco dos documentos em lib/i18n/check.js.
+  const html = montar();
+
+  assert.ok(!html.toLowerCase().includes("finance.col"));
+  assert.ok(html.includes("Nº"));
+});
+
+test('a coluna do vencimento diz "Vencimento"', () => {
+  // *"troque Vence para Vencimento"*.
+  const html = montar();
+
+  assert.ok(html.includes("Vencimento"));
+});

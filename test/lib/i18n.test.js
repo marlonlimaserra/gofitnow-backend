@@ -132,3 +132,21 @@ test("nenhuma tradução ficou vazia", () => {
     }
   }
 });
+
+// ── O CONFERIDOR RODA NO `npm test`, e não só à mão ─────────────────────
+//
+// `npm run i18n:check` já existia, e por isso mesmo não pegou nada: ninguém o
+// roda. Em 18/09/2026 o extrato saiu com "FINANCE.COLNUMBER" escrito no
+// cabeçalho da coluna, porque o depósito de rótulos dos documentos é espelhado
+// do site e estava velho — e o Marlon viu antes de qualquer teste.
+//
+// Chamar o script, e não copiar a lógica: duas cópias da mesma conferência
+// divergem, e a que ninguém roda é a que fica certa.
+test("o conferidor de tradução passa", () => {
+  const { execFileSync } = require("node:child_process");
+  const path = require("node:path");
+
+  execFileSync(process.execPath, [path.join(__dirname, "..", "..", "lib", "i18n", "check.js")], {
+    stdio: "pipe",
+  });
+});
