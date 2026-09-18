@@ -85,6 +85,44 @@ function beneficios(v) {
   return saida;
 }
 
+// ── AS CORES DO CARTÃO: hex ou NADA ─────────────────────────────────────
+//
+// Pedido dele em 18/09/2026, com a vitrine aberta: *"coloque uma aba para
+// personalizar cor, cor do texto, cor do fundo, cor do mais vantajoso"*.
+//
+// VAZIO é um valor de verdade, e é o padrão: quer dizer "usa a cor da marca".
+// É diferente de escolher uma cor IGUAL à da marca — quem deixou vazio muda
+// junto quando a marca mudar; quem escolheu, não. É a mesma regra do
+// `ColorField` da tela de aparência, e ela precisa valer nos dois lados.
+//
+// ── E É POR ISSO QUE NÃO ACEITA "red" NEM "rgb(...)" ────────────────────
+//
+// Estas cores saem do banco e entram num `style=` no CARTÃO PÚBLICO, que roda
+// dentro de um iframe no site do cliente. Uma string livre ali é um lugar onde
+// se escreve CSS, e CSS em atributo de estilo faz mais coisa do que pintar.
+//
+// Seis dígitos, com ou sem `#`, e nada mais. O que não casar vira vazio — que
+// é a cor da marca, e nunca um cartão quebrado.
+const COR = /^#?([0-9a-f]{6})$/i;
+
+function cor(v) {
+  const m = COR.exec(String(v || "").trim());
+  return m ? "#" + m[1].toLowerCase() : "";
+}
+
+// O endereço do botão. `http`/`https` só: `javascript:` num `href` é execução,
+// e este cartão é embutido por terceiros no site deles.
+function link(v) {
+  const texto = String(v || "").trim().slice(0, 300);
+  if (!texto) return "";
+  try {
+    const u = new URL(texto);
+    return u.protocol === "http:" || u.protocol === "https:" ? u.toString() : "";
+  } catch (erro) {
+    return "";
+  }
+}
+
 const CAMPOS = {
   name: (v) => String(v || "").trim().slice(0, 80),
   // ── DOIS TEXTOS, e eles não são o mesmo ────────────────────────────────
@@ -125,6 +163,32 @@ const CAMPOS = {
     const id = String(v || "").split("/").pop();
     return ObjectId.isValid(id) ? new ObjectId(id) : null;
   },
+
+  // ── A APARÊNCIA DO CARTÃO ───────────────────────────────────────────────
+  //
+  // Quatro cores e um botão. Todas vazias por padrão: um plano que nunca
+  // passou pela aba de aparência sai exatamente como saía antes.
+  corFundo: cor,
+  corTexto: cor,
+  corDestaque: cor,
+  corBotao: cor,
+  corBotaoTexto: cor,
+
+  // ── O BOTÃO DE COMPRAR ──────────────────────────────────────────────────
+  //
+  // *"faltou o botão de comprar, aí permita mudar o nome do botão e cores
+  // também"*.
+  //
+  // O TEXTO é do cliente porque a palavra muda com o negócio: uma academia
+  // escreve "Matricule-se", um personal "Quero este plano", um estúdio
+  // "Agendar aula". Vazio cai num padrão traduzido — nunca num botão sem nome.
+  //
+  // O LINK é para onde ele leva, e é ele que decide se o botão EXISTE na
+  // vitrine: um botão que não vai a lugar nenhum é uma porta pintada na
+  // parede, e esta vitrine abre dentro do site de um cliente. Na prévia ele
+  // aparece sempre — é lá que se escolhem as cores dele.
+  botaoTexto: (v) => String(v || "").trim().slice(0, 40),
+  botaoLink: link,
 };
 
 // A lista da TELA. Rascunho fica de fora: ele é um plano que alguém começou e

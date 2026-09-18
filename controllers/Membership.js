@@ -295,6 +295,21 @@ module.exports = function (app) {
         fidelidadeMeses: p.fidelidadeMeses || 0,
         destaque: p.destaque === true,
         coverUrl: urlDaCapa(instancia, p.cover),
+        // ── A APARÊNCIA ESCOLHIDA ───────────────────────────────────────
+        //
+        // Elas viram `style=` no cartão, então saem daqui já validadas pelo
+        // modelo: hex de seis dígitos ou vazio, nunca uma string livre. Vazio
+        // é "usa a cor da marca", e é o que a esmagadora maioria dos planos
+        // vai mandar.
+        corFundo: p.corFundo || "",
+        corTexto: p.corTexto || "",
+        corDestaque: p.corDestaque || "",
+        corBotao: p.corBotao || "",
+        corBotaoTexto: p.corBotaoTexto || "",
+        // O botão só existe com destino. Sem link ele não vai a lugar nenhum,
+        // e uma porta pintada na parede é pior que parede.
+        botaoTexto: p.botaoLink ? p.botaoTexto || "" : "",
+        botaoLink: p.botaoLink || "",
         // Benefício DESATIVADO some do cartão junto com a linha da tabela:
         // deixá-lo aqui faria o cartão prometer algo que a comparação nem lista.
         beneficios: (p.beneficios || []).map(String).filter((id) => validos.has(id)),
