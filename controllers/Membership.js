@@ -23,6 +23,7 @@
 const recorrencia = require("../lib/recorrencia.js");
 const modelosDeCartao = require("../lib/modelosDeCartao.js");
 const instanceContext = require("../lib/instance.js");
+const limiteDoPlano = require("../lib/limiteDoPlano.js");
 const arquivos = require("../lib/arquivos.js");
 const dominio = require("../lib/domain.js");
 
@@ -34,6 +35,11 @@ module.exports = function (app) {
   // O documento guarda só o ID da imagem. Guardar a URL inteira prenderia o
   // plano ao endereço do backend do dia em que a capa foi enviada — e este
   // sistema já mudou de endereço uma vez.
+  // A contagem do teto, fora das rotas: a chamada a `barrou` tem de caber numa
+  // linha com o `return`, e é assim que um `return` esquecido salta aos olhos
+  // — ver `test/lib/limitesLigados.test.js`.
+  const contarPlanos = limiteDoPlano.contarNa(app, "memberships");
+
   const urlDaCapa = (instancia, id) =>
     id ? `${baseUrl()}/public/membership-image/${instancia}/${id}` : null;
   // ── Planos ──────────────────────────────────────────────────────────────
@@ -76,6 +82,18 @@ module.exports = function (app) {
       return res.status(400).send({ msg: req.t("errors.requireName") });
     }
 
+    // ── O TETO DO PLANO DO PRODUTO ──────────────────────────────────────
+    //
+    // *"crie esses limites na central, só para evitar abuso"*. Os planos da
+    // casa são a VITRINE PÚBLICA do cliente: sem teto, nada impede uma conta
+    // de virar um catálogo de duzentos itens numa página que nós hospedamos e
+    // que carrega a nossa marca embaixo.
+    //
+    // Conta TUDO, rascunho incluído. Rascunho abandonado é lixo que a tela
+    // apaga sozinha ao fechar; deixá-lo fora da conta abriria um caminho para
+    // furar o teto criando e nunca salvando.
+    if (await limiteDoPlano.barrou(app, req, res, "memberships", contarPlanos)) return;
+
     const moeda = await app.api.tenant.currencyFor(body.currency);
     const id = await app.api.membership.insert(body, moeda);
 
@@ -96,6 +114,18 @@ module.exports = function (app) {
   app.post("/memberships/draft", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "finance.manage");
     if (user === false) return;
+
+    // ── O TETO DO PLANO DO PRODUTO ──────────────────────────────────────
+    //
+    // *"crie esses limites na central, só para evitar abuso"*. Os planos da
+    // casa são a VITRINE PÚBLICA do cliente: sem teto, nada impede uma conta
+    // de virar um catálogo de duzentos itens numa página que nós hospedamos e
+    // que carrega a nossa marca embaixo.
+    //
+    // Conta TUDO, rascunho incluído. Rascunho abandonado é lixo que a tela
+    // apaga sozinha ao fechar; deixá-lo fora da conta abriria um caminho para
+    // furar o teto criando e nunca salvando.
+    if (await limiteDoPlano.barrou(app, req, res, "memberships", contarPlanos)) return;
 
     const moeda = await app.api.tenant.currencyFor();
     const id = await app.api.membership.rascunho(moeda);
@@ -186,6 +216,18 @@ module.exports = function (app) {
   app.post("/memberships/:id/clone", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "finance.manage");
     if (user === false) return;
+
+    // ── O TETO DO PLANO DO PRODUTO ──────────────────────────────────────
+    //
+    // *"crie esses limites na central, só para evitar abuso"*. Os planos da
+    // casa são a VITRINE PÚBLICA do cliente: sem teto, nada impede uma conta
+    // de virar um catálogo de duzentos itens numa página que nós hospedamos e
+    // que carrega a nossa marca embaixo.
+    //
+    // Conta TUDO, rascunho incluído. Rascunho abandonado é lixo que a tela
+    // apaga sozinha ao fechar; deixá-lo fora da conta abriria um caminho para
+    // furar o teto criando e nunca salvando.
+    if (await limiteDoPlano.barrou(app, req, res, "memberships", contarPlanos)) return;
 
     const id = await app.api.membership.duplicate(req.params.id);
     if (!id) return res.status(404).send({ msg: req.t("errors.membershipNotFound") });

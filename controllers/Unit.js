@@ -21,6 +21,7 @@
 // um dia a unidade aparece na vitrine, e uma foto que exige login não aparece
 // dentro do site de ninguém.
 const instanceContext = require("../lib/instance.js");
+const limiteDoPlano = require("../lib/limiteDoPlano.js");
 const cep = require("../lib/cep.js");
 const geocodificar = require("../lib/geocodificar.js");
 const arquivos = require("../lib/arquivos.js");
@@ -28,6 +29,11 @@ const dominio = require("../lib/domain.js");
 
 module.exports = function (app) {
   const baseUrl = dominio.apiBaseUrl;
+
+  // A contagem do teto, fora da rota: a chamada a `barrou` tem de caber numa
+  // linha com o `return`, e é assim que um `return` esquecido salta aos olhos
+  // — ver `test/lib/limitesLigados.test.js`.
+  const contarUnidades = limiteDoPlano.contarNa(app, "units");
 
   // O ENDEREÇO da foto, montado aqui e não guardado na unidade. O documento
   // guarda só o ID: guardar a URL inteira prenderia a unidade ao endereço do
@@ -93,6 +99,19 @@ module.exports = function (app) {
   app.post("/units", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "users.manage");
     if (user === false) return;
+
+    // ── O TETO DO PLANO ────────────────────────────────────────────────────
+    //
+    // *"crie esses limites na central, só para evitar abuso"*.
+    //
+    // "Abuso" aqui não é hipótese de manual: a unidade é o que entra no MAPA
+    // DE PARCEIROS do nosso site. Quem quisesse aparecer trinta vezes na mesma
+    // cidade só precisaria cadastrar trinta unidades — e o teto é o que faz
+    // esse caminho não existir.
+    //
+    // Conta a collection inteira, e não as do mapa: quem apagasse a marcação
+    // para criar mais uma e remarcasse depois passaria por cima do teto.
+    if (await limiteDoPlano.barrou(app, req, res, "units", contarUnidades)) return;
 
     const id = await app.api.unit.insert(req.body || {});
     // Sem nome não há unidade: é o único campo que a tela exige, e o servidor

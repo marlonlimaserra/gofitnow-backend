@@ -854,7 +854,9 @@
     "whitelabel": "whitelabel",
     "workoutTemplates": "plantillas de entrenamiento",
     "workouts": "entrenamientos",
-    "aulaoes": "clases grupales"
+    "aulaoes": "clases grupales",
+    "units": "unidades",
+    "memberships": "planes"
   },
   "finance": {
     "status": {

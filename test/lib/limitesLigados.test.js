@@ -43,6 +43,16 @@ const APLICADOS = [
   // é o que faz um limite novo no painel, que ninguém ligou no código, quebrar
   // aqui em vez de virar enfeite na tela de planos.
   "aulaoes",
+  // UNIDADES e PLANOS DA CASA (18/09/2026). Os dois entram pelo mesmo motivo
+  // dos aulões — a lista é o CONTRATO —, e com uma razão a mais: eles são os
+  // dois únicos limites que protegem uma página NOSSA. A unidade entra no mapa
+  // de parceiros do site da VAFIT; o plano, na vitrine que a gente hospeda.
+  //
+  // Um teto que o painel vende e ninguém confere, aqui, não seria só um limite
+  // furado: seria o nosso site virando quadro de avisos de quem cadastrar mais
+  // rápido.
+  "units",
+  "memberships",
 ];
 
 test("todo limite do plano é APLICADO em alguma rota", () => {

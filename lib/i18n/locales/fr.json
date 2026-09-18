@@ -854,7 +854,9 @@
     "whitelabel": "marque blanche",
     "workoutTemplates": "modèles de séance",
     "workouts": "séances",
-    "aulaoes": "cours collectifs"
+    "aulaoes": "cours collectifs",
+    "units": "unités",
+    "memberships": "forfaits"
   },
   "finance": {
     "status": {
