@@ -630,7 +630,8 @@
       "people": "Personnes",
       "diet": "Régime",
       "assessments": "Évaluation physique",
-      "schedule": "Agenda"
+      "schedule": "Agenda",
+      "finance": "Finances"
     },
     "fields": {
       "workout.name": {
@@ -684,6 +685,14 @@
       "appointment.note": {
         "label": "Remarque du rendez-vous",
         "hint": "Ex. : Apporter serviette et gourde"
+      },
+      "charge.description": {
+        "label": "Description de la facture",
+        "hint": "Ex. : Mensualité de septembre"
+      },
+      "charge.note": {
+        "label": "Remarque de la facture",
+        "hint": "Ex. : Convenu de payer la moitié le 10"
       }
     }
   },

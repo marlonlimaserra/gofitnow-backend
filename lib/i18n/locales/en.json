@@ -630,7 +630,8 @@
       "people": "People",
       "diet": "Diet",
       "assessments": "Physical assessment",
-      "schedule": "Schedule"
+      "schedule": "Schedule",
+      "finance": "Finance"
     },
     "fields": {
       "workout.name": {
@@ -684,6 +685,14 @@
       "appointment.note": {
         "label": "Appointment note",
         "hint": "E.g.: Bring a towel and water bottle"
+      },
+      "charge.description": {
+        "label": "Charge description",
+        "hint": "E.g.: September membership"
+      },
+      "charge.note": {
+        "label": "Charge note",
+        "hint": "E.g.: Agreed to pay half on the 10th"
       }
     }
   },

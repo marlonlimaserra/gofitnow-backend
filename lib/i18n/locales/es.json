@@ -630,7 +630,8 @@
       "people": "Personas",
       "diet": "Dieta",
       "assessments": "Evaluación física",
-      "schedule": "Agenda"
+      "schedule": "Agenda",
+      "finance": "Finanzas"
     },
     "fields": {
       "workout.name": {
@@ -684,6 +685,14 @@
       "appointment.note": {
         "label": "Observación de la cita",
         "hint": "Ej.: Traer toalla y botella"
+      },
+      "charge.description": {
+        "label": "Descripción del cobro",
+        "hint": "Ej.: Mensualidad de septiembre"
+      },
+      "charge.note": {
+        "label": "Observación del cobro",
+        "hint": "Ej.: Acordó pagar la mitad el día 10"
       }
     }
   },
