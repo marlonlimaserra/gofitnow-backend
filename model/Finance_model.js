@@ -2,6 +2,7 @@ const { ObjectId } = require("mongodb");
 const { centavos } = require("./Service_model.js");
 const tempo = require("../lib/tempo.js");
 const statusDeCobranca = require("../lib/statusDeCobranca.js");
+const statusDePagamento = require("../lib/statusDePagamento.js");
 const instanceContext = require("../lib/instance.js");
 const { parseDataUri } = require("../lib/imageDataUri.js");
 
@@ -71,25 +72,25 @@ const STATUS = ["open", "paid", "canceled"];
 
 // O status do PAGAMENTO, que é outra coisa.
 //
-// O da cobrança é consequência (pagaram ou não); este é declarado, porque só
-// quem registrou sabe. `paid` é o caso normal e o padrão. `pending` é o
-// combinado que ainda não caiu — o Pix prometido para amanhã, o cheque
-// pré-datado. `refunded` é o dinheiro que entrou e VOLTOU: o lançamento fica
-// como histórico, mas parou de ser receita.
-const STATUS_PAGAMENTO = ["paid", "pending", "refunded"];
-
-// Lançamento antigo não tem o campo, e ausente é `paid`.
+// O da cobrança é consequência (pagaram ou não); este é DECLARADO, porque só
+// quem registrou sabe.
 //
-// Era o único significado possível antes deste campo existir. Ler ausência como
-// "pendente" reescreveria o passado: o saldo de todo mundo que já usava o
-// sistema mudaria sozinho, sem ninguém ter tocado em nada.
+// A lista mudou de casa em 18/09/2026: ela estava aqui e, igual, no formulário
+// da tela — e o segundo era o que se esqueceria, porque esquecê-lo não quebra
+// nada, só deixa de oferecer o estado novo. Agora mora em
+// `lib/statusDePagamento.js` e viaja na resposta, como a da cobrança.
+const STATUS_PAGAMENTO = statusDePagamento.IDS;
+
 function statusDoPagamento(pagamento) {
-  return STATUS_PAGAMENTO.includes(pagamento?.status) ? pagamento.status : "paid";
+  return statusDePagamento.normalizar(pagamento?.status);
 }
 
-// O dinheiro entrou mesmo? É esta pergunta que o saldo faz.
+// O dinheiro entrou mesmo? É esta pergunta que o saldo faz — e quem responde é
+// o catálogo (`entra`), não uma comparação com "paid" escrita aqui. Um estado
+// novo que não seja receita passa a ser respeitado por todas as contas do
+// sistema sem ninguém procurar os lugares.
 function entrou(pagamento) {
-  return statusDoPagamento(pagamento) === "paid";
+  return statusDePagamento.entrou(pagamento);
 }
 
 const MAX_COMPROVANTE = 10 * 1024 * 1024;
@@ -429,9 +430,11 @@ Finance_model.prototype.carteira = async function ({
           $match: {
             $expr: { $eq: ["$charge", "$$cobranca"] },
             ...(instancia ? { instance: instancia } : {}),
-            // Só o que ENTROU conta: pendente é promessa e reembolsado é
-            // dinheiro que voltou. Mesma regra de `balanceOf` e `paidByCharge`.
-            status: "paid",
+            // Só o que ENTROU conta: pendente é promessa, reembolsado é
+            // dinheiro que voltou, cancelado é lançamento que não devia
+            // existir. `$nin` e não `status: "paid"` — ver `filtroDeEntrada`:
+            // pagamento antigo não tem o campo, e o literal o deixaria de fora.
+            ...statusDePagamento.filtroDeEntrada(),
           },
         },
         { $group: { _id: null, total: { $sum: "$amount" } } },
@@ -1014,7 +1017,7 @@ Finance_model.prototype.cobrancasDeAulao = async function (aulaoId) {
   const pagamentos = await this.payments();
   const somas = await pagamentos
     .aggregate([
-      { $match: { charge: { $in: cobrancas.map((c) => c._id) }, status: "paid" } },
+      { $match: { charge: { $in: cobrancas.map((c) => c._id) }, ...statusDePagamento.filtroDeEntrada() } },
       { $group: { _id: "$charge", total: { $sum: "$amount" } } },
     ])
     .toArray();
@@ -1147,7 +1150,9 @@ Finance_model.prototype.reabrirCobranca = async function (chargeId) {
 
   // Camada 2: um pagamento só, cobrindo a cobrança inteira.
   if (apagados === 0) {
-    const doCharge = await pagamentos.find({ charge: cobranca._id, status: "paid" }).toArray();
+    const doCharge = await pagamentos
+      .find({ charge: cobranca._id, ...statusDePagamento.filtroDeEntrada() })
+      .toArray();
 
     if (doCharge.length === 1 && (doCharge[0].amount || 0) >= (cobranca.amount || 0)) {
       await pagamentos.deleteOne({ _id: doCharge[0]._id });
@@ -1162,7 +1167,7 @@ Finance_model.prototype.reabrirCobranca = async function (chargeId) {
   // `status: "paid"` quita.
   const somas = await pagamentos
     .aggregate([
-      { $match: { charge: cobranca._id, status: "paid" } },
+      { $match: { charge: cobranca._id, ...statusDePagamento.filtroDeEntrada() } },
       { $group: { _id: "$charge", total: { $sum: "$amount" } } },
     ])
     .toArray();

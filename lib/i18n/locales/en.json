@@ -860,6 +860,12 @@
     "recurrenceStatus": {
       "active": "Active",
       "canceled": "Cancelled"
+    },
+    "paymentStatus": {
+      "paid": "Paid",
+      "pending": "Pending",
+      "refunded": "Refunded",
+      "canceled": "Cancelled"
     }
   }
 }

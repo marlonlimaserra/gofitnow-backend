@@ -162,15 +162,24 @@ test("status desconhecido é tratado como SEM filtro", async () => {
   assert.equal(daPagina.filter((e) => e.$match).length, 0, "nada reconhecido = tudo");
 });
 
-test("a junção com pagamentos só soma o que ENTROU", async () => {
-  // Pendente é promessa e reembolsado é dinheiro que voltou. Mesma regra de
-  // `balanceOf` e `paidByCharge` — e é o tipo de coisa que, divergindo, faz a
-  // carteira discordar da ficha da pessoa sobre a mesma cobrança.
+test("a junção com pagamentos só soma o que ENTROU, e NÃO por `status: paid`", async () => {
+  // Pendente é promessa, reembolsado é dinheiro que voltou, cancelado é
+  // lançamento que não devia existir.
+  //
+  // O filtro é `$nin` e não `status: "paid"` porque pagamento ANTIGO não tem o
+  // campo, e ausente significa pago. O literal os deixaria de fora — e o
+  // "Recebido" da carteira discordaria do total da ficha da pessoa, que soma em
+  // JavaScript e trata ausente como pago.
+  const statusDePagamento = require("../../lib/statusDePagamento.js");
   const { model, chamadas } = fakeModel();
   await model.carteira({});
 
   const juncao = chamadas[0].pipeline.find((e) => e.$lookup?.from === "payments");
-  assert.ok(texto(juncao).includes('"status":"paid"'));
+  const filtro = juncao.$lookup.pipeline.find((e) => e.$match).$match;
+
+  assert.deepEqual(filtro.status, { $nin: statusDePagamento.NAO_ENTRAM });
+  assert.ok(statusDePagamento.NAO_ENTRAM.includes("canceled"));
+  assert.ok(!texto(juncao).includes('"status":"paid"'), "nada de literal");
 });
 
 test("o documento da PESSOA é recortado antes de sair da junção", async () => {

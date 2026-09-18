@@ -1,5 +1,6 @@
 const arquivos = require("../lib/arquivos.js");
 const statusDeCobranca = require("../lib/statusDeCobranca.js");
+const statusDePagamento = require("../lib/statusDePagamento.js");
 const recorrencia = require("../lib/recorrencia.js");
 const statusDeRecorrencia = require("../lib/statusDeRecorrencia.js");
 const { documentoFinanceiro } = require("../lib/documentoFinanceiro.js");
@@ -120,6 +121,9 @@ module.exports = function (app) {
       currency: moedas.currency,
       currencies: moedas.currencies,
       status: statusDeCobranca.paraTela(req.t),
+      // Os estados de um PAGAMENTO, pelo mesmo caminho: a lista vivia em dois
+      // lugares — aqui e no formulário — e o segundo era o que se esqueceria.
+      paymentStatus: statusDePagamento.paraTela(req.t),
     });
   });
 
@@ -153,6 +157,7 @@ module.exports = function (app) {
       // Os ESTADOS de uma recorrência, pelo mesmo caminho das cadências e dos
       // status de cobrança: a tela desenha o seletor sem conhecer nenhum deles.
       recurrenceStatus: statusDeRecorrencia.paraTela(req.t),
+      paymentStatus: statusDePagamento.paraTela(req.t),
       payments: await app.api.finance.listPayments(student._id),
       // Um saldo POR MOEDA: somar moedas diferentes daria um total que não
       // existe.
