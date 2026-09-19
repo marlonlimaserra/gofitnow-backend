@@ -1,6 +1,7 @@
 const { ObjectId } = require("mongodb");
 const recorrencia = require("../lib/recorrencia.js");
 const statusDeRecorrencia = require("../lib/statusDeRecorrencia.js");
+const instanceContext = require("../lib/instance.js");
 
 // AS RECORRÊNCIAS DE UMA PESSOA — a mensalidade, a anuidade, o pacote trimestral.
 //
@@ -182,6 +183,148 @@ Recurrence_model.prototype.listOfStudent = async function (studentId) {
 //
 // Quem quer só parar de gerar não apaga: desativa (`active: false`). O botão de
 // apagar existe para o cadastro errado, feito e desfeito no mesmo minuto.
+// ── AS RECORRÊNCIAS DE TODO MUNDO ─────────────────────────────────────────
+//
+// A terceira aba do Financeiro: *"adicione a de recorrência também"*.
+//
+// Ela responde "o que está combinado para se repetir" — e é a única das três
+// que não fala de um FATO. Cobrança é uma dívida que existe; pagamento é
+// dinheiro que entrou; recorrência é uma REGRA, que vai criar cobranças no
+// futuro.
+//
+// ── POR QUE ELA NÃO TEM JANELA DE DATAS ────────────────────────────────
+//
+// As outras duas filtram por período porque cada linha acontece num dia. Uma
+// regra não acontece: ela vale enquanto vale. Filtrá-la por "este mês"
+// esconderia justamente a mensalidade que roda há dois anos — que é a que mais
+// importa ver.
+//
+// Quem chama é que decide não mandar `de`/`ate`; aqui eles nem existem.
+Recurrence_model.prototype.todas = async function ({
+  busca,
+  status,
+  unit,
+  pagina,
+  limite,
+} = {}) {
+  const col = await this.collection();
+  const instancia = instanceContext.current();
+
+  const juntarPessoa = {
+    $lookup: {
+      from: "users",
+      let: { pessoa: "$student" },
+      pipeline: [
+        {
+          $match: {
+            $expr: { $eq: ["$_id", "$$pessoa"] },
+            ...(instancia ? { instance: instancia } : {}),
+          },
+        },
+        { $project: { name: 1, avatarAt: 1, unit: 1 } },
+      ],
+      as: "pessoa",
+    },
+  };
+
+  const derivados = {
+    $addFields: {
+      studentName: { $ifNull: [{ $arrayElemAt: ["$pessoa.name", 0] }, ""] },
+      studentAvatarAt: { $ifNull: [{ $arrayElemAt: ["$pessoa.avatarAt", 0] }, null] },
+      studentUnit: { $ifNull: [{ $arrayElemAt: ["$pessoa.unit", 0] }, null] },
+      estado: { $ifNull: ["$status", statusDeRecorrencia.PADRAO] },
+    },
+  };
+
+  const recorte = [];
+
+  const pedidos = String(status || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => statusDeRecorrencia.IDS.includes(x));
+  if (pedidos.length) recorte.push({ $match: { estado: { $in: pedidos } } });
+
+  if (ObjectId.isValid(unit)) {
+    recorte.push({ $match: { studentUnit: new ObjectId(String(unit)) } });
+  }
+
+  const termo = String(busca || "").trim();
+  if (termo) {
+    const esc = termo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    recorte.push({
+      $match: {
+        $or: [
+          { studentName: { $regex: esc, $options: "i" } },
+          { description: { $regex: esc, $options: "i" } },
+        ],
+      },
+    });
+  }
+
+  const limitePorPagina = Math.min(Math.max(Number(limite) || 25, 1), 200);
+  const paginaPedida = Math.max(Number(pagina) || 1, 1);
+
+  const projecao = {
+    $project: {
+      _id: 0,
+      id: { $toString: "$_id" },
+      student: { $toString: "$student" },
+      studentName: 1,
+      studentAvatarAt: 1,
+      studentUnit: {
+        $cond: [{ $ifNull: ["$studentUnit", false] }, { $toString: "$studentUnit" }, null],
+      },
+      description: { $ifNull: ["$description", ""] },
+      amount: { $ifNull: ["$amount", 0] },
+      currency: { $ifNull: ["$currency", null] },
+      cadencia: { $ifNull: ["$cadencia", "monthly"] },
+      startsAt: 1,
+      endsAt: 1,
+      status: "$estado",
+      canceledReason: { $ifNull: ["$canceledReason", ""] },
+    },
+  };
+
+  const [saida] = await col
+    .aggregate([
+      juntarPessoa,
+      derivados,
+      {
+        $facet: {
+          // O RESUMO é o que está ATIVO: quanto a casa espera receber por
+          // ciclo, e de quanta gente. É a pergunta que a aba existe para
+          // responder — "qual é a minha receita recorrente".
+          //
+          // Só as que GERAM entram: uma regra cancelada não é receita, e somá-la
+          // faria a previsão crescer a cada cancelamento.
+          resumo: [
+            { $match: { estado: { $in: statusDeRecorrencia.GERAM } } },
+            { $group: { _id: null, previsto: { $sum: "$amount" }, ativas: { $sum: 1 } } },
+          ],
+          rows: [
+            ...recorte,
+            { $sort: { studentName: 1, _id: 1 } },
+            { $skip: (paginaPedida - 1) * limitePorPagina },
+            { $limit: limitePorPagina },
+            projecao,
+          ],
+          total: [...recorte, { $count: "n" }],
+        },
+      },
+    ])
+    .toArray();
+
+  const resumo = saida?.resumo?.[0] || {};
+
+  return {
+    rows: saida?.rows || [],
+    total: saida?.total?.[0]?.n || 0,
+    pagina: paginaPedida,
+    limite: limitePorPagina,
+    resumo: { previsto: resumo.previsto || 0, ativas: resumo.ativas || 0 },
+  };
+};
+
 Recurrence_model.prototype.remove = async function (id) {
   if (!ObjectId.isValid(id)) return false;
   const col = await this.collection();

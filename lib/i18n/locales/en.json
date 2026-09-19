@@ -1,6 +1,7 @@
 {
   "errors": {
     "accountWithEmailExists": "An account with that e-mail already exists.",
+    "addressNotFound": "Could not find that address on the map.",
     "adminRoleLocked": "The Administrator type cannot be changed. Create another type to adjust permissions.",
     "aiBadKey": "Anthropic rejected the key. Check it under Settings.",
     "aiChatTooLong": "This conversation got too long. Start a new one.",
@@ -44,6 +45,7 @@
     "aulaoNoPerson": "Choose who to enroll.",
     "aulaoNotEnrolled": "That person is not enrolled in this group class.",
     "aulaoNotFound": "That group class no longer exists.",
+    "aulaoRateLimited": "Too many sign-ups from this device. Please try again in an hour.",
     "aulaoTooManyImages": "This class already has the maximum number of photos.",
     "badCredentials": "Wrong e-mail or password.",
     "billingOff": "Billing is not enabled on this installation. Contact support.",
@@ -61,6 +63,7 @@
     "captcha_required": "Confirm you are not a robot to continue.",
     "categoryDuplicated": "You already have a category with that name.",
     "categoryReserved": "That name belongs to a system category. Please choose another.",
+    "cepNotFound": "Postal code not found.",
     "chargeNotFound": "Charge not found.",
     "checkoutFailed": "I could not open the payment screen. Try again in a few minutes.",
     "conversationNotFound": "Conversation not found.",
@@ -79,12 +82,19 @@
     "emailOfAnotherProfessional": "That e-mail is already registered in this account, under another professional. Ask them to share it, or use a different e-mail.",
     "emailSendFailed": "Could not send the e-mail right now. Please try again.",
     "emailTooSoon": "This email was just sent. Wait {{seconds}} seconds to send it again.",
+    "employeeHasHistory": "This employee has {{ocorrencias}} entr(ies) and {{pontos}} day(s) on the time sheet. Deleting takes it all — off-boarding is the usual way.",
+    "employeeNotFound": "This employee no longer exists.",
     "emptyMessage": "Write something before sending.",
     "endBeforeStart": "The end date cannot be before the start date.",
     "examNotFound": "Lab result not found.",
     "exerciseNotFound": "Exercise not found.",
     "foodNotFound": "Food not found.",
     "foodShared": "This food belongs to the shared catalog and cannot be changed here. Create your own to have your version.",
+    "groupClassAlreadyToday": "This person is already in a class today.",
+    "groupClassClosed": "This time slot is closed.",
+    "groupClassFull": "The class is full.",
+    "groupClassIncomplete": "The class needs a name, a time and at least one weekday.",
+    "groupClassNotFound": "Class not found.",
     "ideaCommentEmpty": "Write something before sending.",
     "ideaCommentTooMany": "You have commented a lot today. Come back tomorrow.",
     "ideaNoTitle": "Write a title with at least 4 characters.",
@@ -95,6 +105,7 @@
     "invalidAttachment": "File not accepted or too large.",
     "invalidBrandImage": "Upload a JPEG, PNG or WebP image of up to 4 MB.",
     "invalidCategory": "That category is not on the list. Reload the page and pick again.",
+    "invalidDay": "Invalid day. Use the YYYY-MM-DD format.",
     "invalidDomain": "Write the domain as it is, with no http:// and no slash — for example, training.yoursite.com.",
     "invalidEmail": "Invalid e-mail.",
     "invalidField": "Invalid field.",
@@ -107,6 +118,7 @@
     "invalidPersonEmail": "Invalid e-mail.",
     "invalidPhotoSides": "Invalid list of angles.",
     "invalidPreferences": "Invalid or oversized preferences.",
+    "invalidReceipt": "Invalid receipt. Use an image or PDF up to 8 MB.",
     "invalidRole": "Invalid user type.",
     "invalidSession": "Invalid or expired session.",
     "invalidStatus": "Invalid status.",
@@ -120,10 +132,15 @@
     "lastAccountManagingRolesEdit": "This is the last active account that manages permissions — promote another one before changing this.",
     "lastRoleManagingRoles": "This is the only type that still manages permissions, and it is yours. Give that permission to another type first.",
     "mailFailed": "Could not send the e-mail.",
+    "membershipBenefitInUse": "This benefit is ticked on {{count}} plan(s). Deactivate it instead of deleting.",
+    "membershipBenefitNotFound": "Benefit not found.",
+    "membershipInUse": "This plan is used by {{count}} recurrence(s). Deactivate it instead of deleting.",
+    "membershipNotFound": "Plan not found.",
     "moduleNotFound": "That module does not exist.",
     "newPasswordTooShort": "The new password needs at least 6 characters.",
     "noAccountWithEmail": "There is no account with that e-mail.",
     "noApiKey": "No API key provided.",
+    "noAttachment": "This entry has no attachment.",
     "noCustomDomain": "No domain of your own is set up.",
     "noInstance": "Instance not provided. Send the X-Instance header, or use the instance's own address.",
     "noPermission": "Your user type does not have permission for this.",
@@ -138,11 +155,14 @@
     "ownAccountAccess": "This account belongs to the person themselves — only they can change their access.",
     "passwordNeedsEmail": "App access needs an e-mail: that is what the person logs in with.",
     "passwordTooShort": "The password needs at least 6 characters.",
+    "payableNoDescription": "The bill needs a description.",
+    "payableNotFound": "Bill not found.",
     "paymentMethodExists": "A payment method with that name already exists.",
     "paymentMethodInUse": "There are payments recorded with this method. Disable it to take it out of the picker without touching history.",
     "paymentMethodNotFound": "Payment method not found.",
     "paymentMethodSystem": "Built-in methods cannot be deleted — disable it to take it out of the picker.",
     "paymentNotFound": "Payment not found.",
+    "payrollOnly": "Only someone who can see pay may log a raise.",
     "pdfFailed": "Could not generate the PDF. Please try again.",
     "pdfUnavailable": "PDF generation is not available on this server. Use the print option.",
     "personNotFound": "Person not found.",
@@ -150,12 +170,16 @@
     "planInactive": "That plan is no longer available.",
     "planIsFree": "The free plan needs no payment.",
     "planLimitReached": "Your plan allows up to {{max}} in {{o}}. Delete what you no longer use, or upgrade.",
+    "planNotFound": "That plan does not exist.",
     "planNotSellable": "That plan is not ready to be sold yet. Support has been notified.",
     "portalFailed": "I could not open the management screen. Try again in a few minutes.",
     "prescriptionNotFound": "Prescription not found.",
     "rateLimited": "Limit of {{limit}} calls per minute reached. Try again in {{seconds}}s.",
+    "recordNotFound": "This entry no longer exists.",
+    "recurrenceNotFound": "Recurrence not found.",
     "requestNoLongerValid": "This request is no longer valid.",
     "requestNotFound": "Request not found.",
+    "requireAmount": "Enter the amount.",
     "requireApiKeyName": "Give the key a name.",
     "requireCopyName": "Enter a name for the copy.",
     "requireDate": "Provide the date and time.",
@@ -186,12 +210,14 @@
     "routeNotFound": "Route not found.",
     "serviceNotFound": "Service not found.",
     "signupRateLimited": "Too many sign-ups from this computer. Please try again in an hour.",
-    "aulaoRateLimited": "Too many sign-ups from this device. Please try again in an hour.",
     "studentAreaOnly": "This area belongs to the people you follow. Your access is through their records.",
     "studentNotFound": "Student not found.",
     "studentWithoutEmail": "This person has no email address on file.",
     "subdomainTaken": "That address already belongs to another account.",
     "supplementNotFound": "Supplement not found.",
+    "supplierInUse": "{{count}} bill(s) point to this supplier. Deactivate it instead of deleting.",
+    "supplierNoName": "The supplier needs a name.",
+    "supplierNotFound": "Supplier not found.",
     "systemRoleNotDeletable": "The system default types cannot be deleted.",
     "targetStudentNotFound": "Target student not found.",
     "textTooLong": "That text is too long for an option.",
@@ -204,6 +230,8 @@
     "tooManyApiKeys": "You already have {{max}} active keys. Revoke one before creating another.",
     "tooManyBrandImages": "You already have {{max}} images stored. Save the appearance to free the ones not in use.",
     "unavailableAccount": "Account unavailable.",
+    "unitInUse": "This unit has {{count}} person(s). Deactivate it instead of deleting.",
+    "unitNotFound": "Unit not found.",
     "unknownInstance": "Unrecognised address. This address is not linked to any registered client.",
     "userNotFound": "User not found.",
     "userWithEmailExists": "A user with that e-mail already exists.",
@@ -218,63 +246,56 @@
     "usernameInUse": "This username is already taken.",
     "vocabularyLength": "Use between 3 and 20 letters for the {{field}} (e.g. student / students).",
     "workoutNotFound": "Workout not found.",
-    "wrongCurrentPassword": "Current password is wrong.",
-    "recurrenceNotFound": "Recurrence not found.",
-    "requireAmount": "Enter the amount.",
-    "membershipNotFound": "Plan not found.",
-    "membershipInUse": "This plan is used by {{count}} recurrence(s). Deactivate it instead of deleting.",
-    "planNotFound": "That plan does not exist.",
-    "membershipBenefitNotFound": "Benefit not found.",
-    "membershipBenefitInUse": "This benefit is ticked on {{count}} plan(s). Deactivate it instead of deleting.",
-    "unitNotFound": "Unit not found.",
-    "unitInUse": "This unit has {{count}} person(s). Deactivate it instead of deleting.",
-    "cepNotFound": "Postal code not found.",
-    "addressNotFound": "Could not find that address on the map.",
-    "groupClassNotFound": "Class not found.",
-    "groupClassIncomplete": "The class needs a name, a time and at least one weekday."
+    "wrongCurrentPassword": "Current password is wrong."
   },
   "ok": {
-    "passwordChanged": "Password changed.",
-    "signedOut": "Signed out.",
-    "photoUpdated": "Photo updated.",
-    "photoRemoved": "Photo removed.",
-    "optionRemoved": "Option removed.",
-    "personUnlinked": "Person removed from your list.",
-    "personDeleted": "Person deleted.",
-    "userRemoved": "User removed.",
-    "workoutRemoved": "Workout removed.",
-    "exerciseRemoved": "Exercise removed.",
-    "roleRemoved": "Type removed.",
     "accessRevoked": "Access revoked.",
+    "apiKeyRevoked": "Key revoked.",
+    "appointmentRemoved": "Appointment removed.",
+    "assessmentEmailed": "Assessment sent by email.",
+    "assessmentRemoved": "Assessment deleted.",
+    "bookingPageRemoved": "Booking page removed.",
+    "chargeRemoved": "Charge removed.",
+    "dietEmailed": "Meal plan sent by email.",
+    "dietRemoved": "Plan deleted.",
+    "employeeRemoved": "Employee deleted.",
+    "examRemoved": "Lab result deleted.",
+    "exerciseRemoved": "Exercise removed.",
+    "foodRemoved": "Food deleted.",
+    "groupClassEnrolled": "Signed up.",
+    "groupClassLeft": "Removed from the list.",
+    "groupClassRemoved": "Class removed.",
+    "groupClassSaved": "Order saved.",
+    "inviteDone": "You're signed up! Just log in to the app now.",
+    "membershipBenefitRemoved": "Benefit removed.",
+    "membershipRemoved": "Plan removed.",
+    "membershipSaved": "Order saved.",
+    "optionRemoved": "Option removed.",
+    "passwordChanged": "Password changed.",
+    "payableRemoved": "Bill removed.",
+    "paymentMethodRemoved": "Payment method removed.",
+    "paymentMethodSaved": "Payment method saved.",
+    "paymentRemoved": "Payment removed.",
+    "personDeleted": "Person deleted.",
+    "personUnlinked": "Person removed from your list.",
+    "photoRemoved": "Photo removed.",
+    "photoUpdated": "Photo updated.",
+    "prescriptionRemoved": "Prescription deleted.",
+    "recordRemoved": "Entry deleted.",
+    "recurrenceRemoved": "Recurrence removed. Charges already generated remain.",
     "requestCancelled": "Request cancelled.",
     "requestSent": "Request sent. The person has to confirm by e-mail.",
     "resetLinkSent": "If an account exists for that e-mail, the reset link has been sent.",
-    "apiKeyRevoked": "Key revoked.",
-    "inviteDone": "You're signed up! Just log in to the app now.",
-    "dietRemoved": "Plan deleted.",
-    "supplementRemoved": "Supplement deleted.",
-    "examRemoved": "Lab result deleted.",
-    "prescriptionRemoved": "Prescription deleted.",
-    "foodRemoved": "Food deleted.",
-    "assessmentRemoved": "Assessment deleted.",
-    "appointmentRemoved": "Appointment removed.",
+    "roleRemoved": "Type removed.",
     "serviceRemoved": "Service removed.",
-    "chargeRemoved": "Charge removed.",
-    "paymentRemoved": "Payment removed.",
-    "bookingPageRemoved": "Booking page removed.",
-    "paymentMethodSaved": "Payment method saved.",
-    "paymentMethodRemoved": "Payment method removed.",
-    "assessmentEmailed": "Assessment sent by email.",
-    "dietEmailed": "Meal plan sent by email.",
+    "signedOut": "Signed out.",
     "statementEmailed": "Statement sent by email.",
-    "recurrenceRemoved": "Recurrence removed. Charges already generated remain.",
-    "membershipRemoved": "Plan removed.",
-    "membershipSaved": "Order saved.",
-    "membershipBenefitRemoved": "Benefit removed.",
-    "unitSaved": "Order saved.",
+    "supplementRemoved": "Supplement deleted.",
+    "supplierRemoved": "Supplier removed.",
     "unitRemoved": "Unit removed.",
-    "groupClassSaved": "Order saved.",
-    "groupClassRemoved": "Class removed."
+    "unitSaved": "Order saved.",
+    "userRemoved": "User removed.",
+    "workoutRemoved": "Workout removed."
   },
   "permissions": {
     "groups": {
@@ -345,156 +366,172 @@
       "ai": {
         "title": "Assistant",
         "description": "The assistant that drives the screen for you."
+      },
+      "employees": {
+        "title": "Employees",
+        "description": "Your team: profile, time sheet, records and pay"
       }
     },
     "items": {
-      "people.view": {
-        "label": "View people",
-        "hint": "Open the list and the record of whoever is already linked."
-      },
-      "people.create": {
-        "label": "Add person",
-        "hint": "Register a new record and ask access from whoever already has an account."
-      },
-      "people.edit": {
-        "label": "Edit record",
-        "hint": "Change data, measurements and notes."
-      },
-      "people.delete": {
-        "label": "Remove from list",
-        "hint": "Undo the link. The person still exists if another professional follows them."
-      },
-      "people.access": {
-        "label": "Manage the person's access",
-        "hint": "Set or revoke the password of whoever you registered."
-      },
-      "workouts.view": {
-        "label": "View workouts",
-        "hint": "Open the workouts and the sessions."
-      },
-      "workouts.manage": {
-        "label": "Build workouts",
-        "hint": "Create, edit, duplicate and delete workouts, sessions and session exercises."
-      },
-      "exercises.view": {
-        "label": "View the catalog",
-        "hint": "Browse exercises and groups."
-      },
-      "exercises.manage": {
-        "label": "Edit the catalog",
-        "hint": "Create, change and delete exercises."
-      },
-      "users.view": {
-        "label": "View users",
-        "hint": "Open the Users menu."
-      },
-      "users.manage": {
-        "label": "Manage users",
-        "hint": "Register professionals, edit, deactivate and delete any account."
-      },
-      "logs.view": {
-        "label": "View the history",
-        "hint": "See who did what, when and from which address."
-      },
-      "roles.view": {
-        "label": "View types",
-        "hint": "Open the User types menu."
-      },
-      "roles.manage": {
-        "label": "Manage types",
-        "hint": "Create types and change each one's permissions. Whoever has this can give themselves any power."
-      },
-      "diets.view": {
-        "label": "View diets",
-        "hint": "Open people's meal plans."
-      },
-      "diets.manage": {
-        "label": "Manage diets",
-        "hint": "Create, edit and delete plans and meals."
-      },
-      "foods.view": {
-        "label": "View the catalogue",
-        "hint": "Browse foods and categories."
-      },
-      "foods.manage": {
-        "label": "Manage foods",
-        "hint": "Create, edit and delete catalogue foods — applies to every account."
-      },
-      "assessments.view": {
-        "label": "View assessments",
-        "hint": "Open the assessment tab. The screen is under construction."
-      },
-      "assessments.manage": {
-        "label": "Manage assessments",
-        "hint": "Record and delete measurements. The screen is under construction."
-      },
-      "anamnesis.view": {
-        "label": "View history",
-        "hint": "Open the tab and read the health history."
-      },
-      "anamnesis.manage": {
-        "label": "Fill in history",
-        "hint": "Write and change the health history and habits."
-      },
-      "supplements.view": {
-        "label": "View supplements",
-        "hint": "Open the tab and read what was recommended."
-      },
-      "supplements.manage": {
-        "label": "Recommend supplement",
-        "hint": "Add, change and end supplement items."
-      },
-      "exams.view": {
-        "label": "View lab results",
-        "hint": "Open the tab and read reports and trends."
-      },
-      "exams.manage": {
-        "label": "Enter lab results",
-        "hint": "Enter, correct and delete reports."
-      },
-      "prescriptions.view": {
-        "label": "View prescriptions",
-        "hint": "Open issued documents and reprint them."
-      },
-      "prescriptions.manage": {
-        "label": "Issue prescription",
-        "hint": "Create, change and delete documents. This is who signs."
-      },
-      "schedule.view": {
-        "label": "View the schedule",
-        "hint": "Open the schedule tab. The screen is under construction."
-      },
-      "schedule.manage": {
-        "label": "Manage the schedule",
-        "hint": "Book and cancel times. The screen is under construction."
-      },
-      "finance.view": {
-        "label": "View billing",
-        "hint": "Open the billing tab and see charges. The screen is under construction."
-      },
-      "finance.manage": {
-        "label": "Manage billing",
-        "hint": "Create charges and settle them. The screen is under construction."
-      },
-      "chat.view": {
-        "label": "View conversations",
-        "hint": "Open the chat and read your own conversations."
-      },
-      "chat.send": {
-        "label": "Send messages",
-        "hint": "Write, and start a conversation with someone."
-      },
-      "schedule.team": {
-        "label": "Team schedule",
-        "hint": "See and book on other professionals’ schedules."
+      "ai.manage": {
+        "label": "Configure the assistant",
+        "hint": "Change the key and the model. Affects what the account is billed."
       },
       "ai.use": {
         "label": "Use the assistant",
         "hint": "Talk to the assistant and let it drive the screen."
       },
-      "ai.manage": {
-        "label": "Configure the assistant",
-        "hint": "Change the key and the model. Affects what the account is billed."
+      "anamnesis.manage": {
+        "label": "Fill in history",
+        "hint": "Write and change the health history and habits."
+      },
+      "anamnesis.view": {
+        "label": "View history",
+        "hint": "Open the tab and read the health history."
+      },
+      "assessments.manage": {
+        "label": "Manage assessments",
+        "hint": "Record and delete measurements. The screen is under construction."
+      },
+      "assessments.view": {
+        "label": "View assessments",
+        "hint": "Open the assessment tab. The screen is under construction."
+      },
+      "chat.send": {
+        "label": "Send messages",
+        "hint": "Write, and start a conversation with someone."
+      },
+      "chat.view": {
+        "label": "View conversations",
+        "hint": "Open the chat and read your own conversations."
+      },
+      "diets.manage": {
+        "label": "Manage diets",
+        "hint": "Create, edit and delete plans and meals."
+      },
+      "diets.view": {
+        "label": "View diets",
+        "hint": "Open people's meal plans."
+      },
+      "employees.manage": {
+        "label": "Manage employees",
+        "hint": "Add, edit, off-board, log warnings and fill in the time sheet."
+      },
+      "employees.payroll": {
+        "label": "View and change pay",
+        "hint": "See salary, benefits and bank details, and log raises."
+      },
+      "employees.view": {
+        "label": "View employees",
+        "hint": "Open the team list and each profile, without the salary."
+      },
+      "exams.manage": {
+        "label": "Enter lab results",
+        "hint": "Enter, correct and delete reports."
+      },
+      "exams.view": {
+        "label": "View lab results",
+        "hint": "Open the tab and read reports and trends."
+      },
+      "exercises.manage": {
+        "label": "Edit the catalog",
+        "hint": "Create, change and delete exercises."
+      },
+      "exercises.view": {
+        "label": "View the catalog",
+        "hint": "Browse exercises and groups."
+      },
+      "finance.manage": {
+        "label": "Manage billing",
+        "hint": "Create charges and settle them. The screen is under construction."
+      },
+      "finance.view": {
+        "label": "View billing",
+        "hint": "Open the billing tab and see charges. The screen is under construction."
+      },
+      "foods.manage": {
+        "label": "Manage foods",
+        "hint": "Create, edit and delete catalogue foods — applies to every account."
+      },
+      "foods.view": {
+        "label": "View the catalogue",
+        "hint": "Browse foods and categories."
+      },
+      "logs.view": {
+        "label": "View the history",
+        "hint": "See who did what, when and from which address."
+      },
+      "people.access": {
+        "label": "Manage the person's access",
+        "hint": "Set or revoke the password of whoever you registered."
+      },
+      "people.create": {
+        "label": "Add person",
+        "hint": "Register a new record and ask access from whoever already has an account."
+      },
+      "people.delete": {
+        "label": "Remove from list",
+        "hint": "Undo the link. The person still exists if another professional follows them."
+      },
+      "people.edit": {
+        "label": "Edit record",
+        "hint": "Change data, measurements and notes."
+      },
+      "people.view": {
+        "label": "View people",
+        "hint": "Open the list and the record of whoever is already linked."
+      },
+      "prescriptions.manage": {
+        "label": "Issue prescription",
+        "hint": "Create, change and delete documents. This is who signs."
+      },
+      "prescriptions.view": {
+        "label": "View prescriptions",
+        "hint": "Open issued documents and reprint them."
+      },
+      "roles.manage": {
+        "label": "Manage types",
+        "hint": "Create types and change each one's permissions. Whoever has this can give themselves any power."
+      },
+      "roles.view": {
+        "label": "View types",
+        "hint": "Open the User types menu."
+      },
+      "schedule.manage": {
+        "label": "Manage the schedule",
+        "hint": "Book and cancel times. The screen is under construction."
+      },
+      "schedule.team": {
+        "label": "Team schedule",
+        "hint": "See and book on other professionals’ schedules."
+      },
+      "schedule.view": {
+        "label": "View the schedule",
+        "hint": "Open the schedule tab. The screen is under construction."
+      },
+      "supplements.manage": {
+        "label": "Recommend supplement",
+        "hint": "Add, change and end supplement items."
+      },
+      "supplements.view": {
+        "label": "View supplements",
+        "hint": "Open the tab and read what was recommended."
+      },
+      "users.manage": {
+        "label": "Manage users",
+        "hint": "Register professionals, edit, deactivate and delete any account."
+      },
+      "users.view": {
+        "label": "View users",
+        "hint": "Open the Users menu."
+      },
+      "workouts.manage": {
+        "label": "Build workouts",
+        "hint": "Create, edit, duplicate and delete workouts, sessions and session exercises."
+      },
+      "workouts.view": {
+        "label": "View workouts",
+        "hint": "Open the workouts and the sessions."
       }
     }
   },
@@ -591,7 +628,11 @@
     "delete_payment_method": "Deleted payment method",
     "update_timezone": "Changed the time zone",
     "email_assessment": "Emailed a body assessment",
-    "email_diet": "Emailed a meal plan"
+    "email_diet": "Emailed a meal plan",
+    "create_employee": "Added an employee",
+    "update_employee": "Edited an employee profile",
+    "delete_employee": "Deleted an employee",
+    "create_employee_record": "Logged an employee entry"
   },
   "categories": {
     "auth": "Access",
@@ -607,7 +648,8 @@
     "foods": "Foods",
     "assessments": "Assessment",
     "schedule": "Schedule",
-    "finance": "Finance"
+    "finance": "Finance",
+    "employees": "Employees"
   },
   "targetTypes": {
     "users": "User",
@@ -843,11 +885,15 @@
     "apiKeys": "API keys",
     "appearance": "appearance customization",
     "assessments": "assessments",
+    "aulaoes": "group classes",
     "dietTemplates": "diet templates",
     "diets": "diets",
+    "employees": "employees",
     "exams": "exams",
     "exercisesPerWorkout": "exercises per workout",
     "foodsPerMeal": "foods per meal",
+    "groupClasses": "group classes",
+    "memberships": "plans",
     "people": "people",
     "photoSides": "photo categories in the assessment",
     "prescriptions": "prescriptions",
@@ -855,13 +901,10 @@
     "schedule": "scheduling",
     "setsPerExercise": "sets per exercise",
     "supplements": "supplementation",
+    "units": "units",
     "whitelabel": "whitelabel",
     "workoutTemplates": "workout templates",
-    "workouts": "workouts",
-    "aulaoes": "group classes",
-    "units": "units",
-    "memberships": "plans",
-    "groupClasses": "group classes"
+    "workouts": "workouts"
   },
   "finance": {
     "status": {
@@ -899,6 +942,28 @@
       "ocean": "Ocean",
       "neon": "Neon",
       "sand": "Sand"
+    }
+  },
+  "payables": {
+    "category": {
+      "aluguel": "Rent",
+      "energia": "Electricity",
+      "agua": "Water",
+      "internet": "Internet",
+      "telefone": "Phone",
+      "folha": "Payroll",
+      "impostos": "Taxes",
+      "fornecedor": "Supplier",
+      "manutencao": "Maintenance",
+      "equipamento": "Equipment",
+      "marketing": "Marketing",
+      "software": "Software",
+      "outros": "Other",
+      "gas": "Gas",
+      "taxas": "Bank and card fees",
+      "seguro": "Insurance",
+      "contabilidade": "Accounting",
+      "seguranca": "Security"
     }
   }
 }

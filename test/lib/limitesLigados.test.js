@@ -55,6 +55,11 @@ const APLICADOS = [
   "memberships",
   // A grade de aulas coletivas (18/09/2026).
   "groupClasses",
+  // A EQUIPE DA CASA (19/09/2026). Entra na lista pelo mesmo motivo dos outros
+  // — ela é o CONTRATO —, e com uma razão própria: a ficha de funcionário
+  // guarda CPF, salário e conta bancária, e um teto que ninguém confere é um
+  // convite a usar a conta grátis como cadastro de RH de terceiros.
+  "employees",
 ];
 
 test("todo limite do plano é APLICADO em alguma rota", () => {

@@ -295,6 +295,20 @@ test("toda collection de cliente que um modelo toca está DECLARADA", () => {
     // `Center_model.environmentOf`, para dizer à tela qual backend chamar.
     // Índices nascem lá, como manda a fronteira do cabeçalho de config/mongodb.js.
     "environments",
+    // OS FORNECEDORES CONHECIDOS (19/09/2026): *"na central, crie um menu
+    // 'fornecedores conhecidos', para a gente já deixar cadastrados os
+    // principais"*. A Enel é a Enel em qualquer academia, e a lista é UMA para
+    // todos — como o catálogo de alimentos.
+    //
+    // Este backend só LÊ, quando alguém clica em "Usar os do VAFIT"; o que
+    // entra vira CÓPIA em `suppliers`, no banco do cliente, que ele edita à
+    // vontade. Quem escreve no catálogo e cria os índices é o painel.
+    "known_suppliers",
+    // E AS LOGOS DELES (19/09/2026): mesma família, mesma direção. Este backend
+    // só lê, e só na importação — os bytes são COPIADOS para `supplier_images`,
+    // no banco do cliente, e a logo dele para de depender do painel a partir
+    // dali.
+    "known_supplier_images",
     // AS NOVIDADES (16/09/2026): *"sempre que eu lançar um módulo novo... na
     // central precisamos da tela de notícia."* A coleção já existia — é a que
     // alimenta /novidades no site — e agora este backend também a LÊ, para

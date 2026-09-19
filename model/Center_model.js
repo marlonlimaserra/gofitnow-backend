@@ -409,6 +409,68 @@ Center_model.prototype.limitesEscondidos = async function () {
   return lista;
 };
 
+// ── OS FORNECEDORES CONHECIDOS ────────────────────────────────────────────
+//
+// *"aqui, coloque um botão 'usar os do vafit', aí puxa da central todos os
+// fornecedores"*.
+//
+// Lidos direto da collection do painel, pelo mesmo caminho dos limites do
+// plano: os dois backends compartilham o MongoDB, e uma rota HTTP entre eles
+// seria uma dependência de rede no meio de um clique — com timeout para tratar
+// e um modo de falha a mais.
+//
+// Sem cache de propósito: isto é chamado UMA vez, quando alguém clica em
+// importar. Guardar em memória economizaria uma consulta por ano e daria um
+// catálogo velho no dia em que a lista mudasse.
+Center_model.prototype.fornecedoresConhecidos = async function () {
+  try {
+    const db = await this.app.mongodb.centralDb();
+    return await db
+      .collection("known_suppliers")
+      .find({ active: { $ne: false } })
+      .sort({ nameSort: 1 })
+      .toArray();
+  } catch (erro) {
+    // Falhar aqui devolve lista vazia, e a tela diz "nada para importar". É a
+    // mesma escolha do resto deste modelo: uma queda do painel não pode virar
+    // uma queda do produto.
+    console.error("[central] fornecedores conhecidos:", erro.message);
+    return [];
+  }
+};
+
+// AS LOGOS do catálogo, pelos ids pedidos.
+//
+// Os BYTES, e não uma URL. A importação COPIA a logo para a base da casa — é a
+// mesma promessa do resto do catálogo: o que ele importou é dele, e uma troca
+// nossa depois não mexe no que já está lá.
+//
+// Por que pelo banco e não por HTTP: os dois backends já compartilham o Mongo, e
+// uma chamada de rede por fornecedor no meio de um clique seria um timeout para
+// tratar e um modo de falha a mais. É a mesma razão que pôs `known_suppliers`
+// aqui em vez de numa rota.
+Center_model.prototype.logosDeConhecidos = async function (ids) {
+  const alvos = (ids || []).filter(Boolean);
+  if (!alvos.length) return {};
+
+  try {
+    const db = await this.app.mongodb.centralDb();
+    const docs = await db
+      .collection("known_supplier_images")
+      .find({ _id: { $in: alvos } })
+      .toArray();
+
+    const mapa = {};
+    for (const d of docs) mapa[String(d._id)] = d;
+    return mapa;
+  } catch (erro) {
+    // Sem logo o fornecedor entra igual. Uma queda do painel não pode virar uma
+    // importação que falha.
+    console.error("[central] logos de fornecedores:", erro.message);
+    return {};
+  }
+};
+
 Center_model.prototype.plansForSale = async function () {
   const guardado = lido("pls:");
   if (guardado !== undefined) return guardado;

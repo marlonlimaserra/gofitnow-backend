@@ -69,11 +69,34 @@ const POR_INSTANCIA = [
   // cliente: a lista de filiais de uma academia não é assunto do central.
   "units",
   "unit_images",
+  // CONTAS A PAGAR — a luz, o telefone, o aluguel. Do cliente, e não do
+  // central: o que uma academia paga é assunto dela.
+  "payables",
+  // O COMPROVANTE de uma conta: os bytes à parte, como o do pagamento. A ficha
+  // leve fica no documento da conta; o arquivo mora aqui.
+  "payable_files",
+  // OS FORNECEDORES — quem recebe o dinheiro que sai, e a foto de cada um.
+  // Do cliente: a lista de quem uma academia paga é dela.
+  "suppliers",
+  "supplier_images",
+  // ── A EQUIPE DA CASA ─────────────────────────────────────────────────────
+  //
+  // A ficha de quem trabalha aqui, a linha do tempo do que aconteceu com ela
+  // (advertência, atestado, férias, reajuste), a folha de ponto e a foto.
+  //
+  // Do cliente, e sem discussão possível: é dado pessoal de pessoa empregada —
+  // CPF, salário, conta bancária, atestado médico. Nada disto sai da casa.
+  "employees",
+  "employee_records",
+  "employee_files",
+  "employee_time",
+  "employee_images",
   // AS AULAS COLETIVAS: a grade que se repete, e quem entrou na de hoje. Do
   // cliente — a grade de uma academia não é assunto do central.
   "group_classes",
   "group_class_checkins",
   "group_class_images",
+  "group_class_sessions",
   "conversations",
   "messages",
   "message_files",
@@ -616,6 +639,74 @@ async function ensureUmBanco(db) {
   // ninguém referencia mais.
   await db.collection("membership_images").createIndex({ instance: 1, membership: 1 }, { name: "by_membership" });
 
+  // ── CONTAS A PAGAR ─────────────────────────────────────────────────────
+  //
+  // A tela abre num MÊS e ordena por vencimento — é o índice que serve os dois
+  // de uma vez, e é o único que a lista usa em toda abertura.
+  await db.collection("payables").createIndex({ instance: 1, dueDate: -1 }, { name: "by_due" });
+  // E POR UNIDADE, que é a pergunta da rede: "quanto custa Paraty por mês".
+  // `sparse` porque conta da casa toda não tem unidade, e indexar centenas de
+  // nulos não ajuda ninguém.
+  await db
+    .collection("payables")
+    .createIndex({ instance: 1, unit: 1, dueDate: -1 }, { name: "by_unit_due", sparse: true });
+
+  // Os FORNECEDORES: lista curta, lida inteira e sempre em ordem alfabética —
+  // é assim que se acha um nome numa caixa de busca.
+  await db.collection("suppliers").createIndex({ instance: 1, name: 1 }, { name: "by_name" });
+  // A foto é sempre buscada pelo fornecedor dono: é assim que a faxina acha o
+  // que ninguém referencia mais.
+  await db
+    .collection("supplier_images")
+    .createIndex({ instance: 1, supplier: 1 }, { name: "by_supplier" });
+  // E o comprovante, pela conta dona — um por conta.
+  await db
+    .collection("payable_files")
+    .createIndex({ instance: 1, payable: 1 }, { unique: true, name: "um_por_conta" });
+
+  // ── A EQUIPE DA CASA ───────────────────────────────────────────────────
+  //
+  // A lista é sempre alfabética, e a busca é por `nameSort` — sem acento e em
+  // minúsculas, para "joao" achar "João".
+  await db.collection("employees").createIndex({ instance: 1, nameSort: 1 }, { name: "by_name" });
+  // E POR UNIDADE: "quem trabalha em Paraty". `sparse` porque o vínculo é
+  // opcional — o contador e o faxineiro que roda as duas não têm unidade.
+  await db
+    .collection("employees")
+    .createIndex({ instance: 1, unit: 1, nameSort: 1 }, { name: "by_unit", sparse: true });
+
+  // A LINHA DO TEMPO é sempre lida de um funcionário só, do mais recente para
+  // o mais antigo.
+  await db
+    .collection("employee_records")
+    .createIndex({ instance: 1, employee: 1, data: -1 }, { name: "by_employee_date" });
+  // E por TIPO dentro da janela: é a consulta que descobre quem está de férias
+  // hoje, e ela roda uma vez por linha da lista de funcionários.
+  await db
+    .collection("employee_records")
+    .createIndex({ instance: 1, tipo: 1, data: -1 }, { name: "by_type_date" });
+
+  // ── O PONTO: UM DIA POR FUNCIONÁRIO, e o índice é quem garante ─────────
+  //
+  // Único de propósito. O dia é gravado por upsert, e sem o índice um clique
+  // duplo em "salvar" criaria duas linhas para a mesma terça-feira — a folha
+  // somaria as horas duas vezes, e o erro só apareceria no fechamento.
+  await db
+    .collection("employee_time")
+    .createIndex({ instance: 1, employee: 1, dia: 1 }, { unique: true, name: "um_por_dia" });
+  // E por DIA da casa inteira: "quem está com o ponto aberto agora".
+  await db.collection("employee_time").createIndex({ instance: 1, dia: 1 }, { name: "by_day" });
+
+  // O anexo, pela ocorrência dona — um por ocorrência.
+  await db
+    .collection("employee_files")
+    .createIndex({ instance: 1, record: 1 }, { unique: true, name: "um_por_ocorrencia" });
+  // A foto, pelo funcionário dono: é assim que a faxina acha o que ninguém
+  // referencia mais.
+  await db
+    .collection("employee_images")
+    .createIndex({ instance: 1, employee: 1 }, { name: "by_employee" });
+
   // ── AS UNIDADES ────────────────────────────────────────────────────────
   //
   // Lista curta, sempre lida inteira e sempre na ordem escolhida — a mesma
@@ -684,6 +775,17 @@ async function ensureUmBanco(db) {
   await db
     .collection("group_class_images")
     .createIndex({ instance: 1, groupClass: 1 }, { name: "by_group_class" });
+
+  // A AULA DE UM DIA. Único porque a linha é a ocorrência: duas linhas para o
+  // mesmo (aula, dia, horário) seriam dois estados de fechamento para a mesma
+  // aula, e a tela leria um deles por acaso.
+  await db
+    .collection("group_class_sessions")
+    .createIndex({ instance: 1, class: 1, dia: 1, inicio: 1 }, { name: "a_ocorrencia", unique: true });
+  // E as fechadas do dia, que é a pergunta que a grade faz uma vez por tela.
+  await db
+    .collection("group_class_sessions")
+    .createIndex({ instance: 1, dia: 1, fechada: 1 }, { name: "by_dia" });
 
   // E a contagem do dia, que é o que a grade mostra em cada linha.
   await db

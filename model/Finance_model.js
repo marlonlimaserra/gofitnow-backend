@@ -370,6 +370,18 @@ const ORDEM_DA_CARTEIRA = {
   status: "situacao",
 };
 
+// A ordenação dos RECEBIMENTOS. Lista fechada pela mesma razão da de cima: o
+// campo vai para dentro de um `$sort`, e aceitar o que vier é deixar a tela
+// escolher por qual chave o banco trabalha.
+const ORDEM_DOS_RECEBIMENTOS = {
+  numero: "numero",
+  person: "studentName",
+  description: "assunto",
+  date: "date",
+  amount: "amount",
+  method: "method",
+};
+
 // Teto de página. 200 pelo mesmo motivo da lista de pessoas: acima disso a
 // resposta cresce sem que ninguém leia, e um `limit=100000` na barra de endereço
 // vira uma varredura da collection inteira.
@@ -409,6 +421,15 @@ Finance_model.prototype.carteira = async function ({
   limite,
   // A unidade escolhida no alto da tela. Vazia é "todas".
   unit,
+  // ── AS COBRANÇAS ESCOLHIDAS À MÃO ───────────────────────────────────────
+  //
+  // Uma lista de ids. Quando ela vem, é ELA que manda: a janela, o estado e a
+  // busca continuam valendo (é o mesmo pipeline), mas o conjunto já está
+  // decidido por quem marcou as caixas na tela.
+  //
+  // Existe para a FOLHA IMPRESSA das cobranças marcadas — ela abre por link,
+  // sem a tela atrás, e precisa buscar de novo exatamente aquelas linhas.
+  ids,
 } = {}) {
   const charges = await this.charges();
 
@@ -560,6 +581,16 @@ Finance_model.prototype.carteira = async function ({
   // parte do mesmo ponto sem ele — é o que faz os três cartões continuarem
   // falando do mês inteiro.
   const recorte = [];
+
+  // Os ids escolhidos entram ANTES dos outros recortes: é o corte mais estreito
+  // que existe, e pô-lo primeiro poupa ao banco aplicar regex de busca em
+  // milhares de linhas para depois jogar fora todas menos cinco.
+  const escolhidas = (Array.isArray(ids) ? ids : String(ids || "").split(","))
+    .map((x) => String(x || "").trim())
+    .filter((x) => ObjectId.isValid(x))
+    .map((x) => new ObjectId(x));
+
+  if (escolhidas.length) recorte.push({ $match: { _id: { $in: escolhidas } } });
 
   const pedidos = statusDeCobranca.pedidos(status);
   if (pedidos.size) {
@@ -728,6 +759,255 @@ function resumoDe(linhas) {
     total: linhas.length,
   };
 }
+
+// ── OS RECEBIMENTOS, de todo mundo ────────────────────────────────────────
+//
+// *"eu cadastrei esse pagamento, mas não aparece aqui em financeiro"*.
+//
+// E não aparecia mesmo: a tela do Financeiro lista COBRANÇAS. O pagamento dele
+// era avulso — R$ 75 de uma camisa, sem cobrança do outro lado —, e um
+// pagamento sem cobrança não tem como virar linha numa lista de cobranças. Ele
+// não estava escondido por filtro; ele não tinha onde aparecer.
+//
+// Dinheiro que entrou e não está em lugar nenhum é o pior tipo de buraco de
+// relatório: não dá erro, não some da conta bancária, e só aparece quando
+// alguém fecha o mês à mão e a soma não bate.
+//
+// ── POR QUE UMA CONSULTA PRÓPRIA, e não um remendo na carteira ──────────
+//
+// A carteira parte de `charges` e junta os pagamentos. Para incluir os avulsos
+// ela teria de partir de dois lugares ao mesmo tempo — e cada coluna dela
+// (vencimento, falta, situação) não quer dizer nada num pagamento avulso.
+//
+// São duas perguntas: "o que me devem" e "o que entrou". Esta responde a
+// segunda, e por isso a janela dela é a DATA DO PAGAMENTO — não o vencimento
+// de coisa nenhuma.
+Finance_model.prototype.recebimentos = async function ({
+  de,
+  ate,
+  status,
+  busca,
+  fuso,
+  ordem,
+  direcao,
+  pagina,
+  limite,
+  unit,
+} = {}) {
+  const col = await this.payments();
+  const instancia = instanceContext.current();
+
+  const janela = {};
+  if (de || ate) {
+    janela.date = {};
+    if (de) janela.date.$gte = inicioDoDia(de, fuso);
+    if (ate) janela.date.$lte = fimDoDia(ate, fuso);
+  }
+
+  const juntarPessoa = {
+    $lookup: {
+      from: "users",
+      let: { pessoa: "$student" },
+      pipeline: [
+        {
+          $match: {
+            $expr: { $eq: ["$_id", "$$pessoa"] },
+            ...(instancia ? { instance: instancia } : {}),
+          },
+        },
+        { $project: { name: 1, email: 1, phone: 1, avatarAt: 1, unit: 1 } },
+      ],
+      as: "pessoa",
+    },
+  };
+
+  // A COBRANÇA de onde ele veio, só para a descrição. O pagamento avulso não
+  // tem nenhuma, e é exatamente por isso que ele existe nesta lista — a junção
+  // devolve vazio e a linha continua inteira.
+  const juntarCobranca = {
+    $lookup: {
+      from: "charges",
+      let: { cobranca: "$charge" },
+      pipeline: [
+        {
+          $match: {
+            $expr: { $eq: ["$_id", "$$cobranca"] },
+            ...(instancia ? { instance: instancia } : {}),
+          },
+        },
+        { $project: { description: 1, numero: 1 } },
+      ],
+      as: "cobranca",
+    },
+  };
+
+  const derivados = {
+    $addFields: {
+      studentName: { $ifNull: [{ $arrayElemAt: ["$pessoa.name", 0] }, ""] },
+      studentEmail: { $ifNull: [{ $arrayElemAt: ["$pessoa.email", 0] }, ""] },
+      studentPhone: { $ifNull: [{ $arrayElemAt: ["$pessoa.phone", 0] }, ""] },
+      studentAvatarAt: { $ifNull: [{ $arrayElemAt: ["$pessoa.avatarAt", 0] }, null] },
+      studentUnit: { $ifNull: [{ $arrayElemAt: ["$pessoa.unit", 0] }, null] },
+      chargeDescription: { $ifNull: [{ $arrayElemAt: ["$cobranca.description", 0] }, ""] },
+      chargeNumero: { $ifNull: [{ $arrayElemAt: ["$cobranca.numero", 0] }, null] },
+      // O que a lista MOSTRA como descrição: a observação do pagamento quando
+      // há uma, senão a da cobrança. Um avulso só tem a primeira ("Camisa"), e
+      // sem esta escolha ele apareceria como linha sem assunto.
+      assunto: {
+        $cond: [
+          { $gt: [{ $strLenCP: { $ifNull: ["$note", ""] } }, 0] },
+          "$note",
+          { $ifNull: [{ $arrayElemAt: ["$cobranca.description", 0] }, ""] },
+        ],
+      },
+      avulso: { $eq: [{ $ifNull: ["$charge", null] }, null] },
+    },
+  };
+
+  const recorte = [];
+
+  // OS ESTADOS pedidos: pago, pendente, reembolsado, cancelado. Vazio é todos.
+  //
+  // Eles moram no RECORTE e não no `$match` de cima, junto do resumo: os
+  // cartões falam da janela, e marcar "pendente" para conferir uma lista não
+  // pode fazer o "recebido" do mês virar zero.
+  const porEstado = statusDePagamento.filtroPedido(status);
+  if (porEstado) recorte.push({ $match: porEstado });
+
+  // A LENTE DA UNIDADE, a mesma da carteira: ela é da PESSOA, e não do
+  // pagamento — dinheiro não acontece num lugar, quem atende num lugar é quem
+  // pagou.
+  if (ObjectId.isValid(unit)) {
+    recorte.push({ $match: { studentUnit: new ObjectId(String(unit)) } });
+  }
+
+  const termo = String(busca || "").trim();
+  if (termo) {
+    const esc = termo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    recorte.push({
+      $match: {
+        $or: [
+          { studentName: { $regex: esc, $options: "i" } },
+          { assunto: { $regex: esc, $options: "i" } },
+        ],
+      },
+    });
+  }
+
+  const campo = ORDEM_DOS_RECEBIMENTOS[ordem] || "date";
+  const sentido = direcao === "asc" ? 1 : -1;
+
+  const limitePorPagina = Math.min(Math.max(Number(limite) || LIMITE_PADRAO, 1), LIMITE_MAXIMO);
+  const paginaPedida = Math.max(Number(pagina) || 1, 1);
+
+  const projecao = {
+    $project: {
+      _id: 0,
+      id: { $toString: "$_id" },
+      numero: { $ifNull: ["$numero", null] },
+      student: { $toString: "$student" },
+      charge: { $cond: [{ $ifNull: ["$charge", false] }, { $toString: "$charge" }, null] },
+      chargeNumero: 1,
+      assunto: 1,
+      avulso: 1,
+      amount: { $ifNull: ["$amount", 0] },
+      currency: { $ifNull: ["$currency", null] },
+      method: { $ifNull: ["$method", "other"] },
+      status: { $ifNull: ["$status", "paid"] },
+      date: 1,
+      note: { $ifNull: ["$note", ""] },
+      studentName: 1,
+      studentEmail: 1,
+      studentPhone: 1,
+      studentAvatarAt: 1,
+      studentUnit: { $cond: [{ $ifNull: ["$studentUnit", false] }, { $toString: "$studentUnit" }, null] },
+    },
+  };
+
+  const [saida] = await col
+    .aggregate([
+      { $match: janela },
+      juntarPessoa,
+      juntarCobranca,
+      derivados,
+      {
+        $facet: {
+          // ── OS CARTÕES DO TOPO ──────────────────────────────────────
+          //
+          // Um por ESTADO que é dinheiro em movimento, e não um só com tudo
+          // somado: *"em pagamento, quero os kpi que falta"*.
+          //
+          //   recebido     entrou e ficou
+          //   pendente     prometido, ainda não confirmado
+          //   reembolsado  entrou e VOLTOU — duas movimentações, as duas reais
+          //   cancelado    o lançamento não devia existir; nada se moveu
+          //
+          // O quarto entrou a pedido dele, depois de ver os três: *"faltou
+          // cancelado"*. Eu o tinha deixado de fora com o argumento de que
+          // somar o que nunca aconteceu seria apresentar dinheiro que não
+          // houve — e o argumento dele é melhor: o cartão não é só soma, é
+          // CONFERÊNCIA. Quem cancelou três lançamentos de R$ 25 por engano
+          // quer ver os R$ 75 em algum lugar para saber que foram eles.
+          //
+          // O que o mantém honesto é a cor: ele nasce cinza, e não verde. As
+          // contas do caixa continuam sendo `recebido` — e só ele.
+          //
+          // O resumo ignora a busca, a lente e o estado pedido, como o da
+          // carteira: os cartões falam da JANELA, e marcar "pendente" para
+          // conferir uma lista não pode fazer o recebido do mês virar zero.
+          //
+          // `$ifNull` porque lançamento antigo não tem o campo, e ausente
+          // sempre significou pago — ver lib/statusDePagamento.js.
+          resumo: [
+            { $addFields: { estado: { $ifNull: ["$status", "paid"] } } },
+            {
+              $group: {
+                _id: null,
+                recebido: { $sum: { $cond: [{ $eq: ["$estado", "paid"] }, "$amount", 0] } },
+                total: { $sum: { $cond: [{ $eq: ["$estado", "paid"] }, 1, 0] } },
+                pendente: { $sum: { $cond: [{ $eq: ["$estado", "pending"] }, "$amount", 0] } },
+                quantosPendentes: { $sum: { $cond: [{ $eq: ["$estado", "pending"] }, 1, 0] } },
+                reembolsado: { $sum: { $cond: [{ $eq: ["$estado", "refunded"] }, "$amount", 0] } },
+                quantosReembolsados: {
+                  $sum: { $cond: [{ $eq: ["$estado", "refunded"] }, 1, 0] },
+                },
+                cancelado: { $sum: { $cond: [{ $eq: ["$estado", "canceled"] }, "$amount", 0] } },
+                quantosCancelados: { $sum: { $cond: [{ $eq: ["$estado", "canceled"] }, 1, 0] } },
+              },
+            },
+          ],
+          rows: [
+            ...recorte,
+            { $sort: { [campo]: sentido, _id: 1 } },
+            { $skip: (paginaPedida - 1) * limitePorPagina },
+            { $limit: limitePorPagina },
+            projecao,
+          ],
+          total: [...recorte, { $count: "n" }],
+        },
+      },
+    ])
+    .toArray();
+
+  const resumo = saida?.resumo?.[0] || {};
+
+  return {
+    rows: saida?.rows || [],
+    total: saida?.total?.[0]?.n || 0,
+    pagina: paginaPedida,
+    limite: limitePorPagina,
+    resumo: {
+      recebido: resumo.recebido || 0,
+      total: resumo.total || 0,
+      pendente: resumo.pendente || 0,
+      quantosPendentes: resumo.quantosPendentes || 0,
+      reembolsado: resumo.reembolsado || 0,
+      quantosReembolsados: resumo.quantosReembolsados || 0,
+      cancelado: resumo.cancelado || 0,
+      quantosCancelados: resumo.quantosCancelados || 0,
+    },
+  };
+};
 
 Finance_model.prototype.listPayments = async function (studentId) {
   if (!ObjectId.isValid(studentId)) return [];

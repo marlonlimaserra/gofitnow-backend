@@ -26,6 +26,100 @@ const PAGAMENTO = new ObjectId();
 const COMPROMISSO = new ObjectId();
 const AVALIACAO = new ObjectId();
 const SERVICO = new ObjectId();
+const UNIDADE = new ObjectId();
+const AULA = new ObjectId();
+const CHECKIN = new ObjectId();
+const PLANO = new ObjectId();
+const AULAO = new ObjectId();
+const EXAME = new ObjectId();
+const SUPLEMENTO = new ObjectId();
+const PRESCRICAO = new ObjectId();
+const CONVERSA = new ObjectId();
+
+// A aula da grade, o plano e o aulão como o banco os devolve. Fora do `monta`
+// porque os casos também os leem para comparar.
+const GroupClass = require("../../model/GroupClass_model.js");
+const estadoDeVerdade = GroupClass.prototype.estadoAgora;
+
+// Todos os dias da semana: assim "hoje" cai dentro dela em qualquer dia em que
+// a suíte rode. Uma grade de seg/qua/sex faria metade dos casos passarem só às
+// segundas.
+const AULA_BASE = {
+  _id: AULA,
+  name: "Spinning",
+  dias: [0, 1, 2, 3, 4, 5, 6],
+  horarios: [{ inicio: 420, fim: 470 }],
+  checkinAbre: 30,
+  checkinFecha: 15,
+  seats: 20,
+  active: true,
+};
+
+const PLANO_BASE = {
+  _id: PLANO,
+  name: "Mensal",
+  amount: 14990,
+  currency: "BRL",
+  cadencia: "monthly",
+  active: true,
+};
+
+const EXAME_BASE = {
+  _id: EXAME,
+  student: PESSOA,
+  collectedAt: "2026-09-10",
+  lab: "Fleury",
+  notes: "",
+  markers: [
+    { key: "vitaminD", name: "", value: 18, unit: "ng/mL", low: 30, high: 100, flag: "low" },
+  ],
+};
+
+const SUPLEMENTO_BASE = {
+  _id: SUPLEMENTO,
+  student: PESSOA,
+  name: "Creatina",
+  brand: "Growth",
+  dose: 5,
+  unit: "g",
+  moment: "postWorkout",
+  weekdays: [],
+  startDate: "2026-09-01",
+  endDate: "",
+  status: "current",
+};
+
+const PRESCRICAO_BASE = {
+  _id: PRESCRICAO,
+  student: PESSOA,
+  type: "supplement",
+  title: "Vitamina D",
+  date: "2026-09-10",
+  validUntil: "",
+  council: "CRN 12345",
+  notes: "",
+  items: [{ name: "Vitamina D3 2.000 UI", dose: "1 cápsula", posology: "1x ao dia", duration: "60 dias" }],
+};
+
+const CONVERSA_BASE = {
+  _id: CONVERSA,
+  members: [TREINADOR._id, PESSOA],
+  lastMessage: "bom dia!",
+  lastAt: new Date("2026-09-18T10:01:00.000Z"),
+  unread: {},
+};
+
+const AULAO_BASE = {
+  _id: AULAO,
+  name: "Aulão na praia",
+  slug: "aulao-na-praia",
+  startsAt: new Date("2026-09-27T11:00:00.000Z"),
+  minutes: 90,
+  seats: 100,
+  priceCents: 2500,
+  currency: "BRL",
+  published: true,
+};
 
 function monta({
   permissoes = [
@@ -43,9 +137,36 @@ function monta({
     "schedule.manage",
     "assessments.view",
     "assessments.manage",
+    // Unidade se cadastra com users.manage, como na tela: abrir filial é
+    // decisão de quem administra.
+    "users.manage",
+    // As áreas clínicas, e o chat. VER e MEXER separados nas quatro, como no
+    // catálogo de permissões — quem reimprime uma receita não é quem a assina.
+    "anamnesis.view",
+    "anamnesis.manage",
+    "exams.view",
+    "exams.manage",
+    "supplements.view",
+    "supplements.manage",
+    "prescriptions.view",
+    "prescriptions.manage",
+    "chat.view",
+    "chat.send",
   ],
   treino = null,
   dieta = null,
+  // Os TETOS do plano, do jeito que a central os devolve. `{}` é ilimitado, que
+  // é o padrão e o que a central responde quando está fora do ar.
+  limites = {},
+  // Quantos documentos existem hoje — é o que `limiteDoPlano.contarNa` conta.
+  quantosExistem = 0,
+  pessoasNaUnidade = 0,
+  aulas = null,
+  inscritos = null,
+  fechada = false,
+  entrada = { ok: true, novo: true },
+  // A anamnese: `null` é "nunca preenchida", que é o caminho em que o teto vale.
+  anamnese = null,
   comEmail = null,
   prescricao = false,
   conflito = false,
@@ -54,6 +175,12 @@ function monta({
   const gravado = { pessoas: [], exercicios: null, refeicoes: null, apagados: [], conflito };
 
   const app = fakeApp({
+    // `contarNa` conta direto na collection, sem passar por modelo nenhum.
+    mongodb: {
+      async connectToServer() {
+        return { collection: () => ({ countDocuments: async () => quantosExistem }) };
+      },
+    },
     helpers: {
       ReqProtected: {
         async verify() {
@@ -65,6 +192,11 @@ function monta({
       },
     },
     api: {
+      center: {
+        async limitsFor() {
+          return limites;
+        },
+      },
       user: {
         async briefByIds(ids) {
           return Object.fromEntries((ids || []).map((id) => [String(id), { name: "Bruna" }]));
@@ -295,6 +427,9 @@ function monta({
         async currencyOfInstance() {
           return { currency: "BRL", currencies: ["BRL", "USD"] };
         },
+        async timezoneOfInstance() {
+          return "America/Sao_Paulo";
+        },
       },
       food: {
         async list() {
@@ -350,6 +485,253 @@ function monta({
         async saveExercises(_t, _id, lista) {
           gravado.exercicios = lista;
           return true;
+        },
+      },
+
+      // ── As telas que entraram em setembro de 2026 ─────────────────────────
+      unit: {
+        async list() {
+          return [{ _id: UNIDADE, name: "Paraty", cidade: "Paraty", uf: "RJ", active: true }];
+        },
+        async data(id) {
+          return String(id) === String(UNIDADE)
+            ? { _id: UNIDADE, name: "Paraty", cidade: "Paraty", uf: "RJ", active: true }
+            : undefined;
+        },
+        async quantasPessoas() {
+          return pessoasNaUnidade;
+        },
+        async insert(dados) {
+          gravado.unidade = dados;
+          return dados.name ? UNIDADE : null;
+        },
+        async update(_id, dados) {
+          gravado.unidadeMudanca = dados;
+          return true;
+        },
+        async remove(id) {
+          gravado.apagados.push(String(id));
+          return true;
+        },
+      },
+      groupClass: {
+        async list() {
+          return aulas || [AULA_BASE];
+        },
+        async listActive() {
+          return aulas || [AULA_BASE];
+        },
+        async data(id) {
+          return String(id) === String(AULA) ? aulas?.[0] || AULA_BASE : undefined;
+        },
+        async insert(dados) {
+          gravado.aula = dados;
+          return dados.name && dados.dias?.length ? AULA : null;
+        },
+        async update(_id, dados) {
+          gravado.aulaMudanca = dados;
+          return true;
+        },
+        async remove(id) {
+          gravado.apagados.push(String(id));
+          return true;
+        },
+        // O estado é o DE VERDADE — é ele que decide o que é "hoje".
+        estadoAgora: estadoDeVerdade,
+      },
+      groupClassCheckin: {
+        async contagemDoDia() {
+          return { [`${AULA}:420`]: (inscritos || []).length };
+        },
+        async inscritos() {
+          return inscritos || [];
+        },
+        async entrar(aula, dia, pessoa, opcoes) {
+          gravado.entrou = { aula: String(aula), dia, pessoa: String(pessoa), ...opcoes };
+          return entrada;
+        },
+        async marcarPresenca(id, presenca) {
+          gravado.presenca = { id: String(id), presenca };
+          return String(id) === String(CHECKIN);
+        },
+        async remover(id) {
+          gravado.apagados.push(String(id));
+          return String(id) === String(CHECKIN);
+        },
+        async removeAllOf(id) {
+          gravado.checkinsApagados = String(id);
+          return 0;
+        },
+        async daPessoa() {
+          return [{ class: AULA, dia: "2026-09-18", inicio: 420, presenca: "presente" }];
+        },
+      },
+      groupClassSession: {
+        async fechadasDoDia() {
+          return fechada ? new Set([`${AULA}:420`]) : new Set();
+        },
+        async estaFechada() {
+          return fechada;
+        },
+        async fechar(aula, dia, inicio, valor, quem) {
+          gravado.fechamento = { aula: String(aula), dia, inicio, fechada: valor, quem: String(quem) };
+          return true;
+        },
+        async removeAllOf(id) {
+          gravado.sessoesApagadas = String(id);
+          return 0;
+        },
+      },
+      membership: {
+        async list() {
+          return [PLANO_BASE];
+        },
+        async listActive() {
+          return [PLANO_BASE];
+        },
+        async data(id) {
+          return String(id) === String(PLANO) ? PLANO_BASE : undefined;
+        },
+        async insert(dados, moeda) {
+          gravado.plano = dados;
+          gravado.planoMoeda = moeda;
+          return PLANO;
+        },
+        async update(_id, dados) {
+          gravado.planoMudanca = dados;
+          return true;
+        },
+        async remove(id) {
+          gravado.apagados.push(String(id));
+          return true;
+        },
+      },
+      anamnesis: {
+        async data() {
+          return anamnese;
+        },
+        async save(_t, _s, dados) {
+          gravado.anamnese = dados;
+          return { criou: !anamnese };
+        },
+        async delete() {
+          gravado.anamneseApagada = true;
+          return Boolean(anamnese);
+        },
+      },
+      exam: {
+        async list() {
+          return [EXAME_BASE];
+        },
+        async data(_t, id) {
+          return String(id) === String(EXAME) ? EXAME_BASE : undefined;
+        },
+        async insert(_t, _s, dados) {
+          gravado.exame = dados;
+          return EXAME;
+        },
+        async update(_t, _id, dados) {
+          gravado.exameMudanca = dados;
+          return true;
+        },
+        async delete(id) {
+          gravado.apagados.push(String(id));
+          return true;
+        },
+      },
+      supplement: {
+        async list() {
+          return [SUPLEMENTO_BASE];
+        },
+        async data(_t, id) {
+          return String(id) === String(SUPLEMENTO) ? SUPLEMENTO_BASE : undefined;
+        },
+        async insert(_t, _s, dados) {
+          gravado.suplemento = dados;
+          return SUPLEMENTO;
+        },
+        async update(_t, _id, dados) {
+          gravado.suplementoMudanca = dados;
+          return true;
+        },
+        async delete(id) {
+          gravado.apagados.push(String(id));
+          return true;
+        },
+      },
+      prescription: {
+        async list() {
+          return [PRESCRICAO_BASE];
+        },
+        async data(_t, id) {
+          return String(id) === String(PRESCRICAO) ? PRESCRICAO_BASE : undefined;
+        },
+        async insert(_t, _s, dados) {
+          gravado.prescricao = dados;
+          return PRESCRICAO;
+        },
+        async update(_t, _id, dados) {
+          gravado.prescricaoMudanca = dados;
+          return true;
+        },
+        async delete(id) {
+          gravado.apagados.push(String(id));
+          return true;
+        },
+      },
+      chat: {
+        async listOf() {
+          return [CONVERSA_BASE];
+        },
+        async unreadTotal() {
+          return 3;
+        },
+        async data(id) {
+          return String(id) === String(CONVERSA) ? CONVERSA_BASE : undefined;
+        },
+        isMember(conversa, quem) {
+          return (conversa?.members || []).some((m) => String(m) === String(quem));
+        },
+        otherOf(conversa, quem) {
+          return (conversa?.members || []).find((m) => String(m) !== String(quem));
+        },
+        async messagesOf() {
+          return [
+            { from: PESSOA, body: "bom dia", createdAt: new Date("2026-09-18T10:00:00.000Z") },
+            { from: TREINADOR._id, body: "bom dia!", createdAt: new Date("2026-09-18T10:01:00.000Z") },
+          ];
+        },
+        async openWith() {
+          gravado.abriuConversa = true;
+          return CONVERSA_BASE;
+        },
+        async send(conversaId, de, texto) {
+          gravado.mensagem = { conversaId: String(conversaId), de: String(de), texto };
+          return texto ? { _id: new ObjectId(), body: texto } : undefined;
+        },
+      },
+      aulao: {
+        async collection() {
+          return { countDocuments: async () => quantosExistem };
+        },
+        async list() {
+          return [AULAO_BASE];
+        },
+        async contagemDeTodos() {
+          return { [String(AULAO)]: 12 };
+        },
+        async insert(quem, dados) {
+          gravado.aulao = dados;
+          if (!dados.name) return { ok: false, erro: "sem_nome" };
+          return { ok: true, id: AULAO, slug: "aulao-na-praia" };
+        },
+        async inscrever(aulaoId, pessoaId, opcoes) {
+          gravado.inscricao = { aulaoId: String(aulaoId), pessoaId: String(pessoaId), ...opcoes };
+          return gravado.conflito ? { ok: false, erro: "lotado" } : { ok: true, id: new ObjectId() };
+        },
+        async marcarPresenca(aulaoId, pessoaId, presente) {
+          gravado.presencaAulao = { aulaoId: String(aulaoId), pessoaId: String(pessoaId), presente };
+          return { ok: true, presente };
         },
       },
     },
@@ -1272,4 +1654,1062 @@ test("sem a permissão da área, a ferramenta recusa", async () => {
 
   assert.match(saida(r).erro, /permiss/i);
   assert.equal(gravado.cobranca, undefined);
+});
+
+// ── O TETO DO PLANO ───────────────────────────────────────────────────────
+//
+// A falha que a revisão de 19/09/2026 encontrou: as ferramentas criavam sem
+// olhar o teto, e a rota da tela olhava. A conta travada em 50 pessoas criava a
+// 51ª pedindo ao assistente — não por falta de permissão (essa era conferida),
+// mas porque a cota só existia num dos dois caminhos.
+//
+// O que estes casos guardam é a paridade. Um teto que vale só no botão não é um
+// teto: é uma promessa que o produto quebra para quem sabe pedir de outro jeito.
+test("criar pessoa respeita o teto do plano, como a rota da tela", async () => {
+  const { app, gravado } = monta({ limites: { people: 50 }, quantosExistem: 50 });
+
+  const r = await rpc(app, "tools/call", {
+    name: "pessoa_criar",
+    arguments: { nome: "Bruna Lima" },
+  });
+
+  assert.equal(saida(r).ok, false);
+  assert.equal(saida(r).erro, "teto_do_plano");
+  // E nada foi criado: o motivo não pode ser um aviso depois do fato.
+  assert.deepEqual(gravado.pessoas, []);
+});
+
+test("o motivo diz os NÚMEROS — é o que deixa o modelo explicar o que fazer", async () => {
+  const { app } = monta({ limites: { people: 50 }, quantosExistem: 50 });
+  const r = await rpc(app, "tools/call", { name: "pessoa_criar", arguments: { nome: "Bruna" } });
+
+  assert.match(saida(r).detalhe, /50/);
+});
+
+test("teto ZERO é outra conversa: o plano não inclui", async () => {
+  // "Seu plano não inclui avaliações" manda falar com quem vende; "você chegou
+  // a 50" manda apagar algo. A mesma frase para os dois mandaria metade das
+  // pessoas para o lugar errado.
+  const { app } = monta({ limites: { assessments: 0 } });
+
+  const r = await rpc(app, "tools/call", {
+    name: "avaliacao_criar",
+    arguments: { pessoaId: String(PESSOA), peso: 71 },
+  });
+
+  assert.equal(saida(r).erro, "fora_do_plano");
+});
+
+test("sem teto, cria — e a central fora do ar não tranca ninguém", async () => {
+  // `limitsFor` devolvendo `{}` é o que acontece quando o central não responde.
+  // Falhar ABERTO é a mesma decisão que já estava escrita lá: um limite
+  // inventado barraria um cliente que pagou.
+  const { app, gravado } = monta({ limites: {}, quantosExistem: 9999 });
+
+  const r = await rpc(app, "tools/call", { name: "pessoa_criar", arguments: { nome: "Bruna" } });
+
+  assert.equal(saida(r).ok, true);
+  assert.equal(gravado.pessoas.length, 1);
+});
+
+test("os quatro outros criadores também param no teto", async () => {
+  const casos = [
+    ["treino_criar", { pessoaId: String(PESSOA), nome: "Treino A" }, { workouts: 1 }],
+    ["dieta_criar", { pessoaId: String(PESSOA), nome: "Cutting" }, { diets: 1 }],
+    ["compromisso_criar", { pessoaId: String(PESSOA), quando: "2026-09-30T13:00:00.000Z" }, { schedule: 1 }],
+    ["avaliacao_criar", { pessoaId: String(PESSOA), peso: 71 }, { assessments: 1 }],
+  ];
+
+  for (const [nome, args, limites] of casos) {
+    const { app } = monta({ limites, quantosExistem: 1 });
+    const r = await rpc(app, "tools/call", { name: nome, arguments: args });
+
+    assert.equal(saida(r).erro, "teto_do_plano", `${nome} passou por cima do teto`);
+  }
+});
+
+// ── Unidades ──────────────────────────────────────────────────────────────
+
+test("listar unidades não conta gente sem que peçam", async () => {
+  // A contagem é uma consulta POR unidade. Trazê-la sempre faria toda pergunta
+  // sobre endereço pagar por um número que ninguém leu.
+  const { app } = monta({ pessoasNaUnidade: 7 });
+
+  const semContagem = await rpc(app, "tools/call", { name: "unidade_listar", arguments: {} });
+  assert.equal(saida(semContagem).unidades[0].pessoas, undefined);
+
+  const com = await rpc(app, "tools/call", {
+    name: "unidade_listar",
+    arguments: { comContagem: true },
+  });
+  assert.equal(saida(com).unidades[0].pessoas, 7);
+});
+
+test("criar unidade manda o endereço em PARTES", async () => {
+  // A linha pronta é DERIVADA delas na gravação. Mandar uma linha só faria o
+  // ponto do mapa virar adivinhação.
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "unidade_criar",
+    arguments: { nome: "Paraty", cidade: "Paraty", uf: "RJ", numero: "120" },
+  });
+
+  assert.equal(gravado.unidade.name, "Paraty");
+  assert.equal(gravado.unidade.cidade, "Paraty");
+  assert.equal(gravado.unidade.numero, "120");
+});
+
+test("editar unidade manda SÓ o que veio", async () => {
+  // O modelo grava campo a campo o que recebe. Mandar o documento inteiro de
+  // volta apagaria a foto e o ponto do mapa, que estas ferramentas não escrevem.
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "unidade_editar",
+    arguments: { unidadeId: String(UNIDADE), cidade: "Angra" },
+  });
+
+  assert.deepEqual(Object.keys(gravado.unidadeMudanca), ["cidade"]);
+});
+
+test("unidade com gente dentro não é apagada, e o erro diz quantas", async () => {
+  const { app, gravado } = monta({ pessoasNaUnidade: 7 });
+
+  const r = await rpc(app, "tools/call", {
+    name: "unidade_excluir",
+    arguments: { unidadeId: String(UNIDADE) },
+  });
+
+  assert.equal(saida(r).erro, "unidade_com_gente");
+  assert.match(saida(r).detalhe, /7/);
+  assert.deepEqual(gravado.apagados, []);
+});
+
+test("cadastrar unidade exige users.manage, e não people.view", async () => {
+  // Ver a lista é rotina de quem atende; abrir filial é de quem administra.
+  const { app } = monta({ permissoes: ["people.view"] });
+
+  const r = await rpc(app, "tools/call", { name: "unidade_criar", arguments: { nome: "Paraty" } });
+
+  assert.equal(r.body.result.isError, true);
+  assert.equal(saida(r).erro, "sem_permissao");
+});
+
+// ── Aulas coletivas ───────────────────────────────────────────────────────
+
+test("a grade de hoje traz o DIA e os minutos que as outras ferramentas pedem", async () => {
+  // Sem eles, o modelo montaria a chave do relógio dele — e gravaria a chamada
+  // de hoje em ontem quando o relógio estivesse errado.
+  const { app } = monta();
+
+  const r = await rpc(app, "tools/call", { name: "aula_coletiva_hoje", arguments: {} });
+
+  assert.match(saida(r).dia, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(saida(r).aulas[0].horarios[0].inicioMinutos, 420);
+  assert.equal(saida(r).aulas[0].horarios[0].inicio, "07:00");
+});
+
+test("fechada, lotada e fora da janela saem SEPARADAS", async () => {
+  // O conserto de cada uma é outro: clicar, abrir vaga, esperar. Uma flag só
+  // mandaria a recepção resolver o problema errado.
+  const { app } = monta({ fechada: true });
+
+  const r = await rpc(app, "tools/call", { name: "aula_coletiva_hoje", arguments: {} });
+  const h = saida(r).aulas[0].horarios[0];
+
+  assert.equal(h.fechada, true);
+  assert.equal(h.lotada, false);
+  assert.equal(typeof h.checkinAberto, "boolean");
+});
+
+test("criar aula pede dia e horário — sem eles ela nunca aconteceria", async () => {
+  const { app } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "aula_coletiva_criar",
+    arguments: { nome: "Spinning", dias: [], horarios: [] },
+  });
+
+  assert.equal(saida(r).erro, "aula_incompleta");
+});
+
+test("o horário entra como relógio de parede, e volta como relógio", async () => {
+  const { app, gravado } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "aula_coletiva_criar",
+    arguments: {
+      nome: "Spinning",
+      dias: [1, 3, 5],
+      horarios: [{ inicio: "07:00", fim: "07:50" }],
+    },
+  });
+
+  assert.deepEqual(gravado.aula.horarios, [{ inicio: "07:00", fim: "07:50" }]);
+  assert.equal(saida(r).aula.horarios[0].inicio, "07:00");
+  assert.equal(saida(r).aula.horarios[0].inicioMinutos, 420);
+});
+
+test("apagar a aula leva check-ins e fechamentos junto", async () => {
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", { name: "aula_coletiva_excluir", arguments: { aulaId: String(AULA) } });
+
+  assert.equal(gravado.checkinsApagados, String(AULA));
+  assert.equal(gravado.sessoesApagadas, String(AULA));
+});
+
+test("inscrever à mão recusa horário fechado, e nada é gravado", async () => {
+  const { app, gravado } = monta({ fechada: true });
+
+  const r = await rpc(app, "tools/call", {
+    name: "aula_coletiva_inscrever",
+    arguments: { aulaId: String(AULA), pessoaId: String(PESSOA), inicioMinutos: 420 },
+  });
+
+  assert.equal(saida(r).erro, "aula_fechada");
+  assert.equal(gravado.entrou, undefined);
+});
+
+test("inscrever à mão recusa quando as vagas acabaram", async () => {
+  // As mesmas três recusas do aplicativo. Afrouxar aqui porque "quem está no
+  // balcão manda" é justamente o caso em que ninguém vê a lista inteira.
+  const cheios = Array.from({ length: 20 }, (_, i) => ({ _id: new ObjectId(), person: PESSOA, name: "X" + i }));
+  const { app, gravado } = monta({ inscritos: cheios });
+
+  const r = await rpc(app, "tools/call", {
+    name: "aula_coletiva_inscrever",
+    arguments: { aulaId: String(AULA), pessoaId: String(PESSOA), inicioMinutos: 420 },
+  });
+
+  assert.equal(saida(r).erro, "aula_lotada");
+  assert.equal(gravado.entrou, undefined);
+});
+
+test("inscrever à mão leva a regra de um-por-dia DA AULA", async () => {
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "aula_coletiva_inscrever",
+    arguments: { aulaId: String(AULA), pessoaId: String(PESSOA), inicioMinutos: 420, dia: "2026-09-21" },
+  });
+
+  assert.equal(gravado.entrou.dia, "2026-09-21");
+  assert.equal(gravado.entrou.inicio, 420);
+  assert.equal(gravado.entrou.variosHorarios, false);
+});
+
+test("pessoa de outro profissional não entra na aula", async () => {
+  const { app, gravado } = monta({ semVinculo: true });
+
+  const r = await rpc(app, "tools/call", {
+    name: "aula_coletiva_inscrever",
+    arguments: { aulaId: String(AULA), pessoaId: String(PESSOA), inicioMinutos: 420 },
+  });
+
+  assert.equal(saida(r).erro, "pessoa_nao_encontrada");
+  assert.equal(gravado.entrou, undefined);
+});
+
+test("a presença tem TRÊS estados, e o schema não deixa inventar um quarto", async () => {
+  const presenca = tools.achar("aula_coletiva_presenca").schema.properties.presenca;
+  assert.deepEqual(presenca.enum, ["presente", "faltou", "inscrito"]);
+});
+
+test("marcar presença usa o id do CHECK-IN, não o da pessoa", async () => {
+  // A mesma pessoa pode estar em dois horários do mesmo dia: o id dela não
+  // distinguiria uma linha da outra.
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "aula_coletiva_presenca",
+    arguments: { checkinId: String(CHECKIN), presenca: "presente" },
+  });
+
+  assert.deepEqual(gravado.presenca, { id: String(CHECKIN), presenca: "presente" });
+});
+
+test("fechar o horário é do DIA, e leva quem fechou", async () => {
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "aula_coletiva_fechar",
+    arguments: { aulaId: String(AULA), inicioMinutos: 420, dia: "2026-09-21", fechada: true },
+  });
+
+  assert.equal(gravado.fechamento.dia, "2026-09-21");
+  assert.equal(gravado.fechamento.fechada, true);
+  assert.equal(gravado.fechamento.quem, String(TREINADOR._id));
+});
+
+test("o histórico da pessoa traz o NOME da aula, já resolvido", async () => {
+  // "Spinning, 18/09, presente" é a resposta. Uma segunda chamada para traduzir
+  // ids em nomes faria o modelo gastar um turno com o que já está na mão.
+  const { app } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "pessoa_aulas_historico",
+    arguments: { pessoaId: String(PESSOA) },
+  });
+
+  assert.equal(saida(r).aulas[0].aula, "Spinning");
+  assert.equal(saida(r).aulas[0].hora, "07:00");
+  assert.equal(saida(r).aulas[0].presenca, "presente");
+});
+
+// ── Planos de mensalidade ─────────────────────────────────────────────────
+
+test("o plano sai com o dinheiro em centavos E escrito", async () => {
+  const { app } = monta();
+  const r = await rpc(app, "tools/call", { name: "plano_listar", arguments: {} });
+
+  assert.equal(saida(r).planos[0].valor.centavos, 14990);
+  assert.match(saida(r).planos[0].valor.texto, /149,90/);
+});
+
+test("criar plano grava a MOEDA da conta", async () => {
+  // "149" em real e "149" em dólar são preços diferentes. Um cardápio sem moeda
+  // mente no dia em que a conta muda de país.
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "plano_criar",
+    arguments: { nome: "Mensal", valor: 149.9, cadencia: "monthly" },
+  });
+
+  assert.equal(gravado.planoMoeda, "BRL");
+  assert.equal(gravado.plano.amount, 149.9);
+});
+
+test("o plano da academia não se confunde com o plano alimentar", async () => {
+  // Três coisas deste produto se chamam "plano". A descrição é o que o modelo
+  // lê para escolher, e é onde a distinção precisa estar escrita.
+  const cardapio = tools.achar("plano_listar").descricao;
+  const comida = tools.achar("dieta_listar").descricao;
+
+  assert.match(cardapio, /alimentar/i);
+  assert.notEqual(cardapio, comida);
+});
+
+test("mexer no cardápio exige finance.manage", async () => {
+  const { app } = monta({ permissoes: ["finance.view"] });
+  const r = await rpc(app, "tools/call", { name: "plano_criar", arguments: { nome: "Mensal" } });
+
+  assert.equal(saida(r).erro, "sem_permissao");
+});
+
+// ── Aulões ────────────────────────────────────────────────────────────────
+
+test("o aulão sai com quantos se inscreveram", async () => {
+  const { app } = monta();
+  const r = await rpc(app, "tools/call", { name: "aulao_listar", arguments: {} });
+
+  assert.equal(saida(r).auloes[0].inscritos, 12);
+  assert.equal(saida(r).auloes[0].apelido, "aulao-na-praia");
+});
+
+test("criar aulão sem data é recusado — ele é um evento", async () => {
+  const { app, gravado } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "aulao_criar",
+    arguments: { nome: "Aulão na praia", quando: "não é data" },
+  });
+
+  assert.equal(saida(r).erro, "data_invalida");
+  assert.equal(gravado.aulao, undefined);
+});
+
+test("o teto do aulão conta só os que ainda VÃO acontecer", async () => {
+  // Um aulão que passou não pode ocupar vaga para sempre: o teto viraria uma
+  // dívida crescente, e o cliente precisaria apagar o histórico para cadastrar
+  // o próximo.
+  const { app } = monta({ limites: { aulaoes: 3 }, quantosExistem: 3 });
+
+  const r = await rpc(app, "tools/call", {
+    name: "aulao_criar",
+    arguments: { nome: "Aulão", quando: "2026-09-27T11:00:00.000Z" },
+  });
+
+  assert.equal(saida(r).erro, "teto_do_plano");
+});
+
+test("inscrever no aulão NÃO cria cobrança, e diz isso", async () => {
+  // A rota da tela cria, com regras próprias (vencimento no dia do aulão, uma
+  // por pessoa mesmo que ela saia e volte). Duplicá-las aqui seria o caminho
+  // paralelo que este arquivo promete não ser.
+  const { app } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "aulao_inscrever",
+    arguments: { aulaoId: String(AULAO), pessoaId: String(PESSOA) },
+  });
+
+  assert.equal(saida(r).ok, true);
+  assert.equal(saida(r).cobrancaCriada, false);
+});
+
+// ── A revisão inteira ─────────────────────────────────────────────────────
+
+test("nenhuma ferramenta tem nome repetido", async () => {
+  // Duas com o mesmo nome fariam `achar` devolver a primeira para sempre, e a
+  // segunda nunca seria chamada — sem nada quebrar.
+  const nomes = tools.FERRAMENTAS.map((f) => f.nome);
+  assert.equal(new Set(nomes).size, nomes.length);
+});
+
+test("toda permissão declarada EXISTE no catálogo de permissões", async () => {
+  // Uma chave com erro de digitação nunca casa, e a ferramenta recusaria para
+  // todo mundo — inclusive para o dono da conta, que tem tudo.
+  const permissions = require("../../lib/permissions.js");
+
+  for (const f of tools.FERRAMENTAS) {
+    assert.ok(permissions.isValid(f.permissao), `${f.nome}: permissão "${f.permissao}" não existe`);
+  }
+});
+
+test("as telas que criam com TETO também o conferem por ferramenta", async () => {
+  // A paridade, dita como lista: se amanhã alguém escrever `unidade_criar` sem
+  // o teto, este caso não pega — mas os de cima pegam. Este guarda a outra
+  // metade: que a ferramenta EXISTE para cada coisa que a tela limita.
+  const criadores = {
+    people: "pessoa_criar",
+    workouts: "treino_criar",
+    diets: "dieta_criar",
+    schedule: "compromisso_criar",
+    assessments: "avaliacao_criar",
+    units: "unidade_criar",
+    memberships: "plano_criar",
+    groupClasses: "aula_coletiva_criar",
+    aulaoes: "aulao_criar",
+    anamnesis: "anamnese_preencher",
+    exams: "exame_criar",
+    supplements: "suplemento_criar",
+    prescriptions: "prescricao_criar",
+  };
+
+  for (const chave of Object.keys(criadores)) {
+    assert.ok(tools.achar(criadores[chave]), `sem ferramenta para criar ${chave}`);
+  }
+});
+
+test("TODO criador que a tela limita também é barrado por ferramenta", async () => {
+  // A paridade medida, e não listada: cada um é chamado com o teto estourado, e
+  // o que passar aparece aqui. É o caso que pega a ferramenta nova escrita sem
+  // o guarda — que é exatamente como a falha original entrou.
+  const casos = [
+    ["pessoa_criar", { nome: "Bruna" }, "people"],
+    ["treino_criar", { pessoaId: String(PESSOA), nome: "Treino A" }, "workouts"],
+    ["dieta_criar", { pessoaId: String(PESSOA), nome: "Cutting" }, "diets"],
+    ["compromisso_criar", { pessoaId: String(PESSOA), quando: "2026-09-30T13:00:00.000Z" }, "schedule"],
+    ["avaliacao_criar", { pessoaId: String(PESSOA), peso: 71 }, "assessments"],
+    ["unidade_criar", { nome: "Paraty" }, "units"],
+    ["plano_criar", { nome: "Mensal" }, "memberships"],
+    [
+      "aula_coletiva_criar",
+      { nome: "Spinning", dias: [1], horarios: [{ inicio: "07:00", fim: "07:50" }] },
+      "groupClasses",
+    ],
+    ["aulao_criar", { nome: "Aulão", quando: "2026-09-27T11:00:00.000Z" }, "aulaoes"],
+    ["anamnese_preencher", { pessoaId: String(PESSOA), alergias: "x" }, "anamnesis"],
+    ["exame_criar", { pessoaId: String(PESSOA), marcadores: [{ nome: "X", valor: 1 }] }, "exams"],
+    ["suplemento_criar", { pessoaId: String(PESSOA), nome: "Creatina" }, "supplements"],
+    ["prescricao_criar", { pessoaId: String(PESSOA), itens: [{ nome: "Vitamina D" }] }, "prescriptions"],
+  ];
+
+  for (const [nome, args, chave] of casos) {
+    const { app } = monta({ limites: { [chave]: 1 }, quantosExistem: 1 });
+    const r = await rpc(app, "tools/call", { name: nome, arguments: args });
+
+    assert.equal(saida(r).erro, "teto_do_plano", `${nome} passou por cima do teto de ${chave}`);
+  }
+});
+
+// ── OS TETOS DE ESTRUTURA ─────────────────────────────────────────────────
+//
+// Outra natureza que os de cima: nunca são ilimitados. Vazio é o padrão do
+// sistema, porque um teto anti-abuso que some quando o painel não responde não
+// é um teto.
+//
+// A tela salva o treino inteiro de uma vez e recusa o pedido; a ferramenta
+// acrescenta um a um — e passava de trinta sem olhar.
+test("acrescentar exercício para no teto de exercícios por treino", async () => {
+  const cheio = {
+    _id: TREINO,
+    name: "A",
+    student: PESSOA,
+    exercises: Array.from({ length: 30 }, () => ({ name: "X", sets: [{}] })),
+  };
+  const { app, gravado } = monta({ treino: cheio, limites: { exercisesPerWorkout: 30 } });
+
+  const r = await rpc(app, "tools/call", {
+    name: "treino_exercicio_adicionar",
+    arguments: { treinoId: String(TREINO), exercicioId: String(EXERCICIO) },
+  });
+
+  assert.equal(saida(r).erro, "teto_do_plano");
+  assert.equal(gravado.exercicios, null);
+});
+
+test("e no teto de séries por exercício", async () => {
+  const { app, gravado } = monta({ limites: { setsPerExercise: 4 } });
+
+  const r = await rpc(app, "tools/call", {
+    name: "treino_exercicio_adicionar",
+    arguments: { treinoId: String(TREINO), exercicioId: String(EXERCICIO), series: 9 },
+  });
+
+  assert.equal(saida(r).erro, "teto_do_plano");
+  assert.equal(gravado.exercicios, null);
+});
+
+test("editar as séries também passa pelo teto", async () => {
+  // Sem isto, o caminho de fugir do limite seria acrescentar com três e editar
+  // para trinta.
+  const treino = {
+    _id: TREINO,
+    name: "A",
+    student: PESSOA,
+    exercises: [{ name: "Remada", sets: [{ unit: "reps" }] }],
+  };
+  const { app, gravado } = monta({ treino, limites: { setsPerExercise: 4 } });
+
+  const r = await rpc(app, "tools/call", {
+    name: "treino_exercicio_editar",
+    arguments: { treinoId: String(TREINO), posicao: 0, series: 9 },
+  });
+
+  assert.equal(saida(r).erro, "teto_do_plano");
+  assert.equal(gravado.exercicios, null);
+});
+
+test("acrescentar alimento para no teto da refeição", async () => {
+  const dieta = {
+    _id: DIETA,
+    name: "Cutting",
+    student: PESSOA,
+    meals: [{ name: "Almoço", foods: Array.from({ length: 30 }, () => ({ name: "X" })) }],
+  };
+  const { app, gravado } = monta({ dieta, limites: { foodsPerMeal: 30 } });
+
+  const r = await rpc(app, "tools/call", {
+    name: "refeicao_alimento_adicionar",
+    arguments: { dietaId: String(DIETA), refeicao: 0, nome: "Arroz" },
+  });
+
+  assert.equal(saida(r).erro, "teto_do_plano");
+  assert.equal(gravado.refeicoes, null);
+});
+
+test("dentro do teto, continua entrando", async () => {
+  // O caso que prova que o guarda não virou uma parede: 30 com teto 30 é
+  // exatamente o permitido, e o corte é `>`.
+  const { app, gravado } = monta({ limites: { exercisesPerWorkout: 30, setsPerExercise: 20 } });
+
+  const r = await rpc(app, "tools/call", {
+    name: "treino_exercicio_adicionar",
+    arguments: { treinoId: String(TREINO), exercicioId: String(EXERCICIO), series: 3 },
+  });
+
+  assert.equal(saida(r).ok, true);
+  assert.equal(gravado.exercicios.length, 1);
+});
+
+test("vincular a pessoa a uma unidade confere que ela existe", async () => {
+  // Um id chutado seria aceito pelo banco como um vínculo qualquer, e a pessoa
+  // sumiria de toda lista com lente — visível só em "Todas as unidades", sem
+  // ninguém entender por quê.
+  const { app, gravado } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "pessoa_editar",
+    arguments: { pessoaId: String(PESSOA), unidadeId: String(new ObjectId()) },
+  });
+
+  assert.equal(saida(r).erro, "unidade_nao_encontrada");
+  assert.equal(gravado.mudanca, undefined);
+});
+
+test("com a unidade certa, o vínculo é gravado", async () => {
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "pessoa_editar",
+    arguments: { pessoaId: String(PESSOA), unidadeId: String(UNIDADE) },
+  });
+
+  assert.equal(gravado.mudanca.unit, String(UNIDADE));
+});
+
+test("string vazia TIRA a pessoa da unidade", async () => {
+  // É uma edição legítima, e diferente de "não mandou nada": quem saiu da
+  // filial precisa poder sair.
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "pessoa_editar",
+    arguments: { pessoaId: String(PESSOA), unidadeId: "" },
+  });
+
+  assert.equal(gravado.mudanca.unit, "");
+});
+
+test("buscar por unidade leva a LENTE ao banco", async () => {
+  const { app } = monta();
+  let recebido;
+
+  app.api.user.pageStudents = async (_t, filtros) => {
+    recebido = filtros;
+    return { rows: [] };
+  };
+
+  await rpc(app, "tools/call", {
+    name: "pessoa_buscar",
+    arguments: { termo: "bru", unidadeId: String(UNIDADE) },
+  });
+
+  assert.equal(recebido.unit, String(UNIDADE));
+});
+
+test("sem unidade pedida, a busca não filtra por nenhuma", async () => {
+  const { app } = monta();
+  let recebido;
+
+  app.api.user.pageStudents = async (_t, filtros) => {
+    recebido = filtros;
+    return { rows: [] };
+  };
+
+  await rpc(app, "tools/call", { name: "pessoa_buscar", arguments: { termo: "bru" } });
+
+  assert.equal(recebido.unit, undefined);
+});
+
+// ── Anamnese ──────────────────────────────────────────────────────────────
+
+test("anamnese que ninguém preencheu é uma RESPOSTA, não um erro", async () => {
+  // É o caso de quem acabou de cadastrar alguém. Devolver "não encontrada"
+  // faria o modelo dizer que houve falha onde só há ficha nova.
+  const { app } = monta();
+  const r = await rpc(app, "tools/call", {
+    name: "anamnese_ver",
+    arguments: { pessoaId: String(PESSOA) },
+  });
+
+  assert.equal(saida(r).ok, true);
+  assert.equal(saida(r).preenchida, false);
+});
+
+test("a anamnese sai em português, e sem os campos vazios", async () => {
+  // Vinte e um campos vazios encheriam o contexto de nada, e o modelo repetiria
+  // "não informado" vinte e uma vezes. E "familyHistory" no meio da frase é o
+  // esquema vazando para o profissional.
+  const { app } = monta({
+    anamnese: { mainComplaint: "dor no ombro", allergies: "", familyHistory: "diabetes" },
+  });
+
+  const r = await rpc(app, "tools/call", {
+    name: "anamnese_ver",
+    arguments: { pessoaId: String(PESSOA) },
+  });
+
+  assert.equal(saida(r).anamnese.queixaPrincipal, "dor no ombro");
+  assert.equal(saida(r).anamnese.historicoFamiliar, "diabetes");
+  assert.equal("alergias" in saida(r).anamnese, false);
+  assert.equal("mainComplaint" in saida(r).anamnese, false);
+});
+
+test("preencher manda SÓ o que veio, com o nome do banco", async () => {
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "anamnese_preencher",
+    arguments: { pessoaId: String(PESSOA), alergias: "dipirona", horasDeSono: 7 },
+  });
+
+  assert.deepEqual(gravado.anamnese, { allergies: "dipirona", sleepHours: 7 });
+});
+
+test("o teto da anamnese vale na PRIMEIRA, e não trava a correção", async () => {
+  // Esta chamada é um upsert: preenche a primeira e corrige a décima. Barrar
+  // sem distinguir faria a pessoa perder a correção por um limite que ela não
+  // estourou.
+  const primeira = monta({ limites: { anamnesis: 5 }, quantosExistem: 5 });
+  const r1 = await rpc(primeira.app, "tools/call", {
+    name: "anamnese_preencher",
+    arguments: { pessoaId: String(PESSOA), alergias: "dipirona" },
+  });
+  assert.equal(saida(r1).erro, "teto_do_plano");
+  assert.equal(primeira.gravado.anamnese, undefined);
+
+  const jaExiste = monta({
+    limites: { anamnesis: 5 },
+    quantosExistem: 5,
+    anamnese: { mainComplaint: "dor" },
+  });
+  const r2 = await rpc(jaExiste.app, "tools/call", {
+    name: "anamnese_preencher",
+    arguments: { pessoaId: String(PESSOA), alergias: "dipirona" },
+  });
+  assert.equal(saida(r2).ok, true);
+});
+
+test("preencher sem campo nenhum não grava uma anamnese em branco", async () => {
+  const { app, gravado } = monta();
+  const r = await rpc(app, "tools/call", {
+    name: "anamnese_preencher",
+    arguments: { pessoaId: String(PESSOA) },
+  });
+
+  assert.equal(saida(r).erro, "nada_para_mudar");
+  assert.equal(gravado.anamnese, undefined);
+});
+
+test("ver anamnese pede anamnesis.view; preencher pede manage", async () => {
+  const soVer = monta({ permissoes: ["people.view", "anamnesis.view"] });
+
+  const lendo = await rpc(soVer.app, "tools/call", {
+    name: "anamnese_ver",
+    arguments: { pessoaId: String(PESSOA) },
+  });
+  assert.equal(saida(lendo).ok, true);
+
+  const escrevendo = await rpc(soVer.app, "tools/call", {
+    name: "anamnese_preencher",
+    arguments: { pessoaId: String(PESSOA), alergias: "x" },
+  });
+  assert.equal(saida(escrevendo).erro, "sem_permissao");
+});
+
+// ── Exames ────────────────────────────────────────────────────────────────
+
+test("o marcador sai com o veredito de FORA DA FAIXA", async () => {
+  // Calculado na leitura, nunca gravado: a faixa é editável, e congelar o
+  // veredito faria ele contradizer a própria linha.
+  const { app } = monta();
+  const r = await rpc(app, "tools/call", {
+    name: "exame_listar",
+    arguments: { pessoaId: String(PESSOA) },
+  });
+
+  const m = saida(r).exames[0].marcadores[0];
+  assert.equal(m.chave, "vitaminD");
+  assert.equal(m.valor, 18);
+  assert.equal(m.fora, "low");
+});
+
+test("marcador com CHAVE não leva nome livre junto", async () => {
+  // Os dois juntos fariam o mesmo marcador virar duas identidades, e nenhum
+  // gráfico junta as duas.
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "exame_criar",
+    arguments: {
+      pessoaId: String(PESSOA),
+      data: "2026-09-10",
+      marcadores: [{ chave: "vitaminD", nome: "Vit D", valor: 18, unidade: "ng/mL" }],
+    },
+  });
+
+  assert.equal(gravado.exame.markers[0].key, "vitaminD");
+  assert.equal(gravado.exame.markers[0].name, "");
+});
+
+test("sem chave, o nome livre passa", async () => {
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "exame_criar",
+    arguments: {
+      pessoaId: String(PESSOA),
+      marcadores: [{ nome: "Ferritina do lab X", valor: 40 }],
+    },
+  });
+
+  assert.equal(gravado.exame.markers[0].key, "");
+  assert.equal(gravado.exame.markers[0].name, "Ferritina do lab X");
+});
+
+test("o catálogo de marcadores existe e traz as chaves", async () => {
+  const { app } = monta();
+  const r = await rpc(app, "tools/call", { name: "exame_marcadores", arguments: {} });
+
+  assert.ok(saida(r).marcadores.length > 10);
+  assert.ok(saida(r).marcadores.every((m) => m.chave));
+});
+
+test("a busca no catálogo encurta a lista", async () => {
+  const { app } = monta();
+  const r = await rpc(app, "tools/call", {
+    name: "exame_marcadores",
+    arguments: { busca: "testosterone" },
+  });
+
+  assert.ok(saida(r).marcadores.length >= 1);
+  assert.ok(saida(r).marcadores.every((m) => m.chave.toLowerCase().includes("testosterone")));
+});
+
+test("lançar exame respeita o teto do plano", async () => {
+  const { app, gravado } = monta({ limites: { exams: 2 }, quantosExistem: 2 });
+  const r = await rpc(app, "tools/call", {
+    name: "exame_criar",
+    arguments: { pessoaId: String(PESSOA), marcadores: [{ nome: "X", valor: 1 }] },
+  });
+
+  assert.equal(saida(r).erro, "teto_do_plano");
+  assert.equal(gravado.exame, undefined);
+});
+
+test("editar exame sem mandar marcadores não apaga os que estavam lá", async () => {
+  // `somenteOsDitos`: a diferença entre "não mandou" e "mandou vazio" é a
+  // diferença entre manter e apagar.
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "exame_editar",
+    arguments: { exameId: String(EXAME), laboratorio: "Sabin" },
+  });
+
+  assert.deepEqual(Object.keys(gravado.exameMudanca), ["lab"]);
+});
+
+// ── Suplementação ─────────────────────────────────────────────────────────
+
+test("o suplemento sai com a situação e os dias", async () => {
+  const { app } = monta();
+  const r = await rpc(app, "tools/call", {
+    name: "suplemento_listar",
+    arguments: { pessoaId: String(PESSOA) },
+  });
+
+  const s = saida(r).suplementos[0];
+  assert.equal(s.nome, "Creatina");
+  assert.equal(s.momento, "postWorkout");
+  assert.equal(s.situacao, "current");
+  // Vazio é TODO DIA, e não "nenhum dia".
+  assert.deepEqual(s.diasDaSemana, []);
+});
+
+test("criar suplemento respeita o teto", async () => {
+  const { app, gravado } = monta({ limites: { supplements: 3 }, quantosExistem: 3 });
+  const r = await rpc(app, "tools/call", {
+    name: "suplemento_criar",
+    arguments: { pessoaId: String(PESSOA), nome: "Creatina" },
+  });
+
+  assert.equal(saida(r).erro, "teto_do_plano");
+  assert.equal(gravado.suplemento, undefined);
+});
+
+test("editar o suplemento manda só o que mudou", async () => {
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "suplemento_editar",
+    arguments: { suplementoId: String(SUPLEMENTO), fim: "2026-12-31" },
+  });
+
+  assert.deepEqual(gravado.suplementoMudanca, { endDate: "2026-12-31" });
+});
+
+// ── Prescrições ───────────────────────────────────────────────────────────
+
+test("a LISTA não traz os itens; ver traz", async () => {
+  // Dez receitas com oito itens cada são oitenta linhas para responder "quantas
+  // receitas ela tem".
+  const { app } = monta();
+
+  const lista = await rpc(app, "tools/call", {
+    name: "prescricao_listar",
+    arguments: { pessoaId: String(PESSOA) },
+  });
+  assert.equal(saida(lista).prescricoes[0].conteudo, undefined);
+  assert.equal(saida(lista).prescricoes[0].itens, 1);
+
+  const uma = await rpc(app, "tools/call", {
+    name: "prescricao_ver",
+    arguments: { prescricaoId: String(PRESCRICAO) },
+  });
+  assert.equal(saida(uma).prescricao.conteudo[0].nome, "Vitamina D3 2.000 UI");
+  assert.equal(saida(uma).prescricao.conteudo[0].posologia, "1x ao dia");
+});
+
+test("receita sem item nenhum não é emitida", async () => {
+  // Uma folha em branco assinada. O modelo do banco descarta o item sem nome em
+  // silêncio (a tela tem linha vazia no fim); sobrar zero é outra coisa.
+  const { app, gravado } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "prescricao_criar",
+    arguments: { pessoaId: String(PESSOA), itens: [{ nome: "   " }] },
+  });
+
+  assert.equal(saida(r).erro, "prescricao_sem_itens");
+  assert.equal(gravado.prescricao, undefined);
+});
+
+test("o item da receita vai em texto, como se escreve no papel", async () => {
+  const { app, gravado } = monta();
+
+  await rpc(app, "tools/call", {
+    name: "prescricao_criar",
+    arguments: {
+      pessoaId: String(PESSOA),
+      tipo: "medication",
+      conselho: "CRN 12345",
+      itens: [
+        { nome: "Vitamina D3 2.000 UI", dose: "1 cápsula", posologia: "1x ao dia, em jejum", duracao: "60 dias" },
+      ],
+    },
+  });
+
+  assert.equal(gravado.prescricao.items[0].name, "Vitamina D3 2.000 UI");
+  assert.equal(gravado.prescricao.items[0].posology, "1x ao dia, em jejum");
+  // O REGISTRO de quem assina vai gravado no documento, e não lido do perfil na
+  // hora de imprimir: o que foi emitido não muda porque a pessoa corrigiu o
+  // número do conselho depois.
+  assert.equal(gravado.prescricao.council, "CRN 12345");
+});
+
+test("editar a receita para uma lista vazia é recusado", async () => {
+  const { app, gravado } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "prescricao_editar",
+    arguments: { prescricaoId: String(PRESCRICAO), itens: [] },
+  });
+
+  assert.equal(saida(r).erro, "prescricao_sem_itens");
+  assert.equal(gravado.prescricaoMudanca, undefined);
+});
+
+test("reimprimir é view; emitir é manage", async () => {
+  // A separação mais forte do catálogo de permissões: a recepção pode precisar
+  // ver o que foi receitado; emitir é só de quem assina.
+  const recepcao = monta({ permissoes: ["people.view", "prescriptions.view"] });
+
+  const lendo = await rpc(recepcao.app, "tools/call", {
+    name: "prescricao_listar",
+    arguments: { pessoaId: String(PESSOA) },
+  });
+  assert.equal(saida(lendo).ok, true);
+
+  const emitindo = await rpc(recepcao.app, "tools/call", {
+    name: "prescricao_criar",
+    arguments: { pessoaId: String(PESSOA), itens: [{ nome: "X" }] },
+  });
+  assert.equal(saida(emitindo).erro, "sem_permissao");
+});
+
+// ── Conversas ─────────────────────────────────────────────────────────────
+
+test("a conversa sai com o nome do outro e o não lido", async () => {
+  const { app } = monta();
+  const r = await rpc(app, "tools/call", { name: "conversa_listar", arguments: {} });
+
+  assert.equal(saida(r).conversas[0].pessoa, "Bruna");
+  assert.equal(saida(r).naoLidas, 3);
+});
+
+test("quem não é da conversa não a lê, mesmo tendo o id", async () => {
+  // Participar é a única autorização que existe aqui: ter chat.view deixa a
+  // pessoa conversar, não deixa ler a conversa dos outros.
+  const { app } = monta();
+  app.api.chat.data = async () => ({ _id: CONVERSA, members: [new ObjectId(), new ObjectId()] });
+
+  const r = await rpc(app, "tools/call", {
+    name: "conversa_mensagens",
+    arguments: { conversaId: String(CONVERSA) },
+  });
+
+  assert.equal(saida(r).erro, "conversa_nao_encontrada");
+});
+
+test("as mensagens dizem quem falou, sem devolver ids", async () => {
+  const { app } = monta();
+  const r = await rpc(app, "tools/call", {
+    name: "conversa_mensagens",
+    arguments: { conversaId: String(CONVERSA) },
+  });
+
+  assert.deepEqual(
+    saida(r).mensagens.map((m) => m.de),
+    ["pessoa", "eu"]
+  );
+});
+
+test("mandar mensagem ABRE a conversa quando não há uma", async () => {
+  const { app, gravado } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "mensagem_enviar",
+    arguments: { pessoaId: String(PESSOA), texto: "a aula das 7 mudou para as 8" },
+  });
+
+  assert.equal(saida(r).ok, true);
+  assert.equal(gravado.abriuConversa, true);
+  assert.equal(gravado.mensagem.texto, "a aula das 7 mudou para as 8");
+});
+
+test("mensagem vazia não vira mensagem", async () => {
+  const { app, gravado } = monta();
+
+  const r = await rpc(app, "tools/call", {
+    name: "mensagem_enviar",
+    arguments: { pessoaId: String(PESSOA), texto: "   " },
+  });
+
+  assert.equal(saida(r).erro, "mensagem_vazia");
+  assert.equal(gravado.mensagem, undefined);
+});
+
+test("não se manda mensagem para quem não é da lista", async () => {
+  const { app, gravado } = monta({ semVinculo: true });
+
+  const r = await rpc(app, "tools/call", {
+    name: "mensagem_enviar",
+    arguments: { pessoaId: String(PESSOA), texto: "oi" },
+  });
+
+  assert.equal(saida(r).erro, "pessoa_nao_encontrada");
+  assert.equal(gravado.mensagem, undefined);
+});
+
+test("enviar exige chat.send, e ler só chat.view", async () => {
+  const soLe = monta({ permissoes: ["people.view", "chat.view"] });
+
+  const lendo = await rpc(soLe.app, "tools/call", { name: "conversa_listar", arguments: {} });
+  assert.equal(saida(lendo).ok, true);
+
+  const mandando = await rpc(soLe.app, "tools/call", {
+    name: "mensagem_enviar",
+    arguments: { pessoaId: String(PESSOA), texto: "oi" },
+  });
+  assert.equal(saida(mandando).erro, "sem_permissao");
+});
+
+test("a mensagem enviada por ferramenta também NOTIFICA o celular", async () => {
+  // O WebSocket entrega na hora para quem está com a conversa ABERTA. Quem
+  // fechou o app não recebe nada — e sem o push a ferramenta faria metade do
+  // que a tela faz, com a diferença aparecendo só do lado de lá: o profissional
+  // veria "enviada" e a pessoa não saberia dela.
+  //
+  // O que se prova aqui é a DIREÇÃO e o evento, como nos outros testes de
+  // aviso deste projeto: o disparo em si é melhor esforço por decisão (ver
+  // lib/avisar.js), e exigi-lo testaria o dobro do OneSignal, não a regra.
+  const { EVENTOS } = require("../../lib/avisar.js");
+  assert.equal(EVENTOS.message.rota, "/chat");
+
+  const { app, gravado } = monta();
+  const r = await rpc(app, "tools/call", {
+    name: "mensagem_enviar",
+    arguments: { pessoaId: String(PESSOA), texto: "a aula mudou" },
+  });
+
+  // E o aviso desligado (é o caso do ambiente de teste, sem OneSignal) NÃO
+  // desfaz o envio: a mensagem está gravada, que é o que importa.
+  assert.equal(saida(r).ok, true);
+  assert.equal(gravado.mensagem.texto, "a aula mudou");
 });

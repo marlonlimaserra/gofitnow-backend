@@ -46,6 +46,28 @@ models.finance = require("./model/Finance_model.js");
 // é um fato, e guardar as duas juntas faria um total somar dinheiro que ainda
 // não existe.
 models.recurrence = require("./model/Recurrence_model.js");
+// CONTAS A PAGAR — a luz, o telefone, o aluguel, a folha.
+//
+// Collection própria e não uma cobrança com sinal trocado: a cobrança pertence
+// a uma PESSOA da conta e aceita pagamento parcial; a conta pertence a um
+// fornecedor que não tem cadastro aqui e é paga de uma vez. Juntá-las faria
+// toda consulta de aluno carregar um `$ne` de tipo — e no dia em que alguém
+// esquecesse, a conta de luz entraria como receita.
+models.payable = require("./model/Payable_model.js");
+// OS FORNECEDORES — quem recebe o que sai. Cadastro e não texto livre: com
+// campo livre, "Enel", "ENEL" e "Enel SP" viram três, e "quanto paguei para a
+// Enel este ano" deixa de ter resposta.
+models.supplier = require("./model/Supplier_model.js");
+models.supplierImage = require("./model/SupplierImage_model.js");
+// ── A EQUIPE DA CASA ────────────────────────────────────────────────────────
+//
+// Quatro modelos: a ficha, a linha do tempo do que aconteceu com ela, a folha
+// de ponto e a foto. Ver `controllers/Employee.js` para por que salário é uma
+// permissão separada.
+models.employee = require("./model/Employee_model.js");
+models.employeeRecord = require("./model/EmployeeRecord_model.js");
+models.employeeTime = require("./model/EmployeeTime_model.js");
+models.employeeImage = require("./model/EmployeeImage_model.js");
 // O CARDÁPIO que a casa vende aos ALUNOS dela — "Black", "Fit", "Smart" — e as
 // linhas da tabela que compara um com o outro. Modelos separados porque são
 // coisas separadas: o plano é o que se vende, o benefício é o que se compara.
@@ -74,6 +96,9 @@ models.unitImage = require("./model/UnitImage_model.js");
 models.groupClass = require("./model/GroupClass_model.js");
 models.groupClassCheckin = require("./model/GroupClassCheckin_model.js");
 models.groupClassImage = require("./model/GroupClassImage_model.js");
+// A aula de UM DIA: o que muda de uma ocorrência para a outra — hoje, se ela
+// está fechada para inscrição.
+models.groupClassSession = require("./model/GroupClassSession_model.js");
 // As formas de pagamento de cada conta. Eram uma lista fixa dentro do financeiro.
 models.paymentMethod = require("./model/PaymentMethod_model.js");
 models.availability = require("./model/Availability_model.js");

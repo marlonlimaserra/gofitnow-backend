@@ -23,6 +23,11 @@ module.exports = function (app) {
   // linha com o `return` — ver `test/lib/limitesLigados.test.js`.
   const contarAulas = limiteDoPlano.contarNa(app, "group_classes");
 
+  // Minutos desde a meia-noite → "07:05". O modelo guarda minutos; quem lê uma
+  // folha impressa lê relógio.
+  const horaDeMinutos = (n) =>
+    `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+
   app.get("/group-classes", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "people.view");
     if (user === false) return;
@@ -60,7 +65,12 @@ module.exports = function (app) {
       .filter((x) => x.estado.hoje);
 
     const dia = comEstado[0]?.estado?.data;
-    const contagem = dia ? await app.api.groupClassCheckin.contagemDoDia(dia) : {};
+    const [contagem, fechadas] = dia
+      ? await Promise.all([
+          app.api.groupClassCheckin.contagemDoDia(dia),
+          app.api.groupClassSession.fechadasDoDia(dia),
+        ])
+      : [{}, new Set()];
 
     res.send({
       // O DIA vai na resposta: é a chave que o check-in usa para gravar, e
@@ -70,10 +80,24 @@ module.exports = function (app) {
       rows: comEstado.map(({ aula, estado }) => ({
         ...paraTela(req)(aula),
         aberta: estado.aberta,
-        // CADA horário com a sua janela: a aula das 07:00 e das 18:00 é a
-        // mesma aula, mas às 07:10 só a primeira está aberta.
-        horarios: estado.horarios,
-        presentes: contagem[String(aula._id)] || 0,
+        // CADA horário com a sua janela, a sua contagem e o seu fechamento:
+        // a aula das 07:00 e das 18:00 é a mesma aula, mas às 07:10 só a
+        // primeira está aberta — e fechar uma não fecha a outra.
+        horarios: estado.horarios.map((h, i) => {
+          const inicio = aula.horarios[i]?.inicio;
+          const chave = `${aula._id}:${inicio}`;
+
+          return {
+            ...h,
+            inicio_minutos: inicio,
+            inscritos: contagem[chave] || 0,
+            fechada: fechadas.has(chave),
+            // Vagas esgotadas é DIFERENTE de fechada, e a tela precisa dizer
+            // qual das duas: uma se resolve abrindo vaga, a outra com um
+            // clique.
+            lotada: aula.seats > 0 && (contagem[chave] || 0) >= aula.seats,
+          };
+        }),
       })),
     });
   });
@@ -151,6 +175,7 @@ module.exports = function (app) {
     // A capa vai junto: sem isto ela ficaria apontando para uma aula que não
     // existe, e nada a alcançaria.
     await app.api.groupClassImage.removeAllOf(req.params.id).catch(() => {});
+    await app.api.groupClassSession.removeAllOf(req.params.id).catch(() => {});
 
     app.insertUserActionHistory(req, user, "delete_group_class", {
       category: "settings",
@@ -159,6 +184,225 @@ module.exports = function (app) {
     });
 
     res.send({ msg: req.t("ok.groupClassRemoved") });
+  });
+
+  // ── OS INSCRITOS DE UM HORÁRIO ──────────────────────────────────────────
+  //
+  // *"inscrições"*. Com o nome de quem é: uma lista de presença sem nome não
+  // responde nada.
+  app.get("/group-classes/:id/checkins", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "people.view");
+    if (user === false) return;
+
+    const alvo = await app.api.groupClass.data(req.params.id);
+    if (!alvo) return res.status(404).send({ msg: req.t("errors.groupClassNotFound") });
+
+    const fuso = await app.api.tenant.timezoneOfInstance();
+    // Sem `dia` na query, é HOJE — que é o caso de quem abriu a tela para
+    // chamar a lista. Montar o dia na tela deixaria o relógio dela decidir.
+    const dia = String(req.query.dia || "") || app.api.groupClass.estadoAgora({ dias: [] }, new Date(), fuso).data;
+
+    // A AULA vai junto, e não só os inscritos.
+    //
+    // Quem chama esta rota do diálogo já tem o nome na tela; quem a chama da
+    // FOLHA IMPRESSA (`/imprimir/aula/:id`) chega por um link, sem tela
+    // nenhuma atrás — e uma folha que diz "08:00" sem dizer de que aula é não
+    // serve para nada na prancheta.
+    //
+    // Sai daqui em vez de uma segunda chamada porque é o mesmo documento: a
+    // folha é a aula MAIS a lista, e duas requisições fariam o cabeçalho
+    // aparecer um instante antes dos nomes.
+    const inicio = Number(req.query.inicio);
+    const horario = (alvo.horarios || []).find((h) => h.inicio === inicio);
+
+    res.send({
+      dia,
+      aula: {
+        id: String(alvo._id),
+        nome: alvo.name,
+        sala: alvo.sala || "",
+        // O relógio de parede daquele horário, montado aqui: a tela receberia
+        // minutos e teria de converter — e a terceira tela a fazer essa conta
+        // é a que a faz errado.
+        inicio: horario ? horaDeMinutos(horario.inicio) : "",
+        fim: horario ? horaDeMinutos(horario.fim) : "",
+      },
+      fechada: await app.api.groupClassSession.estaFechada(req.params.id, dia, req.query.inicio),
+      rows: await app.api.groupClassCheckin.inscritos(req.params.id, dia, req.query.inicio),
+    });
+  });
+
+  // ── INSCREVER À MÃO ─────────────────────────────────────────────────────
+  //
+  // *"coloque botão para inserir aluno manualmente para ocupar vaga"*.
+  //
+  // A aula coletiva se enche sozinha, pelo aplicativo. Mas a recepção também
+  // recebe o pedido pelo balcão e pelo WhatsApp, e sem esta rota ela teria de
+  // pedir para a pessoa abrir o celular na frente dela — ou deixar a vaga
+  // vazia numa aula que tem fila.
+  //
+  // ── POR QUE AS MESMAS TRÊS RECUSAS DO APLICATIVO ───────────────────────
+  //
+  // Lotada, fechada e "já entrou hoje" valem aqui também. A tentação é dizer
+  // que quem está no balcão manda — mas quem está no balcão é justamente quem
+  // não vê a lista inteira, e uma inscrição a mais numa aula de vinte vagas
+  // aparece na hora da chamada, quando não dá mais para resolver.
+  //
+  // Quem precisa de uma vaga a mais aumenta as vagas, que é uma decisão
+  // consciente e fica registrada; quem precisa reabrir, reabre.
+  app.post("/group-classes/:id/checkins", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "schedule.manage");
+    if (user === false) return;
+
+    const aula = await app.api.groupClass.data(req.params.id);
+    if (!aula) return res.status(404).send({ msg: req.t("errors.groupClassNotFound") });
+
+    const corpo = req.body || {};
+    // A pessoa tem de ser da lista de quem chama — sem isto, um id de outra
+    // conta entraria numa aula que não é dela.
+    const pessoa = await app.api.user.dataStudent(user._id, String(corpo.person || ""));
+    if (!pessoa) return res.status(404).send({ msg: req.t("errors.personNotFound") });
+
+    const fuso = await app.api.tenant.timezoneOfInstance();
+    // O DIA vem do servidor quando não é dito, pela razão de sempre: o relógio
+    // de quem está no balcão pode estar errado, e a inscrição de hoje iria
+    // parar em ontem sem nada na tela denunciar.
+    const dia = String(corpo.dia || "") || app.api.groupClass.estadoAgora({ dias: [] }, new Date(), fuso).data;
+    const inicio = Number(corpo.inicio);
+
+    if (await app.api.groupClassSession.estaFechada(req.params.id, dia, inicio)) {
+      return res.status(409).send({ msg: req.t("errors.groupClassClosed"), code: "fechada" });
+    }
+
+    // A conferência de vaga é ANTES, e ela é uma conferência mesmo — não há
+    // índice que a segure. Duas recepcionistas inscrevendo ao mesmo tempo na
+    // última vaga passam as duas; é uma corrida estreita e o preço dela é uma
+    // pessoa a mais numa aula, que a chamada resolve. Travar para valer custaria
+    // um contador transacional em cima de uma collection que zera todo dia.
+    if (aula.seats > 0) {
+      const dentro = await app.api.groupClassCheckin.inscritos(req.params.id, dia, inicio);
+      if (dentro.length >= aula.seats) {
+        return res.status(409).send({ msg: req.t("errors.groupClassFull"), code: "lotada" });
+      }
+    }
+
+    const r = await app.api.groupClassCheckin.entrar(req.params.id, dia, pessoa._id, {
+      inicio,
+      variosHorarios: aula.variosHorarios === true,
+    });
+
+    if (!r.ok) {
+      const status = r.erro === "ja_entrou_hoje" ? 409 : 400;
+      const chave = r.erro === "ja_entrou_hoje" ? "groupClassAlreadyToday" : "groupClassIncomplete";
+      return res.status(status).send({ msg: req.t("errors." + chave), code: r.erro });
+    }
+
+    app.insertUserActionHistory(req, user, "enroll_group_class", {
+      category: "settings",
+      local: { target_type: "group_classes", target_id: String(req.params.id) },
+    });
+
+    res.status(201).send({ msg: req.t("ok.groupClassEnrolled"), novo: r.novo });
+  });
+
+  // ── E TIRAR DA LISTA ────────────────────────────────────────────────────
+  //
+  // O par de cima, e não um extra: inscrever à mão erra a pessoa às vezes, e
+  // sem saída a recepção marcaria "faltou" em quem nunca se inscreveu — o
+  // histórico da pessoa ficaria com uma falta inventada.
+  //
+  // Apaga a LINHA, e por isso pede o id dela: a mesma pessoa pode estar nos
+  // dois horários do dia, e tirar "a pessoa da aula" tiraria dos dois.
+  app.delete("/group-class-checkins/:id", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "schedule.manage");
+    if (user === false) return;
+
+    const ok = await app.api.groupClassCheckin.remover(req.params.id);
+    if (!ok) return res.status(404).send({ msg: req.t("errors.groupClassNotFound") });
+
+    res.send({ msg: req.t("ok.groupClassLeft") });
+  });
+
+  // ── FECHAR E REABRIR ────────────────────────────────────────────────────
+  //
+  // *"'fechar' aula para ninguém mais se inscrever"*. É do DIA, e não da aula:
+  // amanhã ela nasce aberta de novo, porque ninguém escreveu a linha de
+  // amanhã.
+  //
+  // `schedule.manage` e não `people.view`: fechar é uma decisão sobre a aula,
+  // como montá-la.
+  app.post("/group-classes/:id/close", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "schedule.manage");
+    if (user === false) return;
+
+    const alvo = await app.api.groupClass.data(req.params.id);
+    if (!alvo) return res.status(404).send({ msg: req.t("errors.groupClassNotFound") });
+
+    const corpo = req.body || {};
+    const ok = await app.api.groupClassSession.fechar(
+      req.params.id,
+      corpo.dia,
+      corpo.inicio,
+      corpo.fechada !== false,
+      user._id
+    );
+    if (!ok) return res.status(400).send({ msg: req.t("errors.groupClassIncomplete") });
+
+    res.send({ msg: req.t("ok.groupClassSaved") });
+  });
+
+  // ── PRESENÇA OU FALTA ───────────────────────────────────────────────────
+  //
+  // *"poder dar PRESENÇA"* — *"presença ou falta no caso"*.
+  //
+  // Três estados, e não uma caixa de marcar: `inscrito` é "disse que vem",
+  // `presente` é "veio", `faltou` é "não veio". Enquanto a aula não acontece,
+  // ninguém faltou ainda — e uma caixa desmarcada diria que sim.
+  app.put("/group-class-checkins/:id/presence", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "schedule.manage");
+    if (user === false) return;
+
+    const ok = await app.api.groupClassCheckin.marcarPresenca(
+      req.params.id,
+      (req.body || {}).presenca
+    );
+    if (!ok) return res.status(404).send({ msg: req.t("errors.groupClassNotFound") });
+
+    res.send({ msg: req.t("ok.groupClassSaved") });
+  });
+
+  // ── O HISTÓRICO DE UMA PESSOA ───────────────────────────────────────────
+  //
+  // *"aqui no aluno preciso da parte do check-in, para ver aulas que ele fez
+  // check-in e se ele foi marcado como presente ou não"*.
+  //
+  // O NOME da aula vem junto, resolvido aqui: a ficha mostra "Spinning, 18/09,
+  // presente", e uma segunda chamada para traduzir ids em nomes faria a aba
+  // piscar em dois tempos.
+  app.get("/people/:id/class-checkins", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "people.view");
+    if (trainer === false) return;
+
+    // O VÍNCULO, e não só a existência: sem isto, um id adivinhado mostraria o
+    // histórico de quem não é seu.
+    const pessoa = await app.api.user.dataStudent(trainer._id, req.params.id);
+    if (!pessoa) return res.status(404).send({ msg: req.t("errors.userNotFound") });
+
+    const linhas = await app.api.groupClassCheckin.daPessoa(req.params.id);
+    const aulas = await app.api.groupClass.list();
+    const nomes = new Map(aulas.map((a) => [String(a._id), a.name]));
+
+    res.send({
+      rows: linhas.map((l) => ({
+        id: String(l._id),
+        // Aula apagada continua no histórico, sem nome: a presença aconteceu,
+        // e sumir com ela seria reescrever o passado da pessoa.
+        aula: nomes.get(String(l.class)) || "",
+        dia: l.dia,
+        inicio: l.inicio,
+        presenca: l.presenca || "inscrito",
+      })),
+    });
   });
 
   // A CAPA sobe em `data:` no corpo, como a do plano e a da unidade: a tela já

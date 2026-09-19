@@ -1,6 +1,7 @@
 {
   "errors": {
     "accountWithEmailExists": "Já existe uma conta com esse e-mail.",
+    "addressNotFound": "Não achei esse endereço no mapa.",
     "adminRoleLocked": "O tipo Administrador não pode ser alterado. Crie outro tipo para ajustar permissões.",
     "aiBadKey": "A Anthropic recusou a chave. Confira em Configurações.",
     "aiChatTooLong": "A conversa ficou longa demais. Comece uma nova.",
@@ -44,6 +45,7 @@
     "aulaoNoPerson": "Escolha quem vai ser inscrito.",
     "aulaoNotEnrolled": "Essa pessoa não está inscrita neste aulão.",
     "aulaoNotFound": "Esse aulão não existe mais.",
+    "aulaoRateLimited": "Muitas inscrições deste aparelho. Tente novamente em uma hora.",
     "aulaoTooManyImages": "Este aulão já está com o máximo de fotos.",
     "badCredentials": "E-mail ou senha inválidos.",
     "billingOff": "A cobrança não está ligada nesta instalação. Fale com o suporte.",
@@ -61,6 +63,7 @@
     "captcha_required": "Confirme que você não é um robô para continuar.",
     "categoryDuplicated": "Você já tem uma categoria com esse nome.",
     "categoryReserved": "Esse nome é de uma categoria do sistema. Escolha outro.",
+    "cepNotFound": "CEP não encontrado.",
     "chargeNotFound": "Cobrança não encontrada.",
     "checkoutFailed": "Não consegui abrir a tela de pagamento. Tente de novo em alguns minutos.",
     "conversationNotFound": "Conversa não encontrada.",
@@ -79,12 +82,19 @@
     "emailOfAnotherProfessional": "Esse e-mail já está cadastrado nesta conta, com outro profissional. Peça para ele compartilhar, ou use outro e-mail.",
     "emailSendFailed": "Não foi possível enviar o e-mail agora. Tente de novo.",
     "emailTooSoon": "Este e-mail acabou de ser enviado. Aguarde {{seconds}} segundos para mandar de novo.",
+    "employeeHasHistory": "Este funcionário tem {{ocorrencias}} lançamento(s) e {{pontos}} dia(s) de ponto. Apagar leva tudo junto — o normal é desligar.",
+    "employeeNotFound": "Este funcionário não existe mais.",
     "emptyMessage": "Escreva alguma coisa antes de enviar.",
     "endBeforeStart": "A data final não pode ser antes da inicial.",
     "examNotFound": "Exame não encontrado.",
     "exerciseNotFound": "Exercício não encontrado.",
     "foodNotFound": "Alimento não encontrado.",
     "foodShared": "Este alimento é do catálogo compartilhado e não pode ser alterado aqui. Crie o seu para ter uma versão própria.",
+    "groupClassAlreadyToday": "Esta pessoa já entrou numa aula hoje.",
+    "groupClassClosed": "A aula deste horário está fechada.",
+    "groupClassFull": "A aula está lotada.",
+    "groupClassIncomplete": "A aula precisa de nome, horário e pelo menos um dia da semana.",
+    "groupClassNotFound": "Aula não encontrada.",
     "ideaCommentEmpty": "Escreva algo antes de enviar.",
     "ideaCommentTooMany": "Você comentou bastante hoje. Volte amanhã.",
     "ideaNoTitle": "Escreva um título com pelo menos 4 letras.",
@@ -95,6 +105,7 @@
     "invalidAttachment": "Arquivo não aceito ou grande demais.",
     "invalidBrandImage": "Envie uma imagem JPEG, PNG ou WebP de até 4 MB.",
     "invalidCategory": "Essa categoria não está na lista. Recarregue a página e escolha de novo.",
+    "invalidDay": "Dia inválido. Use o formato AAAA-MM-DD.",
     "invalidDomain": "Escreva o domínio como ele é, sem http:// e sem barra — por exemplo, treinos.seusite.com.br.",
     "invalidEmail": "E-mail inválido.",
     "invalidField": "Campo inválido.",
@@ -107,6 +118,7 @@
     "invalidPersonEmail": "E-mail inválido.",
     "invalidPhotoSides": "Lista de ângulos inválida.",
     "invalidPreferences": "Preferências inválidas ou grandes demais.",
+    "invalidReceipt": "Comprovante inválido. Use imagem ou PDF de até 8 MB.",
     "invalidRole": "Tipo de usuário inválido.",
     "invalidSession": "Sessão inválida ou expirada.",
     "invalidStatus": "Situação inválida.",
@@ -120,10 +132,15 @@
     "lastAccountManagingRolesEdit": "Esta é a última conta ativa que gerencia permissões — promova outra antes de alterar esta.",
     "lastRoleManagingRoles": "Este é o único tipo que ainda gerencia permissões, e é o seu. Dê essa permissão a outro tipo antes.",
     "mailFailed": "Não deu para enviar o e-mail.",
+    "membershipBenefitInUse": "Este benefício está marcado em {{count}} plano(s). Desative-o em vez de apagar.",
+    "membershipBenefitNotFound": "Benefício não encontrado.",
+    "membershipInUse": "Este plano está em {{count}} recorrência(s). Desative-o em vez de apagar.",
+    "membershipNotFound": "Plano não encontrado.",
     "moduleNotFound": "Esse módulo não existe.",
     "newPasswordTooShort": "A nova senha precisa ter no mínimo 6 caracteres.",
     "noAccountWithEmail": "Não existe conta com esse e-mail.",
     "noApiKey": "Chave de API não informada.",
+    "noAttachment": "Este lançamento não tem anexo.",
     "noCustomDomain": "Nenhum domínio próprio cadastrado.",
     "noInstance": "Instância não informada. Mande o cabeçalho X-Instance, ou acesse pelo endereço da instância.",
     "noPermission": "Seu tipo de usuário não tem permissão para isso.",
@@ -138,11 +155,14 @@
     "ownAccountAccess": "Essa conta é da própria pessoa — só ela pode mudar o acesso dela.",
     "passwordNeedsEmail": "Para dar acesso ao app é preciso um e-mail: é com ele que a pessoa entra.",
     "passwordTooShort": "A senha precisa ter no mínimo 6 caracteres.",
+    "payableNoDescription": "A conta precisa de uma descrição.",
+    "payableNotFound": "Conta não encontrada.",
     "paymentMethodExists": "Já existe uma forma de pagamento com esse nome.",
     "paymentMethodInUse": "Há pagamentos registrados nesta forma. Desative para tirá-la do seletor sem mexer no histórico.",
     "paymentMethodNotFound": "Forma de pagamento não encontrada.",
     "paymentMethodSystem": "As formas originais não podem ser apagadas — desative para tirá-la do seletor.",
     "paymentNotFound": "Pagamento não encontrado.",
+    "payrollOnly": "Só quem pode ver salário lança reajuste.",
     "pdfFailed": "Não foi possível gerar o PDF. Tente novamente.",
     "pdfUnavailable": "A geração de PDF não está disponível neste servidor. Use a opção de imprimir.",
     "personNotFound": "Pessoa não encontrada.",
@@ -150,12 +170,16 @@
     "planInactive": "Esse plano não está mais disponível.",
     "planIsFree": "O plano gratuito não precisa de pagamento.",
     "planLimitReached": "Seu plano permite até {{max}} em {{o}}. Apague o que não usa mais, ou suba de plano.",
+    "planNotFound": "Esse plano não existe.",
     "planNotSellable": "Esse plano ainda não está pronto para venda. Já avisamos o suporte.",
     "portalFailed": "Não consegui abrir a tela de gerenciamento. Tente de novo em alguns minutos.",
     "prescriptionNotFound": "Prescrição não encontrada.",
     "rateLimited": "Limite de {{limit}} chamadas por minuto atingido. Tente de novo em {{seconds}}s.",
+    "recordNotFound": "Este lançamento não existe mais.",
+    "recurrenceNotFound": "Recorrência não encontrada.",
     "requestNoLongerValid": "Este pedido não é mais válido.",
     "requestNotFound": "Pedido não encontrado.",
+    "requireAmount": "Informe o valor.",
     "requireApiKeyName": "Dê um nome à chave.",
     "requireCopyName": "Informe o nome da cópia.",
     "requireDate": "Informe a data e a hora.",
@@ -186,12 +210,14 @@
     "routeNotFound": "Rota não encontrada.",
     "serviceNotFound": "Serviço não encontrado.",
     "signupRateLimited": "Muitos cadastros deste computador. Tente novamente em uma hora.",
-    "aulaoRateLimited": "Muitas inscrições deste aparelho. Tente novamente em uma hora.",
     "studentAreaOnly": "Esta área é de quem é atendido. O seu acesso é pela ficha.",
     "studentNotFound": "Aluno não encontrado.",
     "studentWithoutEmail": "Esta pessoa não tem e-mail cadastrado.",
     "subdomainTaken": "Esse endereço já é de outra conta.",
     "supplementNotFound": "Suplemento não encontrado.",
+    "supplierInUse": "{{count}} conta(s) apontam para este fornecedor. Desative-o em vez de apagar.",
+    "supplierNoName": "O fornecedor precisa de um nome.",
+    "supplierNotFound": "Fornecedor não encontrado.",
     "systemRoleNotDeletable": "Os tipos padrão do sistema não podem ser excluídos.",
     "targetStudentNotFound": "Aluno de destino não encontrado.",
     "textTooLong": "Texto muito longo para uma opção.",
@@ -204,6 +230,8 @@
     "tooManyApiKeys": "Você já tem {{max}} chaves ativas. Revogue uma antes de criar outra.",
     "tooManyBrandImages": "Você já tem {{max}} imagens guardadas. Salve a aparência para liberar as que não estão em uso.",
     "unavailableAccount": "Conta indisponível.",
+    "unitInUse": "Esta unidade tem {{count}} pessoa(s). Desative-a em vez de apagar.",
+    "unitNotFound": "Unidade não encontrada.",
     "unknownInstance": "Domínio não identificado. Este endereço não está ligado a nenhum cliente cadastrado.",
     "userNotFound": "Usuário não encontrado.",
     "userWithEmailExists": "Já existe um usuário com esse e-mail.",
@@ -218,63 +246,56 @@
     "usernameInUse": "Este nome de usuário já está em uso.",
     "vocabularyLength": "Use entre 3 e 20 letras para o {{field}} (ex.: aluno / alunos).",
     "workoutNotFound": "Treino não encontrado.",
-    "wrongCurrentPassword": "Senha atual incorreta.",
-    "recurrenceNotFound": "Recorrência não encontrada.",
-    "requireAmount": "Informe o valor.",
-    "membershipNotFound": "Plano não encontrado.",
-    "membershipInUse": "Este plano está em {{count}} recorrência(s). Desative-o em vez de apagar.",
-    "planNotFound": "Esse plano não existe.",
-    "membershipBenefitNotFound": "Benefício não encontrado.",
-    "membershipBenefitInUse": "Este benefício está marcado em {{count}} plano(s). Desative-o em vez de apagar.",
-    "unitNotFound": "Unidade não encontrada.",
-    "unitInUse": "Esta unidade tem {{count}} pessoa(s). Desative-a em vez de apagar.",
-    "cepNotFound": "CEP não encontrado.",
-    "addressNotFound": "Não achei esse endereço no mapa.",
-    "groupClassNotFound": "Aula não encontrada.",
-    "groupClassIncomplete": "A aula precisa de nome, horário e pelo menos um dia da semana."
+    "wrongCurrentPassword": "Senha atual incorreta."
   },
   "ok": {
-    "passwordChanged": "Senha alterada.",
-    "signedOut": "Sessão encerrada.",
-    "photoUpdated": "Foto atualizada.",
-    "photoRemoved": "Foto removida.",
-    "optionRemoved": "Opção removida.",
-    "personUnlinked": "Pessoa removida da sua lista.",
-    "personDeleted": "Pessoa excluída.",
-    "userRemoved": "Usuário removido.",
-    "workoutRemoved": "Treino removido.",
-    "exerciseRemoved": "Exercício removido.",
-    "roleRemoved": "Tipo removido.",
     "accessRevoked": "Acesso revogado.",
+    "apiKeyRevoked": "Chave revogada.",
+    "appointmentRemoved": "Compromisso removido.",
+    "assessmentEmailed": "Avaliação enviada por e-mail.",
+    "assessmentRemoved": "Avaliação apagada.",
+    "bookingPageRemoved": "Página de agendamento removida.",
+    "chargeRemoved": "Cobrança removida.",
+    "dietEmailed": "Plano alimentar enviado por e-mail.",
+    "dietRemoved": "Plano apagado.",
+    "employeeRemoved": "Funcionário apagado.",
+    "examRemoved": "Exame apagado.",
+    "exerciseRemoved": "Exercício removido.",
+    "foodRemoved": "Alimento apagado.",
+    "groupClassEnrolled": "Inscrição feita.",
+    "groupClassLeft": "Retirado da lista.",
+    "groupClassRemoved": "Aula removida.",
+    "groupClassSaved": "Ordem salva.",
+    "inviteDone": "Cadastro concluído! Agora é só entrar no app.",
+    "membershipBenefitRemoved": "Benefício removido.",
+    "membershipRemoved": "Plano removido.",
+    "membershipSaved": "Ordem salva.",
+    "optionRemoved": "Opção removida.",
+    "passwordChanged": "Senha alterada.",
+    "payableRemoved": "Conta removida.",
+    "paymentMethodRemoved": "Forma de pagamento removida.",
+    "paymentMethodSaved": "Forma de pagamento salva.",
+    "paymentRemoved": "Pagamento removido.",
+    "personDeleted": "Pessoa excluída.",
+    "personUnlinked": "Pessoa removida da sua lista.",
+    "photoRemoved": "Foto removida.",
+    "photoUpdated": "Foto atualizada.",
+    "prescriptionRemoved": "Prescrição apagada.",
+    "recordRemoved": "Lançamento apagado.",
+    "recurrenceRemoved": "Recorrência removida. As cobranças já geradas continuam.",
     "requestCancelled": "Pedido cancelado.",
     "requestSent": "Pedido enviado. A pessoa precisa confirmar pelo e-mail.",
     "resetLinkSent": "Se existir uma conta com esse e-mail, o link de redefinição foi enviado.",
-    "apiKeyRevoked": "Chave revogada.",
-    "inviteDone": "Cadastro concluído! Agora é só entrar no app.",
-    "dietRemoved": "Plano apagado.",
-    "supplementRemoved": "Suplemento apagado.",
-    "examRemoved": "Exame apagado.",
-    "prescriptionRemoved": "Prescrição apagada.",
-    "foodRemoved": "Alimento apagado.",
-    "assessmentRemoved": "Avaliação apagada.",
-    "appointmentRemoved": "Compromisso removido.",
+    "roleRemoved": "Tipo removido.",
     "serviceRemoved": "Serviço removido.",
-    "chargeRemoved": "Cobrança removida.",
-    "paymentRemoved": "Pagamento removido.",
-    "bookingPageRemoved": "Página de agendamento removida.",
-    "paymentMethodSaved": "Forma de pagamento salva.",
-    "paymentMethodRemoved": "Forma de pagamento removida.",
-    "assessmentEmailed": "Avaliação enviada por e-mail.",
-    "dietEmailed": "Plano alimentar enviado por e-mail.",
+    "signedOut": "Sessão encerrada.",
     "statementEmailed": "Extrato enviado por e-mail.",
-    "recurrenceRemoved": "Recorrência removida. As cobranças já geradas continuam.",
-    "membershipRemoved": "Plano removido.",
-    "membershipSaved": "Ordem salva.",
-    "membershipBenefitRemoved": "Benefício removido.",
-    "unitSaved": "Ordem salva.",
+    "supplementRemoved": "Suplemento apagado.",
+    "supplierRemoved": "Fornecedor removido.",
     "unitRemoved": "Unidade removida.",
-    "groupClassSaved": "Ordem salva.",
-    "groupClassRemoved": "Aula removida."
+    "unitSaved": "Ordem salva.",
+    "userRemoved": "Usuário removido.",
+    "workoutRemoved": "Treino removido."
   },
   "permissions": {
     "groups": {
@@ -345,156 +366,172 @@
       "ai": {
         "title": "Assistente",
         "description": "O assistente que opera a tela por você."
+      },
+      "employees": {
+        "title": "Funcionários",
+        "description": "A equipe da casa: ficha, ponto, ocorrências e salário"
       }
     },
     "items": {
-      "people.view": {
-        "label": "Ver pessoas",
-        "hint": "Abrir a lista e a ficha de quem já está vinculado."
-      },
-      "people.create": {
-        "label": "Adicionar pessoa",
-        "hint": "Cadastrar uma nova ficha e pedir acesso a quem já tem conta."
-      },
-      "people.edit": {
-        "label": "Editar ficha",
-        "hint": "Alterar dados, medidas e observações."
-      },
-      "people.delete": {
-        "label": "Remover da lista",
-        "hint": "Desfazer o vínculo. A pessoa continua existindo se outro profissional a acompanhar."
-      },
-      "people.access": {
-        "label": "Gerenciar o acesso da pessoa",
-        "hint": "Definir ou tirar a senha de quem foi cadastrado por você."
-      },
-      "workouts.view": {
-        "label": "Ver treinos",
-        "hint": "Abrir os treinos e as sessões."
-      },
-      "workouts.manage": {
-        "label": "Montar treinos",
-        "hint": "Criar, editar, duplicar e excluir treinos, sessões e exercícios da sessão."
-      },
-      "exercises.view": {
-        "label": "Ver o catálogo",
-        "hint": "Consultar exercícios e grupos."
-      },
-      "exercises.manage": {
-        "label": "Editar o catálogo",
-        "hint": "Criar, alterar e excluir exercícios."
-      },
-      "users.view": {
-        "label": "Ver usuários",
-        "hint": "Abrir o menu Usuários."
-      },
-      "users.manage": {
-        "label": "Gerenciar usuários",
-        "hint": "Cadastrar profissionais, editar, desativar e excluir qualquer conta."
-      },
-      "logs.view": {
-        "label": "Ver o histórico",
-        "hint": "Consultar quem fez o quê, quando e de qual endereço."
-      },
-      "roles.view": {
-        "label": "Ver tipos",
-        "hint": "Abrir o menu Tipos de usuário."
-      },
-      "roles.manage": {
-        "label": "Gerenciar tipos",
-        "hint": "Criar tipos e mudar as permissões de cada um. Quem tem isso pode dar qualquer poder a si mesmo."
-      },
-      "diets.view": {
-        "label": "Ver dietas",
-        "hint": "Abrir os planos alimentares das pessoas."
-      },
-      "diets.manage": {
-        "label": "Gerenciar dietas",
-        "hint": "Criar, editar e apagar planos e refeições."
-      },
-      "foods.view": {
-        "label": "Ver o catálogo",
-        "hint": "Consultar alimentos e categorias."
-      },
-      "foods.manage": {
-        "label": "Gerenciar alimentos",
-        "hint": "Criar, editar e apagar alimentos do catálogo — vale para todas as contas."
-      },
-      "assessments.view": {
-        "label": "Ver avaliações",
-        "hint": "Abrir a aba de avaliação física. A tela está em construção."
-      },
-      "assessments.manage": {
-        "label": "Gerenciar avaliações",
-        "hint": "Registrar e apagar medidas. A tela está em construção."
-      },
-      "anamnesis.view": {
-        "label": "Ver anamnese",
-        "hint": "Abrir a aba e ler o histórico de saúde."
-      },
-      "anamnesis.manage": {
-        "label": "Preencher anamnese",
-        "hint": "Escrever e alterar o histórico de saúde e os hábitos."
-      },
-      "supplements.view": {
-        "label": "Ver suplementação",
-        "hint": "Abrir a aba e ler o que foi indicado."
-      },
-      "supplements.manage": {
-        "label": "Indicar suplemento",
-        "hint": "Acrescentar, alterar e encerrar itens da suplementação."
-      },
-      "exams.view": {
-        "label": "Ver exames",
-        "hint": "Abrir a aba e ler os laudos e a evolução."
-      },
-      "exams.manage": {
-        "label": "Lançar exame",
-        "hint": "Lançar, corrigir e apagar laudos."
-      },
-      "prescriptions.view": {
-        "label": "Ver prescrições",
-        "hint": "Abrir os documentos emitidos e reimprimi-los."
-      },
-      "prescriptions.manage": {
-        "label": "Emitir prescrição",
-        "hint": "Criar, alterar e apagar documentos. É quem assina."
-      },
-      "schedule.view": {
-        "label": "Ver a agenda",
-        "hint": "Abrir a aba de agenda. A tela está em construção."
-      },
-      "schedule.manage": {
-        "label": "Gerenciar a agenda",
-        "hint": "Marcar e desmarcar horários. A tela está em construção."
-      },
-      "finance.view": {
-        "label": "Ver o financeiro",
-        "hint": "Abrir a aba financeira e ver cobranças. A tela está em construção."
-      },
-      "finance.manage": {
-        "label": "Gerenciar o financeiro",
-        "hint": "Lançar cobranças e baixas. A tela está em construção."
-      },
-      "chat.view": {
-        "label": "Ver conversas",
-        "hint": "Abrir o chat e ler as próprias conversas."
-      },
-      "chat.send": {
-        "label": "Enviar mensagens",
-        "hint": "Escrever e iniciar conversa com alguém."
-      },
-      "schedule.team": {
-        "label": "Agenda da equipe",
-        "hint": "Ver e marcar na agenda dos outros profissionais."
+      "ai.manage": {
+        "label": "Configurar o assistente",
+        "hint": "Trocar a chave e o modelo. Mexe no custo do cliente."
       },
       "ai.use": {
         "label": "Usar o assistente",
         "hint": "Conversar com o assistente e deixar que ele opere a tela."
       },
-      "ai.manage": {
-        "label": "Configurar o assistente",
-        "hint": "Trocar a chave e o modelo. Mexe no custo do cliente."
+      "anamnesis.manage": {
+        "label": "Preencher anamnese",
+        "hint": "Escrever e alterar o histórico de saúde e os hábitos."
+      },
+      "anamnesis.view": {
+        "label": "Ver anamnese",
+        "hint": "Abrir a aba e ler o histórico de saúde."
+      },
+      "assessments.manage": {
+        "label": "Gerenciar avaliações",
+        "hint": "Registrar e apagar medidas. A tela está em construção."
+      },
+      "assessments.view": {
+        "label": "Ver avaliações",
+        "hint": "Abrir a aba de avaliação física. A tela está em construção."
+      },
+      "chat.send": {
+        "label": "Enviar mensagens",
+        "hint": "Escrever e iniciar conversa com alguém."
+      },
+      "chat.view": {
+        "label": "Ver conversas",
+        "hint": "Abrir o chat e ler as próprias conversas."
+      },
+      "diets.manage": {
+        "label": "Gerenciar dietas",
+        "hint": "Criar, editar e apagar planos e refeições."
+      },
+      "diets.view": {
+        "label": "Ver dietas",
+        "hint": "Abrir os planos alimentares das pessoas."
+      },
+      "employees.manage": {
+        "label": "Gerenciar funcionários",
+        "hint": "Cadastrar, editar, desligar, lançar advertências e preencher a folha de ponto."
+      },
+      "employees.payroll": {
+        "label": "Ver e mudar salário",
+        "hint": "Ver salário, benefícios e dados bancários da equipe, e lançar reajustes."
+      },
+      "employees.view": {
+        "label": "Ver funcionários",
+        "hint": "Abrir a lista da equipe e a ficha de cada um, sem o salário."
+      },
+      "exams.manage": {
+        "label": "Lançar exame",
+        "hint": "Lançar, corrigir e apagar laudos."
+      },
+      "exams.view": {
+        "label": "Ver exames",
+        "hint": "Abrir a aba e ler os laudos e a evolução."
+      },
+      "exercises.manage": {
+        "label": "Editar o catálogo",
+        "hint": "Criar, alterar e excluir exercícios."
+      },
+      "exercises.view": {
+        "label": "Ver o catálogo",
+        "hint": "Consultar exercícios e grupos."
+      },
+      "finance.manage": {
+        "label": "Gerenciar o financeiro",
+        "hint": "Lançar cobranças e baixas. A tela está em construção."
+      },
+      "finance.view": {
+        "label": "Ver o financeiro",
+        "hint": "Abrir a aba financeira e ver cobranças. A tela está em construção."
+      },
+      "foods.manage": {
+        "label": "Gerenciar alimentos",
+        "hint": "Criar, editar e apagar alimentos do catálogo — vale para todas as contas."
+      },
+      "foods.view": {
+        "label": "Ver o catálogo",
+        "hint": "Consultar alimentos e categorias."
+      },
+      "logs.view": {
+        "label": "Ver o histórico",
+        "hint": "Consultar quem fez o quê, quando e de qual endereço."
+      },
+      "people.access": {
+        "label": "Gerenciar o acesso da pessoa",
+        "hint": "Definir ou tirar a senha de quem foi cadastrado por você."
+      },
+      "people.create": {
+        "label": "Adicionar pessoa",
+        "hint": "Cadastrar uma nova ficha e pedir acesso a quem já tem conta."
+      },
+      "people.delete": {
+        "label": "Remover da lista",
+        "hint": "Desfazer o vínculo. A pessoa continua existindo se outro profissional a acompanhar."
+      },
+      "people.edit": {
+        "label": "Editar ficha",
+        "hint": "Alterar dados, medidas e observações."
+      },
+      "people.view": {
+        "label": "Ver pessoas",
+        "hint": "Abrir a lista e a ficha de quem já está vinculado."
+      },
+      "prescriptions.manage": {
+        "label": "Emitir prescrição",
+        "hint": "Criar, alterar e apagar documentos. É quem assina."
+      },
+      "prescriptions.view": {
+        "label": "Ver prescrições",
+        "hint": "Abrir os documentos emitidos e reimprimi-los."
+      },
+      "roles.manage": {
+        "label": "Gerenciar tipos",
+        "hint": "Criar tipos e mudar as permissões de cada um. Quem tem isso pode dar qualquer poder a si mesmo."
+      },
+      "roles.view": {
+        "label": "Ver tipos",
+        "hint": "Abrir o menu Tipos de usuário."
+      },
+      "schedule.manage": {
+        "label": "Gerenciar a agenda",
+        "hint": "Marcar e desmarcar horários. A tela está em construção."
+      },
+      "schedule.team": {
+        "label": "Agenda da equipe",
+        "hint": "Ver e marcar na agenda dos outros profissionais."
+      },
+      "schedule.view": {
+        "label": "Ver a agenda",
+        "hint": "Abrir a aba de agenda. A tela está em construção."
+      },
+      "supplements.manage": {
+        "label": "Indicar suplemento",
+        "hint": "Acrescentar, alterar e encerrar itens da suplementação."
+      },
+      "supplements.view": {
+        "label": "Ver suplementação",
+        "hint": "Abrir a aba e ler o que foi indicado."
+      },
+      "users.manage": {
+        "label": "Gerenciar usuários",
+        "hint": "Cadastrar profissionais, editar, desativar e excluir qualquer conta."
+      },
+      "users.view": {
+        "label": "Ver usuários",
+        "hint": "Abrir o menu Usuários."
+      },
+      "workouts.manage": {
+        "label": "Montar treinos",
+        "hint": "Criar, editar, duplicar e excluir treinos, sessões e exercícios da sessão."
+      },
+      "workouts.view": {
+        "label": "Ver treinos",
+        "hint": "Abrir os treinos e as sessões."
       }
     }
   },
@@ -591,7 +628,11 @@
     "delete_payment_method": "Apagou forma de pagamento",
     "update_timezone": "Alterou o fuso horário",
     "email_assessment": "Enviou uma avaliação física por e-mail",
-    "email_diet": "Enviou um plano alimentar por e-mail"
+    "email_diet": "Enviou um plano alimentar por e-mail",
+    "create_employee": "Cadastrou um funcionário",
+    "update_employee": "Editou a ficha de um funcionário",
+    "delete_employee": "Apagou um funcionário",
+    "create_employee_record": "Lançou uma ocorrência de funcionário"
   },
   "categories": {
     "auth": "Acesso",
@@ -607,7 +648,8 @@
     "foods": "Alimentos",
     "assessments": "Avaliação física",
     "schedule": "Agenda",
-    "finance": "Financeiro"
+    "finance": "Financeiro",
+    "employees": "Funcionários"
   },
   "targetTypes": {
     "users": "Usuário",
@@ -843,11 +885,15 @@
     "apiKeys": "chaves de API",
     "appearance": "customizar aparência",
     "assessments": "avaliações físicas",
+    "aulaoes": "aulões",
     "dietTemplates": "modelos de dieta",
     "diets": "dietas",
+    "employees": "funcionários",
     "exams": "exames",
     "exercisesPerWorkout": "exercícios por treino",
     "foodsPerMeal": "alimentos por refeição",
+    "groupClasses": "aulas coletivas",
+    "memberships": "planos",
     "people": "pessoas",
     "photoSides": "categorias de foto na avaliação",
     "prescriptions": "prescrições",
@@ -855,13 +901,10 @@
     "schedule": "agenda",
     "setsPerExercise": "séries por exercício",
     "supplements": "suplementação",
+    "units": "unidades",
     "whitelabel": "whitelabel",
     "workoutTemplates": "modelos de treino",
-    "workouts": "treinos",
-    "aulaoes": "aulões",
-    "units": "unidades",
-    "memberships": "planos",
-    "groupClasses": "aulas coletivas"
+    "workouts": "treinos"
   },
   "finance": {
     "status": {
@@ -899,6 +942,28 @@
       "ocean": "Oceano",
       "neon": "Neon",
       "sand": "Areia"
+    }
+  },
+  "payables": {
+    "category": {
+      "aluguel": "Aluguel",
+      "energia": "Energia",
+      "agua": "Água",
+      "internet": "Internet",
+      "telefone": "Telefone",
+      "folha": "Folha de pagamento",
+      "impostos": "Impostos",
+      "fornecedor": "Fornecedor",
+      "manutencao": "Manutenção",
+      "equipamento": "Equipamento",
+      "marketing": "Marketing",
+      "software": "Software",
+      "outros": "Outros",
+      "gas": "Gás",
+      "taxas": "Taxas bancárias e de cartão",
+      "seguro": "Seguro",
+      "contabilidade": "Contabilidade",
+      "seguranca": "Segurança"
     }
   }
 }

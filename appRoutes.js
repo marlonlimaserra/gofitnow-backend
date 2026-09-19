@@ -31,6 +31,12 @@ routes.Finance = require("./controllers/Finance.js");
 // `Membership` e não `Plan`: o `Plan.js` logo acima é o plano do PRODUTO, com a
 // Stripe. Os dois se chamam "Planos" na tela, e só na tela.
 routes.Membership = require("./controllers/Membership.js");
+// CONTAS A PAGAR. Controller próprio e não dentro de Finance pela mesma razão
+// de Membership: aquele já tem dezoito rotas, e conta a pagar é o outro lado do
+// caixa — dinheiro que SAI, para fornecedor que não tem cadastro aqui.
+routes.Payable = require("./controllers/Payable.js");
+routes.Supplier = require("./controllers/Supplier.js");
+routes.Employee = require("./controllers/Employee.js");
 routes.Unit = require("./controllers/Unit.js");
 routes.GroupClass = require("./controllers/GroupClass.js");
 routes.Booking = require("./controllers/Booking.js");

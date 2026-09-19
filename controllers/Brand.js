@@ -18,6 +18,8 @@ const instanceContext = require("../lib/instance.js");
 // do cliente. Ver o comentário de `apiBaseUrl`.
 const baseUrl = dominio.apiBaseUrl;
 
+const logoDaCasa = require("../lib/logoDaCasa.js");
+
 module.exports = function (app) {
   // A INSTÂNCIA está no caminho porque esta rota é aberta: ela chega sem
   // sessão e sem cabeçalho, e as imagens moram no banco de um cliente. Sem o
@@ -25,6 +27,36 @@ module.exports = function (app) {
   //
   // Não é vazamento: este endereço só aparece embutido na tela de entrada
   // daquele cliente, e o host dela já diz de quem é.
+  // ── A NOSSA LOGO, a que se lê em PAPEL BRANCO ───────────────────────────
+  //
+  // *"ficaria igual o do financeiro, tem a logo padrão da empresa né"*.
+  //
+  // O extrato financeiro já sai com ela: quem monta aquele HTML é o servidor, e
+  // `lib/logoDaCasa.js` resolve "a da casa, ou a nossa" antes de embutir. As
+  // folhas montadas na TELA não tinham como chegar nela — e a do frontend
+  // (`/logo.png`) não serve: ela é a arte de FUNDO ESCURO, com o corredor e o
+  // "FIT" em branco, que some no papel.
+  //
+  // Esta rota entrega a MESMA arte que o documento usa: `assets/logo.png`, com a
+  // chapa escura assada dentro do PNG. Assada, ela é conteúdo e não decoração —
+  // imprime em qualquer navegador, com ou sem "gráficos de fundo" marcado.
+  //
+  // Aberta e sem instância: é a nossa marca, a mesma para todo mundo, e já sai
+  // embutida em todo e-mail e PDF que este servidor gera.
+  app.get("/public/logo.png", function (req, res) {
+    const uri = logoDaCasa.nossaLogo();
+    if (!uri) return res.status(404).end();
+
+    const bytes = Buffer.from(uri.split(",")[1] || "", "base64");
+
+    // Uma semana, e `immutable`: a arte muda com o deploy, e um deploy que a
+    // troque troca o arquivo inteiro. Nenhum navegador precisa perguntar por
+    // ela duas vezes na mesma semana.
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+    res.send(bytes);
+  });
+
   app.get("/public/brand/:instance/:id", async function (req, res) {
     const instance = instanceContext.normalize(req.params.instance);
     if (!instance) return res.status(404).end();

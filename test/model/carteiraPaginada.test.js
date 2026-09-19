@@ -336,3 +336,208 @@ test("lente com id inválido é ignorada — e não esvazia o financeiro", async
     );
   }
 });
+
+// ── O RECORTE POR ID ──────────────────────────────────────────────────────
+//
+// Uma lista de ids, para a folha impressa das cobranças marcadas. Ela abre por
+// link, sem a tela atrás, e precisa buscar de novo exatamente aquelas linhas.
+test("os ids escolhidos viram um $in, e vêm ANTES dos outros recortes", async () => {
+  // Primeiro porque é o corte mais estreito: pô-lo depois faria o banco rodar
+  // regex de busca em milhares de linhas para jogar fora todas menos cinco.
+  const { model, chamadas } = fakeModel();
+  await model.carteira({
+    ids: "68c9f6b1a2b3c4d5e6f70011,68c9f6b1a2b3c4d5e6f70022",
+    busca: "ana",
+  });
+
+  const linhas = ramo(chamadas[0].pipeline, "rows");
+  const primeiro = linhas.find((e) => e.$match);
+
+  assert.ok(texto(primeiro).includes("$in"), "o primeiro recorte tem de ser o dos ids");
+  assert.ok(texto(primeiro).includes("_id"));
+});
+
+test("id inválido é descartado, e não vira consulta quebrada", async () => {
+  // Um id colado errado no endereço não pode derrubar a folha inteira.
+  const { model, chamadas } = fakeModel();
+  await model.carteira({ ids: "68c9f6b1a2b3c4d5e6f70011,nao-e-id, ,," });
+
+  const linhas = ramo(chamadas[0].pipeline, "rows");
+  const comIn = linhas.filter((e) => e.$match && texto(e.$match).includes("$in"));
+
+  assert.equal(comIn.length, 1);
+  // Um só sobrou.
+  assert.equal(comIn[0].$match._id.$in.length, 1);
+});
+
+test("sem ids, não há recorte por id nenhum", async () => {
+  // Uma lista vazia não pode virar `$in: []`, que casaria com NADA — a tela
+  // ficaria em branco sem ninguém entender por quê.
+  const { model, chamadas } = fakeModel();
+  await model.carteira({ ids: "" });
+
+  const linhas = ramo(chamadas[0].pipeline, "rows");
+  assert.ok(!linhas.some((e) => e.$match && texto(e.$match).includes("_id")));
+});
+
+test("o RESUMO não enxerga o recorte por id", async () => {
+  // Os três cartões do topo falam do mês inteiro. Marcar cinco linhas para
+  // imprimir não pode fazer o "recebido no mês" virar o das cinco.
+  const { model, chamadas } = fakeModel();
+  await model.carteira({ ids: "68c9f6b1a2b3c4d5e6f70011" });
+
+  const resumo = ramo(chamadas[0].pipeline, "resumo");
+  assert.ok(!texto(resumo).includes("$in"));
+});
+
+// ── OS RECEBIMENTOS ───────────────────────────────────────────────────────
+//
+// *"eu cadastrei esse pagamento, mas não aparece aqui em financeiro"*.
+//
+// A carteira parte de `charges`. Um pagamento AVULSO — sem cobrança do outro
+// lado — não tem como virar linha ali: ele não estava filtrado, não tinha onde
+// aparecer. R$ 75 de uma camisa sumidos do relatório do mês.
+function fakeRecebimentos({ rows = [], total = 0, resumo = null } = {}) {
+  const chamadas = [];
+
+  const model = new Finance_model({});
+  model.payments = async () => ({
+    aggregate(pipeline) {
+      chamadas.push({ pipeline });
+      return {
+        async toArray() {
+          return [{ rows, total: total ? [{ n: total }] : [], resumo: resumo ? [resumo] : [] }];
+        },
+      };
+    },
+  });
+
+  return { model, chamadas };
+}
+
+test("a janela é a DATA DO PAGAMENTO, e não o vencimento de nada", async () => {
+  // É o que separa as duas perguntas: "o que me devem" olha vencimento, "o que
+  // entrou" olha quando entrou. Um pagamento de setembro numa cobrança de
+  // agosto é caixa de setembro.
+  const { model, chamadas } = fakeRecebimentos();
+  await model.recebimentos({ de: "2026-09-01", ate: "2026-09-30" });
+
+  const primeiro = chamadas[0].pipeline[0];
+  assert.ok(primeiro.$match.date, "a janela tem de ser sobre `date`");
+  assert.ok(!texto(primeiro).includes("dueDate"));
+});
+
+test("o pagamento AVULSO entra na lista", async () => {
+  // A junção com a cobrança é `$lookup`, e não `$match`: sem cobrança ela
+  // devolve vazio e a linha continua inteira. Um `$match` a eliminaria — que é
+  // exatamente o defeito que esta consulta existe para não ter.
+  const { model, chamadas } = fakeRecebimentos();
+  await model.recebimentos({});
+
+  const juncoes = chamadas[0].pipeline.filter((e) => e.$lookup);
+  const comCobranca = juncoes.find((e) => e.$lookup.from === "charges");
+
+  assert.ok(comCobranca, "a cobrança tem de vir por junção");
+  assert.ok(!texto(chamadas[0].pipeline).includes('"charge":{"$ne":null}'));
+});
+
+test("o RESUMO separa os QUATRO estados", async () => {
+  // Um cartão por estado, e não um só com tudo somado: cada um responde uma
+  // pergunta diferente, e juntá-los faria o caixa do mês mostrar dinheiro que
+  // não está na conta.
+  const { model, chamadas } = fakeRecebimentos();
+  await model.recebimentos({});
+
+  const resumo = texto(ramo(chamadas[0].pipeline, "resumo"));
+  for (const chave of ["recebido", "pendente", "reembolsado", "cancelado"]) {
+    assert.ok(resumo.includes(chave), `faltou ${chave} no resumo`);
+  }
+});
+
+test("o resumo lê o lançamento ANTIGO como pago", async () => {
+  // Ele não tem o campo, e ausente sempre significou pago. Sem o `$ifNull` os
+  // mais antigos da conta cairiam fora de todos os três cartões.
+  const { model, chamadas } = fakeRecebimentos();
+  await model.recebimentos({});
+
+  assert.ok(texto(ramo(chamadas[0].pipeline, "resumo")).includes("$ifNull"));
+});
+
+test("o resumo NÃO enxerga a busca nem a lente", async () => {
+  // A mesma regra da carteira: os cartões falam da janela, não da parte da
+  // lista que alguém resolveu ver.
+  const { model, chamadas } = fakeRecebimentos();
+  await model.recebimentos({ busca: "ana", unit: "68c9f6b1a2b3c4d5e6f70011" });
+
+  const resumo = ramo(chamadas[0].pipeline, "resumo");
+  assert.ok(!texto(resumo).includes("ana"));
+  assert.ok(!texto(resumo).includes("studentUnit"));
+});
+
+test("a lente da unidade filtra pela unidade da PESSOA", async () => {
+  const { model, chamadas } = fakeRecebimentos();
+  await model.recebimentos({ unit: "68c9f6b1a2b3c4d5e6f70011" });
+
+  const linhas = ramo(chamadas[0].pipeline, "rows");
+  assert.ok(texto(linhas).includes("studentUnit"));
+});
+
+test("a ordem sai de uma lista fechada", async () => {
+  // O campo vai para dentro de um `$sort`; aceitar o que vier é deixar a tela
+  // escolher por qual chave o banco trabalha.
+  const { model, chamadas } = fakeRecebimentos();
+  await model.recebimentos({ ordem: "'; drop", direcao: "asc" });
+
+  const linhas = ramo(chamadas[0].pipeline, "rows");
+  assert.deepEqual(estagio(linhas, "$sort").$sort, { date: 1, _id: 1 });
+});
+
+test("limite absurdo é contido antes de virar consulta", async () => {
+  const { model } = fakeRecebimentos();
+  const r = await model.recebimentos({ limite: 100000, pagina: -5 });
+
+  assert.equal(r.limite, 200);
+  assert.equal(r.pagina, 1);
+});
+
+test("os ESTADOS pedidos filtram os recebimentos", async () => {
+  // *"nós temos status pago pendente reembolsado e cancelado"*. Quatro, e são
+  // outros que os da cobrança.
+  const { model, chamadas } = fakeRecebimentos();
+  await model.recebimentos({ status: "pending,refunded" });
+
+  const linhas = ramo(chamadas[0].pipeline, "rows");
+  assert.ok(texto(linhas).includes("pending"));
+  assert.ok(texto(linhas).includes("refunded"));
+});
+
+test("pedir PAGO alcança o lançamento antigo, que não tem o campo", async () => {
+  // Ausente sempre significou pago. Um `$in: ["paid"]` literal deixaria de fora
+  // justamente os mais antigos da conta — e o relatório perderia dinheiro real.
+  const { model, chamadas } = fakeRecebimentos();
+  await model.recebimentos({ status: "paid" });
+
+  const linhas = ramo(chamadas[0].pipeline, "rows");
+  assert.ok(texto(linhas).includes('"$exists":false'));
+});
+
+test("estado inventado não vira consulta", async () => {
+  const { model, chamadas } = fakeRecebimentos();
+  await model.recebimentos({ status: "'; drop" });
+
+  const linhas = ramo(chamadas[0].pipeline, "rows");
+  assert.ok(!texto(linhas).includes("drop"));
+});
+
+test("o RESUMO continua cego ao estado pedido", async () => {
+  // Marcar "pendente" para conferir uma lista não pode fazer o "recebido" do
+  // mês virar zero — os cartões falam da janela.
+  const { model, chamadas } = fakeRecebimentos();
+  await model.recebimentos({ status: "pending" });
+
+  // O resumo TEM "pending" — ele é um dos cartões. O que ele não pode ter é o
+  // `$in` do filtro PEDIDO, que é o que o amarraria ao recorte da lista.
+  const resumo = ramo(chamadas[0].pipeline, "resumo");
+  assert.ok(texto(resumo).includes("pendente"), "pendente é um cartão");
+  assert.ok(!texto(resumo).includes("$in\":"), "o resumo não enxerga o estado pedido");
+});

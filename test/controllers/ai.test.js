@@ -1272,6 +1272,13 @@ test("a instrução não manda recusar área que TEM ferramenta", async () => {
     { prefixos: ["avaliacao_"], palavra: "avaliação" },
     { prefixos: ["compromisso_", "agenda_"], palavra: "agenda" },
     { prefixos: ["cobranca_", "pagamento_", "financeiro_"], palavra: "financeiro" },
+    // As quatro que entraram em setembro de 2026. Estão aqui pela mesma razão
+    // das três de cima: o catálogo se monta sozinho, a instrução é texto
+    // escrito à mão, e foi a instrução que ficou para trás da última vez.
+    { prefixos: ["unidade_"], palavra: "unidade" },
+    { prefixos: ["aula_coletiva_"], palavra: "aula" },
+    { prefixos: ["plano_"], palavra: "plano" },
+    { prefixos: ["aulao_"], palavra: "aulão" },
   ];
 
   for (const area of areas) {
@@ -1430,4 +1437,123 @@ test("desligar é decisão da CONTA, e chega no salvar", async () => {
   // Quem só troca o modelo não religa sem querer: `undefined` significa manter.
   await call(app, "put", "/me/ai", { body: { model: "claude-haiku-4-5" } });
   assert.equal(salvos[1].enabled, undefined);
+});
+
+test("a instrução NOMEIA cada área que tem ferramenta", async () => {
+  // O teste de cima pega a instrução que MANDA RECUSAR. Este pega o caso mais
+  // comum: a área nova simplesmente não é mencionada, a lista do "o catálogo
+  // cobre..." fica velha, e o modelo conclui que não alcança o que alcança.
+  const instrucao = ai.systemPrompt({
+    words: { singular: "aluno", plural: "alunos" },
+    language: "pt-BR",
+    user: { name: "Marlon" },
+  });
+
+  const nomes = mcpTools.FERRAMENTAS.map((f) => f.nome);
+  const areas = [
+    { prefixo: "unidade_", palavra: /unidades/i },
+    { prefixo: "aula_coletiva_", palavra: /aulas coletivas/i },
+    { prefixo: "plano_", palavra: /planos de mensalidade/i },
+    { prefixo: "aulao_", palavra: /aulões/i },
+    { prefixo: "anamnese_", palavra: /anamnese/i },
+    { prefixo: "exame_", palavra: /exames/i },
+    { prefixo: "suplemento_", palavra: /suplementação/i },
+    { prefixo: "prescricao_", palavra: /prescrições/i },
+    { prefixo: "mensagem_", palavra: /conversas/i },
+  ];
+
+  for (const area of areas) {
+    if (!nomes.some((n) => n.startsWith(area.prefixo))) continue;
+    assert.match(instrucao, area.palavra);
+  }
+});
+
+test("a instrução separa os três sentidos de PLANO", async () => {
+  // Plano alimentar, plano de mensalidade e o plano que a casa paga para nós.
+  // Sem a distinção escrita, "exclui o plano dela" tem três alvos e nenhum
+  // sintoma quando o modelo erra.
+  const instrucao = ai.systemPrompt({
+    words: { singular: "aluno", plural: "alunos" },
+    language: "pt-BR",
+    user: { name: "Marlon" },
+  });
+
+  assert.match(instrucao, /plano alimentar é dieta_\*/i);
+  assert.match(instrucao, /mensalidade.*é plano_\*/i);
+});
+
+// ── A VOZ CARREGA MENOS, E É UMA DECISÃO ──────────────────────────────────
+//
+// Na OpenAI realtime, instrução e catálogo são relidos INTEIROS a cada
+// resposta, contra 40.000 tokens por minuto. Eles são o piso do gasto — e com
+// as 63 ferramentas o fixo saltou para 33 mil caracteres, o que faz cinco
+// frases seguidas fecharem a conta e a conversa pedir tempo no meio.
+//
+// O modo ESCRITO não tem esse problema (a conversa vai em cache de prefixo) e
+// continua com tudo.
+test("o modo escrito carrega o catálogo INTEIRO", async () => {
+  // O corte é da voz. Se ele vazar para cá, o assistente da tela perde
+  // ferramenta sem ninguém pedir.
+  assert.equal(ai.TOOLS.length, mcpTools.FERRAMENTAS.length);
+});
+
+test("a voz carrega um SUBCONJUNTO — e todo nome dele existe", async () => {
+  const sessao = ai.realtimeSession({
+    words: { singular: "aluno", plural: "alunos" },
+    language: "pt",
+    user: { name: "Marlon" },
+  });
+
+  const todos = new Set(mcpTools.FERRAMENTAS.map((f) => f.nome));
+  const naVoz = sessao.tools.map((t) => t.name);
+
+  assert.ok(naVoz.length > 0);
+  assert.ok(naVoz.length < todos.size, "a voz não pode carregar tudo — ver o teto por minuto");
+  for (const nome of naVoz) assert.ok(todos.has(nome), `${nome} não existe no catálogo`);
+});
+
+test("a chamada da aula está na VOZ — é o gesto de quem está de pé", async () => {
+  // O critério do corte é o gesto, não a importância: "quem está na aula das
+  // sete" e "marca presença da Bruna" são ditos em voz alta, no salão. Montar a
+  // grade da semana é trabalho sentado.
+  const sessao = ai.realtimeSession({
+    words: { singular: "aluno", plural: "alunos" },
+    language: "pt",
+    user: { name: "Marlon" },
+  });
+  const naVoz = new Set(sessao.tools.map((t) => t.name));
+
+  for (const nome of ["aula_coletiva_hoje", "aula_coletiva_presenca", "aula_coletiva_inscrever"]) {
+    assert.ok(naVoz.has(nome), `${nome} devia estar na voz`);
+  }
+
+  // E o trabalho de mesa ficou de fora.
+  for (const nome of ["unidade_criar", "plano_editar", "aula_coletiva_criar"]) {
+    assert.ok(!naVoz.has(nome), `${nome} não devia pesar na voz`);
+  }
+});
+
+test("a instrução avisa que mensagem_enviar SAI da casa", async () => {
+  // É a única ferramenta que entrega texto no celular de outra pessoa, na hora,
+  // sem desfazer. Um modelo que "testa" uma ferramenta de leitura não causa
+  // dano; um que testa esta acorda alguém às onze da noite.
+  const instrucao = ai.systemPrompt({
+    words: { singular: "aluno", plural: "alunos" },
+    language: "pt-BR",
+    user: { name: "Marlon" },
+  });
+
+  assert.match(instrucao, /mensagem_enviar/);
+  assert.match(instrucao, /nunca para conferir se a ferramenta funciona/i);
+});
+
+test("a instrução manda NÃO inventar dose nem posologia", async () => {
+  // Um número arredondado numa receita é um número que alguém vai tomar.
+  const instrucao = ai.systemPrompt({
+    words: { singular: "aluno", plural: "alunos" },
+    language: "pt-BR",
+    user: { name: "Marlon" },
+  });
+
+  assert.match(instrucao, /nunca invente dose, posologia ou medicamento/i);
 });

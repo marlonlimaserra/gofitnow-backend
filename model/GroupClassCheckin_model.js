@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const instanceContext = require("../lib/instance.js");
 
 // QUEM ENTROU NA AULA DE HOJE.
 //
@@ -68,6 +69,19 @@ GroupClassCheckin_model.prototype.entrar = async function (aula, dia, pessoa, op
     dia: String(dia),
     person: new ObjectId(pessoa),
     inicio,
+    // ── TRÊS ESTADOS, e não dois ──────────────────────────────────────────
+    //
+    // *"ver aulas que ele fez check-in E se ele foi marcado como presente ou
+    // não"*.
+    //
+    // `inscrito` é "disse que vem". `presente` é "veio, e alguém confirmou".
+    // `faltou` é "não veio" — e ele NÃO é a ausência de `presente`: enquanto a
+    // aula não acontece, ninguém faltou ainda.
+    //
+    // Dois estados (presente sim/não) fariam toda inscrição do futuro contar
+    // como falta, e o histórico da pessoa nasceria cheio de faltas que ela
+    // ainda não teve.
+    presenca: "inscrito",
     createdAt: new Date(),
   };
 
@@ -116,6 +130,17 @@ GroupClassCheckin_model.prototype.sair = async function (aula, dia, pessoa, inic
 // Quantos entraram em cada aula naquele dia. Um `$group` e não uma contagem
 // por aula: a tela mostra a grade inteira, e uma consulta por linha seria uma
 // dúzia de idas ao banco para desenhar uma tela.
+// Apaga UMA linha, pelo id dela. É o que a recepção desfaz quando inscreveu a
+// pessoa errada: `sair` apaga pelo par (aula, dia, pessoa), e aqui quem se tem
+// na mão é a linha que está na tela.
+GroupClassCheckin_model.prototype.remover = async function (id) {
+  if (!ObjectId.isValid(id)) return false;
+
+  const col = await this.collection();
+  const r = await col.deleteOne({ _id: new ObjectId(id) });
+  return r.deletedCount > 0;
+};
+
 GroupClassCheckin_model.prototype.contagemDoDia = async function (dia) {
   const col = await this.collection();
 
@@ -136,6 +161,100 @@ GroupClassCheckin_model.prototype.daAula = async function (aula, dia) {
 
   const col = await this.collection();
   return col.find({ class: new ObjectId(aula), dia: String(dia) }).toArray();
+};
+
+const PRESENCAS = ["inscrito", "presente", "faltou"];
+
+// ── MARCAR PRESENÇA ───────────────────────────────────────────────────────
+//
+// *"poder dar PRESENÇA"*.
+//
+// Por ID da linha, e não por (aula, dia, pessoa): a tela tem a linha na mão —
+// ela acabou de listar os inscritos —, e três campos numa chamada são três
+// chances de a tela mandar a combinação errada.
+//
+// Volta para `inscrito` é um caminho de verdade: quem marcou presença na
+// pessoa errada precisa desfazer, e apagar a linha seria apagar a inscrição
+// junto.
+GroupClassCheckin_model.prototype.marcarPresenca = async function (id, presenca) {
+  if (!ObjectId.isValid(id)) return false;
+  if (!PRESENCAS.includes(String(presenca))) return false;
+
+  const col = await this.collection();
+  const r = await col.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { presenca: String(presenca), presencaEm: new Date() } }
+  );
+
+  return r.matchedCount > 0;
+};
+
+// Os inscritos de um horário, com o nome de quem é.
+//
+// A junção é feita aqui e não na rota porque é uma pergunta só: "quem está
+// nesta aula?" sem o nome não responde nada, e duas idas ao banco para montar
+// uma lista de dez linhas é uma a mais.
+GroupClassCheckin_model.prototype.inscritos = async function (aula, dia, inicio) {
+  if (!ObjectId.isValid(aula)) return [];
+
+  const col = await this.collection();
+  const filtro = { class: new ObjectId(aula), dia: String(dia) };
+  if (Number.isInteger(Number(inicio))) filtro.inicio = Number(inicio);
+
+  return col
+    .aggregate([
+      { $match: filtro },
+      {
+        $lookup: {
+          from: "users",
+          let: { pessoa: "$person" },
+          pipeline: [
+            {
+              // `instance` à mão: o escopo do cliente não entra em
+              // sub-pipeline de `$lookup`. Aqui é desempenho — `person` é
+              // ObjectId, único global —, e sem ele a junção varreria os
+              // usuários de todos os clientes.
+              $match: {
+                instance: instanceContext.required(),
+                $expr: { $eq: ["$_id", "$$pessoa"] },
+              },
+            },
+            // O documento da pessoa NÃO sai inteiro: ela tem senha e sal.
+            { $project: { name: 1, avatarAt: 1 } },
+          ],
+          as: "pessoa",
+        },
+      },
+      {
+        $addFields: {
+          name: { $ifNull: [{ $arrayElemAt: ["$pessoa.name", 0] }, ""] },
+          avatarAt: { $ifNull: [{ $arrayElemAt: ["$pessoa.avatarAt", 0] }, null] },
+        },
+      },
+      { $project: { pessoa: 0 } },
+      // Em ordem de chegada: quem confirmou primeiro aparece primeiro, e é
+      // isso que uma lista de presença é.
+      { $sort: { createdAt: 1 } },
+    ])
+    .toArray();
+};
+
+// ── O HISTÓRICO DE UMA PESSOA ─────────────────────────────────────────────
+//
+// *"aqui no aluno preciso da parte do check-in, para ver aulas que ele fez
+// check-in e se ele foi marcado como presente ou não"*.
+//
+// Do mais recente para o mais antigo, porque a pergunta é "como ele tem
+// vindo?" — e a resposta está nas últimas semanas, não nas primeiras.
+GroupClassCheckin_model.prototype.daPessoa = async function (pessoa, { limite = 60 } = {}) {
+  if (!ObjectId.isValid(pessoa)) return [];
+
+  const col = await this.collection();
+  return col
+    .find({ person: new ObjectId(pessoa) })
+    .sort({ dia: -1, inicio: -1 })
+    .limit(Math.min(Math.max(Number(limite) || 60, 1), 365))
+    .toArray();
 };
 
 // Tudo de uma aula apagada. Sem isto os check-ins ficariam apontando para uma

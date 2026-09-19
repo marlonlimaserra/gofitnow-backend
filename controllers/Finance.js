@@ -89,6 +89,8 @@ module.exports = function (app) {
       // cartões do topo também — números que não batem com a lista do lado
       // são piores que números ausentes.
       unit: req.query.unit,
+      // As marcadas na tela, para a folha impressa delas.
+      ids: req.query.ids,
       ordem: req.query.sort,
       direcao: req.query.dir,
       pagina: req.query.page,
@@ -128,6 +130,93 @@ module.exports = function (app) {
       // Os estados de um PAGAMENTO, pelo mesmo caminho: a lista vivia em dois
       // lugares — aqui e no formulário — e o segundo era o que se esqueceria.
       paymentStatus: statusDePagamento.paraTela(req.t),
+    });
+  });
+
+  // ── O QUE ENTROU, de todo mundo ─────────────────────────────────────────
+  //
+  // *"eu cadastrei esse pagamento, mas não aparece aqui em financeiro"*.
+  //
+  // A rota de cima lista COBRANÇAS, e o pagamento dele era avulso — sem
+  // cobrança do outro lado. Um pagamento avulso não tem como virar linha numa
+  // lista de cobranças: ele não estava filtrado, ele não tinha onde aparecer.
+  //
+  // São duas perguntas diferentes e por isso são duas rotas: `/finance` é "o
+  // que me devem", esta é "o que entrou". A janela desta é a DATA DO
+  // PAGAMENTO — não o vencimento de coisa nenhuma.
+  //
+  // Sem `recurrence.gerar` aqui: gerar mensalidade é coisa de quem vai olhar o
+  // que há a receber. Quem abre o caixa está olhando para trás.
+  app.get("/finance/payments", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "finance.view");
+    if (user === false) return;
+
+    const { rows, total, pagina, limite, resumo } = await app.api.finance.recebimentos({
+      de: req.query.de,
+      ate: req.query.ate,
+      // Os ESTADOS do pagamento — pago, pendente, reembolsado, cancelado. São
+      // outros que os da cobrança, e é por isso que a aba tem filtro próprio.
+      status: req.query.status,
+      busca: req.query.q,
+      unit: req.query.unit,
+      ordem: req.query.sort,
+      direcao: req.query.dir,
+      pagina: req.query.page,
+      limite: req.query.limit,
+      fuso: await fusoDaConta(app),
+    });
+
+    const moedas = await app.api.tenant.currencyOfInstance();
+
+    res.send({
+      rows,
+      resumo,
+      total,
+      pagina,
+      limite,
+      currency: moedas.currency,
+      currencies: moedas.currencies,
+      // As FORMAS da conta, para a tela escrever "Pix" e não "pix". O nome é
+      // do cliente quando ele o escreveu; vazio cai na tradução, que é o que a
+      // tela já faz nas outras listas.
+      methods: await app.api.paymentMethod.list(),
+      paymentStatus: statusDePagamento.paraTela(req.t),
+    });
+  });
+
+  // ── AS RECORRÊNCIAS DE TODO MUNDO ───────────────────────────────────────
+  //
+  // A terceira aba. Ela é a única que não fala de um FATO: cobrança é dívida
+  // que existe, pagamento é dinheiro que entrou, recorrência é uma REGRA que
+  // vai criar cobranças no futuro.
+  //
+  // Sem janela de datas, e é de propósito — ver o modelo: uma regra não
+  // acontece num dia, ela vale enquanto vale.
+  app.get("/finance/recurrences", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "finance.view");
+    if (user === false) return;
+
+    const { rows, total, pagina, limite, resumo } = await app.api.recurrence.todas({
+      busca: req.query.q,
+      status: req.query.status,
+      unit: req.query.unit,
+      pagina: req.query.page,
+      limite: req.query.limit,
+    });
+
+    const moedas = await app.api.tenant.currencyOfInstance();
+
+    res.send({
+      rows,
+      resumo,
+      total,
+      pagina,
+      limite,
+      currency: moedas.currency,
+      currencies: moedas.currencies,
+      recurrenceStatus: statusDeRecorrencia.paraTela(req.t),
+      // As CADÊNCIAS já traduzidas: "monthly" não é o que se mostra a ninguém.
+      cadencias: recorrencia.paraTela(req.t),
     });
   });
 

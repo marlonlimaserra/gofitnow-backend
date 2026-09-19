@@ -218,3 +218,69 @@ test("o fim da janela cobre o dia inteiro no fuso da conta", () => {
   // E não invade outubro: a cobrança do dia 1º continua fora.
   assert.equal(new Date("2026-10-01T12:00:00.000Z") <= fim, false);
 });
+
+// ── AS COBRANÇAS MARCADAS, para a folha impressa ──────────────────────────
+//
+// *"faltou por o imprimir na tela financeiro"*. A folha abre por link, sem a
+// tela atrás, e precisa buscar de novo exatamente as linhas que estavam
+// marcadas — daí o recorte por id chegar até o modelo.
+test("o recorte por ids chega ao modelo", async () => {
+  const { app, pedidos } = monta([]);
+
+  await call(app, "get", "/finance", { query: { ids: "a,b,c" } });
+
+  assert.equal(pedidos[0].ids, "a,b,c");
+});
+
+test("sem ids, o filtro não inventa recorte nenhum", async () => {
+  const { app, pedidos } = monta([]);
+
+  await call(app, "get", "/finance", {});
+
+  assert.equal(pedidos[0].ids, undefined);
+});
+
+// ── A TERCEIRA ABA ────────────────────────────────────────────────────────
+//
+// *"adicione a de recorrência também"*. Ela é a única que não fala de um FATO:
+// cobrança é dívida que existe, pagamento é dinheiro que entrou, recorrência é
+// uma REGRA que vai criar cobranças no futuro.
+test("a rota de recorrências NÃO manda janela de datas", async () => {
+  // Uma regra não acontece num dia — ela vale enquanto vale. Filtrá-la por
+  // "este mês" esconderia justamente a mensalidade que roda há dois anos.
+  const pedidos = [];
+  const { app } = monta([], null, {});
+  app.api.recurrence = {
+    async todas(filtros) {
+      pedidos.push(filtros);
+      return { rows: [], total: 0, pagina: 1, limite: 25, resumo: { previsto: 0, ativas: 0 } };
+    },
+  };
+
+  const r = await call(app, "get", "/finance/recurrences", {
+    query: { de: "2026-09-01", ate: "2026-09-30", q: "ana" },
+  });
+
+  assert.equal(r.status, 200);
+  assert.equal(pedidos[0].de, undefined);
+  assert.equal(pedidos[0].ate, undefined);
+  // Mas a busca e a lente continuam valendo.
+  assert.equal(pedidos[0].busca, "ana");
+});
+
+test("a resposta traz os catálogos que a tela precisa", async () => {
+  // Estado e cadência vêm do servidor, como nas outras abas: uma lista nova
+  // aparece sem ninguém mexer no frontend.
+  const { app } = monta([], null, {});
+  app.api.recurrence = {
+    async todas() {
+      return { rows: [], total: 0, pagina: 1, limite: 25, resumo: { previsto: 0, ativas: 0 } };
+    },
+  };
+
+  const r = await call(app, "get", "/finance/recurrences");
+
+  assert.ok(Array.isArray(r.body.recurrenceStatus));
+  assert.ok(Array.isArray(r.body.cadencias));
+  assert.ok(r.body.cadencias.some((c) => c.id === "monthly"));
+});

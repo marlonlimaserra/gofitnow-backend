@@ -280,3 +280,42 @@ test("URL de fora não vira id — e não faz a faxina apagar tudo", async () =>
 
   assert.deepEqual(filtro._id.$nin.map(String), ["507f1f77bcf86cd799439011"]);
 });
+
+// ── A NOSSA LOGO, PARA AS FOLHAS MONTADAS NA TELA ─────────────────────────
+//
+// *"ficaria igual o do financeiro, tem a logo padrão da empresa né"*.
+//
+// O extrato já sai com ela porque quem o monta é o servidor. As folhas
+// montadas no navegador não tinham como chegar nela — e a `/logo.png` do
+// frontend é a arte de FUNDO ESCURO, que some no papel.
+test("a nossa logo sai como PNG, com cache longo", async () => {
+  const { app } = monta();
+  const r = await call(app, "get", "/public/logo.png");
+
+  assert.equal(r.status, 200);
+  assert.equal(r.headers["content-type"], "image/png");
+  assert.match(r.headers["cache-control"], /immutable/);
+});
+
+test("é a MESMA arte que o documento embute", async () => {
+  // Duas artes diferentes para a mesma marca divergiriam no primeiro ajuste, e
+  // a folha impressa sairia com a logo velha sem ninguém notar.
+  const logoDaCasa = require("../../lib/logoDaCasa.js");
+  const { app } = monta();
+  const r = await call(app, "get", "/public/logo.png");
+
+  const doDocumento = Buffer.from(logoDaCasa.nossaLogo().split(",")[1], "base64");
+  assert.ok(Buffer.isBuffer(r.body));
+  assert.equal(r.body.length, doDocumento.length);
+});
+
+test("não pede sessão — ela aparece em folha aberta por link", async () => {
+  // O dobro de `verify` estoura se for chamado; a rota não pode chamá-lo.
+  const { app } = monta();
+  app.helpers.ReqProtected.verify = async () => {
+    throw new Error("esta rota não pode pedir sessão");
+  };
+
+  const r = await call(app, "get", "/public/logo.png");
+  assert.equal(r.status, 200);
+});
