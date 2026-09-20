@@ -1398,6 +1398,21 @@ User_model.prototype.deleteAny = async function (id) {
   // an id that no longer exists.
   await this.app.api.link.deleteAllOf(id);
 
+  // ── E A FOTO, no banco E no balde ──────────────────────────────────────
+  //
+  // *"quando exclui algo, você exclui de lá?"* — aqui não excluía nem do banco.
+  //
+  // A conta saía e o `avatars` ficava com um documento apontando para um id que
+  // não existe mais, com os bytes no R2 atrás dele. Ninguém via: a foto só é
+  // pedida por `/avatars/:userId`, e ninguém mais pede por aquele id.
+  //
+  // `avatar.delete` é quem sabe apagar dos dois lugares. Num `catch` porque uma
+  // falha na faxina não pode impedir a conta de ser excluída — o pedido de
+  // exclusão de dados tem prazo, e a foto órfã é o menor dos males.
+  await this.app.api.avatar.delete(id).catch((erro) => {
+    console.error("[usuarios] foto não apagada:", erro.message);
+  });
+
   return r.deletedCount > 0;
 };
 

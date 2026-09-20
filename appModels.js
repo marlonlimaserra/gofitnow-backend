@@ -68,6 +68,21 @@ models.employee = require("./model/Employee_model.js");
 models.employeeRecord = require("./model/EmployeeRecord_model.js");
 models.employeeTime = require("./model/EmployeeTime_model.js");
 models.employeeImage = require("./model/EmployeeImage_model.js");
+// OS MODELOS DE DOCUMENTO e os documentos de cada pessoa. O termo que a casa
+// manda assinar, e o termo assinado que volta escaneado.
+models.documentTemplate = require("./model/DocumentTemplate_model.js");
+models.personDocument = require("./model/PersonDocument_model.js");
+// AS PENDÊNCIAS — o que está em aberto entre a casa e a pessoa. Ver
+// `lib/pendencias.js` para por que as automáticas não moram numa collection.
+models.pendency = require("./model/Pendency_model.js");
+// A ENTRADA NA ACADEMIA. Diferente do check-in de aula coletiva: ali é ter
+// feito a aula, aqui é ter passado pela porta — e a maioria treina sozinha.
+models.checkin = require("./model/Checkin_model.js");
+// A ESTRUTURA — o que a casa TEM (equipamentos, com histórico de manutenção) e
+// o que ela GASTA (insumos, com saldo). Dois modelos porque são duas coisas:
+// um tem identidade, o outro tem quantidade.
+models.equipment = require("./model/Equipment_model.js");
+models.supply = require("./model/Supply_model.js");
 // O CARDÁPIO que a casa vende aos ALUNOS dela — "Black", "Fit", "Smart" — e as
 // linhas da tabela que compara um com o outro. Modelos separados porque são
 // coisas separadas: o plano é o que se vende, o benefício é o que se compara.
@@ -89,6 +104,7 @@ models.membershipImage = require("./model/MembershipImage_model.js");
 // que evita o dia em que alguém procura `unidade` e não acha nada.
 models.unit = require("./model/Unit_model.js");
 models.unitImage = require("./model/UnitImage_model.js");
+models.equipmentImage = require("./model/EquipmentImage_model.js");
 
 // AS AULAS COLETIVAS — a grade que se repete toda semana — e quem entrou na de
 // hoje. Duas collections porque são duas verdades: a aula é permanente, o

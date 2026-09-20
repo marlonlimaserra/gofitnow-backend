@@ -60,6 +60,9 @@ const APLICADOS = [
   // guarda CPF, salário e conta bancária, e um teto que ninguém confere é um
   // convite a usar a conta grátis como cadastro de RH de terceiros.
   "employees",
+  // OS EQUIPAMENTOS (20/09/2026). Mesma razão dos outros: a lista é o CONTRATO,
+  // e um teto que o painel vende e ninguém confere é enfeite na tela de planos.
+  "equipments",
 ];
 
 test("todo limite do plano é APLICADO em alguma rota", () => {

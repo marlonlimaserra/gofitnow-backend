@@ -298,9 +298,6 @@ module.exports = function (app) {
       await app.api.employee.update(req.params.id, { role: corpo.cargo });
     }
 
-    const anexo = app.api.employeeRecord.parseAnexo(corpo.anexo);
-    if (anexo) await app.api.employeeRecord.saveAnexo(id, anexo);
-
     app.insertUserActionHistory(req, user, "create_employee_record", {
       category: "employees",
       local: { target_type: "employee_records", target_id: String(id) },
@@ -324,10 +321,6 @@ module.exports = function (app) {
     const ok = await app.api.employeeRecord.update(req.params.id, req.body || {});
     if (!ok) return res.status(404).send({ msg: req.t("errors.recordNotFound") });
 
-    const anexo = app.api.employeeRecord.parseAnexo((req.body || {}).anexo);
-    if (anexo) await app.api.employeeRecord.saveAnexo(req.params.id, anexo);
-    else if ((req.body || {}).anexo === null) await app.api.employeeRecord.removeAnexo(req.params.id);
-
     res.send(await app.api.employeeRecord.data(req.params.id));
   });
 
@@ -341,23 +334,74 @@ module.exports = function (app) {
     res.send({ msg: req.t("ok.recordRemoved") });
   });
 
-  app.get("/employee-records/:id/anexo", async function (req, res) {
+  // ── OS ANEXOS SÃO VÁRIOS ────────────────────────────────────────────────
+  //
+  // *"deixe colocar vários, no máximo 10"*. O id do ARQUIVO está no caminho, ao
+  // lado do id da ocorrência — e os dois entram no filtro: sem o da ocorrência,
+  // um id de arquivo adivinhado leria o anexo de outra ficha.
+  app.get("/employee-records/:id/anexos/:anexoId", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "employees.view");
     if (user === false) return;
 
-    const anexo = await app.api.employeeRecord.anexoDe(req.params.id);
+    const anexo = await app.api.employeeRecord.anexoDe(req.params.id, req.params.anexoId);
     if (!anexo) return res.status(404).send({ msg: req.t("errors.noAttachment") });
 
-    res.setHeader("Content-Type", anexo.mime);
+    // ── O QUE SAI INLINE, E O QUE VIRA DOWNLOAD ──────────────────────────
+    //
+    // Desde que QUALQUER tipo pode ser anexado, esta é a linha que separa um
+    // anexo de um XSS: um `.html` — ou um `.svg`, que é documento executável
+    // com cara de imagem — servido `inline` da nossa origem roda script na
+    // nossa origem, com a sessão de quem abriu.
+    //
+    // Então só imagem e PDF saem `inline`. O resto vai como
+    // `application/octet-stream` e `attachment`: o navegador baixa e não
+    // interpreta, que é exatamente o que se quer de um `.mp3`, um `.docx` ou um
+    // arquivo que ninguém sabe o que é.
+    const abre = app.api.employeeRecord.podeSairInline(anexo.mime);
+    const nome = String(anexo.name || "anexo").replace(/["\\]/g, "");
+
+    res.setHeader("Content-Type", abre ? anexo.mime : "application/octet-stream");
+    // `nosniff` em TODOS: sem ele o navegador adivinha o tipo pelo conteúdo, e
+    // um `.txt` com HTML dentro volta a ser página.
+    res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Cache-Control", "private, max-age=3600");
-    // `inline`: o atestado é para OLHAR. O nome vai junto para quem escolher
-    // baixar não receber um arquivo chamado "anexo".
     res.setHeader(
       "Content-Disposition",
-      `inline; filename="${String(anexo.name || "anexo").replace(/"/g, "")}"`
+      `${abre ? "inline" : "attachment"}; filename="${nome}"`
     );
 
     res.send(anexo.data?.buffer ? Buffer.from(anexo.data.buffer) : anexo.data);
+  });
+
+  // ── UM ARQUIVO POR REQUISIÇÃO ───────────────────────────────────────────
+  //
+  // Eles vinham todos dentro do corpo do lançamento, e isso não cabia: o
+  // `bodyParser` corta em 10 MB, o base64 infla ~33%, e dois anexos de 6 MB
+  // derrubariam o pedido inteiro — levando junto o texto da advertência.
+  //
+  // Um por vez também dá o que faltava na tela: saber qual arquivo falhou.
+  app.post("/employee-records/:id/anexos", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "employees.manage");
+    if (user === false) return;
+
+    const existe = await app.api.employeeRecord.data(req.params.id);
+    if (!existe) return res.status(404).send({ msg: req.t("errors.recordNotFound") });
+
+    const anexo = app.api.employeeRecord.parseAnexo(req.body || {});
+    if (!anexo) return res.status(400).send({ msg: req.t("errors.attachmentTooBig") });
+
+    const fichas = await app.api.employeeRecord.saveAnexos(req.params.id, [anexo]);
+    res.status(201).send({ anexos: fichas });
+  });
+
+  app.delete("/employee-records/:id/anexos/:anexoId", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "employees.manage");
+    if (user === false) return;
+
+    const ok = await app.api.employeeRecord.removeAnexo(req.params.id, req.params.anexoId);
+    if (!ok) return res.status(404).send({ msg: req.t("errors.noAttachment") });
+
+    res.send(await app.api.employeeRecord.data(req.params.id));
   });
 
   // ── A FOLHA DE PONTO ────────────────────────────────────────────────────

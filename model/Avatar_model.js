@@ -117,9 +117,28 @@ Avatar_model.prototype.data = async function (userId) {
   return doc || undefined;
 };
 
+// ── APAGAR LEVA OS BYTES DO R2 JUNTO ──────────────────────────────────────
+//
+// *"quando exclui algo, você exclui de lá?"* — aqui não excluía.
+//
+// A ficha saía do Mongo e o objeto ficava no balde para sempre: sem documento
+// que aponte para ele, nenhuma varredura o alcança, e nenhuma tela o mostra.
+// Lixo invisível, que só aparece na fatura.
+//
+// Ele é lido ANTES do `deleteOne`: depois não há mais de onde tirar a chave.
 Avatar_model.prototype.delete = async function (userId) {
   const col = await this.collection();
+
+  const antes = await col.findOne({ user: new ObjectId(userId) }, { projection: { chave: 1 } });
   const r = await col.deleteOne({ user: new ObjectId(userId) });
+
+  // Falhar aqui NÃO derruba a exclusão: a foto já saiu da tela e do banco, e um
+  // objeto órfão no balde é melhor que um botão de remover que não remove.
+  if (antes?.chave) {
+    await arquivos.apagar(antes.chave).catch((erro) => {
+      console.error("[avatar] R2 não apagou:", erro.message);
+    });
+  }
 
   const users = await this.app.api.user.collection();
   await users.updateOne({ _id: new ObjectId(userId) }, { $unset: { avatarAt: "" } });

@@ -268,3 +268,72 @@ GroupClassCheckin_model.prototype.removeAllOf = async function (aula) {
 };
 
 module.exports = GroupClassCheckin_model;
+
+// ── AS AULAS DE UMA PESSOA, no período ────────────────────────────────────
+//
+// *"frequência nas aulas"*. É a outra metade da aba de frequência: uma coisa é
+// entrar na academia, outra é ter FEITO a aula.
+//
+// Só `presente`: quem se inscreveu e não apareceu não frequentou nada, e contar
+// a inscrição como presença faria o número mentir para o lado que importa — o
+// aluno pareceria assíduo justamente quando estava sumindo.
+//
+// O nome da aula vem por `$lookup`: a lista mostra "Spinning das 19h", e sem
+// ele a tela teria de buscar cada aula uma a uma.
+GroupClassCheckin_model.prototype.daPessoa = async function (pessoa, { de, ate } = {}) {
+  if (!ObjectId.isValid(pessoa)) return [];
+
+  const col = await this.collection();
+  const filtro = { person: new ObjectId(pessoa), status: "presente" };
+
+  // `dia` é texto "AAAA-MM-DD" — ver o cabeçalho de `EmployeeTime_model` para o
+  // porquê. A comparação de texto funciona porque ISO ordena como texto.
+  if (de || ate) {
+    filtro.dia = {};
+    if (de) filtro.dia.$gte = String(de).slice(0, 10);
+    if (ate) filtro.dia.$lte = String(ate).slice(0, 10);
+  }
+
+  const docs = await col
+    .aggregate([
+      { $match: filtro },
+      { $sort: { dia: -1, inicio: -1 } },
+      { $limit: 1000 },
+      {
+        $lookup: {
+          from: "group_classes",
+          localField: "class",
+          foreignField: "_id",
+          pipeline: [{ $project: { name: 1, sala: 1 } }],
+          as: "aula",
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          id: { $toString: "$_id" },
+          dia: 1,
+          inicio: 1,
+          nome: { $ifNull: [{ $arrayElemAt: ["$aula.name", 0] }, ""] },
+          sala: { $ifNull: [{ $arrayElemAt: ["$aula.sala", 0] }, ""] },
+        },
+      },
+    ])
+    .toArray();
+
+  return docs;
+};
+
+GroupClassCheckin_model.prototype.contarPresencasDe = async function (pessoa, { de, ate } = {}) {
+  if (!ObjectId.isValid(pessoa)) return 0;
+
+  const col = await this.collection();
+  const filtro = { person: new ObjectId(pessoa), status: "presente" };
+  if (de || ate) {
+    filtro.dia = {};
+    if (de) filtro.dia.$gte = String(de).slice(0, 10);
+    if (ate) filtro.dia.$lte = String(ate).slice(0, 10);
+  }
+
+  return col.countDocuments(filtro);
+};

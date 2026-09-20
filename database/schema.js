@@ -69,6 +69,7 @@ const POR_INSTANCIA = [
   // cliente: a lista de filiais de uma academia não é assunto do central.
   "units",
   "unit_images",
+  "equipment_images",
   // CONTAS A PAGAR — a luz, o telefone, o aluguel. Do cliente, e não do
   // central: o que uma academia paga é assunto dela.
   "payables",
@@ -91,6 +92,30 @@ const POR_INSTANCIA = [
   "employee_files",
   "employee_time",
   "employee_images",
+  // ── OS DOCUMENTOS ────────────────────────────────────────────────────────
+  //
+  // Os MODELOS são da casa (o termo em branco); os DOCUMENTOS são de cada
+  // pessoa (o termo assinado, a carteirinha, o atestado de aptidão).
+  //
+  // Do cliente, e sem discussão: é documento pessoal de aluno.
+  "document_templates",
+  "document_template_files",
+  "person_documents",
+  "person_document_files",
+  // AS PENDÊNCIAS — o que está em aberto entre a casa e a pessoa. O termo que
+  // ela deve entregar, a camisa que a casa deve a ela.
+  "pendencies",
+  // A ENTRADA NA ACADEMIA — quem passou pela porta e quando. A base da
+  // frequência, e um dia da ocupação por horário.
+  "checkins",
+  // ── A ESTRUTURA ──────────────────────────────────────────────────────────
+  //
+  // Os EQUIPAMENTOS e a história de manutenção de cada um; os INSUMOS e o livro
+  // de entradas e saídas. Do cliente: o que uma academia tem e gasta é dela.
+  "equipments",
+  "equipment_maintenances",
+  "supplies",
+  "supply_moves",
   // AS AULAS COLETIVAS: a grade que se repete, e quem entrou na de hoje. Do
   // cliente — a grade de uma academia não é assunto do central.
   "group_classes",
@@ -697,15 +722,90 @@ async function ensureUmBanco(db) {
   // E por DIA da casa inteira: "quem está com o ponto aberto agora".
   await db.collection("employee_time").createIndex({ instance: 1, dia: 1 }, { name: "by_day" });
 
-  // O anexo, pela ocorrência dona — um por ocorrência.
+  // ── OS ANEXOS, pela ocorrência dona ────────────────────────────────────
+  //
+  // Eram UM por ocorrência, com índice único. *"ué, está deixando só colocar 1
+  // arquivo; deixe colocar vários, no máximo 10"* — e ele está certo: uma
+  // advertência tem o papel assinado E a foto do que aconteceu; um atestado
+  // vem com duas páginas.
+  //
+  // O teto de dez mora no modelo, não aqui: índice não conta linha.
+  await dropIndexIfPresent(db, "employee_files", "um_por_ocorrencia");
   await db
     .collection("employee_files")
-    .createIndex({ instance: 1, record: 1 }, { unique: true, name: "um_por_ocorrencia" });
+    .createIndex({ instance: 1, record: 1 }, { name: "por_ocorrencia" });
   // A foto, pelo funcionário dono: é assim que a faxina acha o que ninguém
   // referencia mais.
   await db
     .collection("employee_images")
     .createIndex({ instance: 1, employee: 1 }, { name: "by_employee" });
+
+  // ── OS DOCUMENTOS ──────────────────────────────────────────────────────
+  //
+  // Os modelos são lidos inteiros, sempre na ordem escolhida — a mesma forma
+  // dos planos e das unidades.
+  await db
+    .collection("document_templates")
+    .createIndex({ instance: 1, order: 1, name: 1 }, { name: "by_order" });
+  // O arquivo, pelo modelo dono — um por modelo: ele É o documento.
+  await db
+    .collection("document_template_files")
+    .createIndex({ instance: 1, template: 1 }, { unique: true, name: "um_por_modelo" });
+
+  // Os documentos de uma pessoa, do mais recente para o mais antigo.
+  await db
+    .collection("person_documents")
+    .createIndex({ instance: 1, person: 1, createdAt: -1 }, { name: "by_person_date" });
+  // Os bytes, pelo documento dono. E também por PESSOA: é o índice que faz a
+  // faxina de quem foi excluído não virar varredura.
+  await db
+    .collection("person_document_files")
+    .createIndex({ instance: 1, document: 1 }, { name: "by_document" });
+  await db
+    .collection("person_document_files")
+    .createIndex({ instance: 1, person: 1 }, { name: "by_person" });
+
+  // As PENDÊNCIAS de uma pessoa: sempre lidas dela, e quase sempre só as
+  // abertas — que é o que a ficha mostra.
+  await db
+    .collection("pendencies")
+    .createIndex({ instance: 1, person: 1, resolvidoEm: 1, createdAt: -1 }, { name: "by_person_open" });
+
+  // ── A ESTRUTURA ────────────────────────────────────────────────────────
+  //
+  // A lista é lida inteira, em ordem alfabética, e a busca é por `nameSort`.
+  await db.collection("equipments").createIndex({ instance: 1, nameSort: 1 }, { name: "by_name" });
+  // E por UNIDADE: "o que tem em Paraty". `sparse` porque o vínculo é opcional.
+  await db
+    .collection("equipments")
+    .createIndex({ instance: 1, unit: 1, nameSort: 1 }, { name: "by_unit", sparse: true });
+
+  // A manutenção é sempre lida de UM equipamento, da mais recente para a mais
+  // antiga — e é o mesmo índice que a lista usa para achar a última de cada um.
+  await db
+    .collection("equipment_maintenances")
+    .createIndex({ instance: 1, equipment: 1, data: -1 }, { name: "by_equipment_date" });
+
+  await db.collection("supplies").createIndex({ instance: 1, nameSort: 1 }, { name: "by_name" });
+  // O LIVRO de um insumo, do mais recente para o mais antigo. Ele é
+  // append-only: nunca se edita nem se apaga uma linha — corrige-se com um
+  // ajuste. Ver `Supply_model`.
+  await db
+    .collection("supply_moves")
+    .createIndex({ instance: 1, supply: 1, em: -1 }, { name: "by_supply_date" });
+  // E por DATA da casa inteira: "quanto entrou de insumo este mês".
+  await db.collection("supply_moves").createIndex({ instance: 1, em: -1 }, { name: "by_date" });
+
+  // ── A FREQUÊNCIA ───────────────────────────────────────────────────────
+  //
+  // Sempre lida de UMA pessoa, do mais recente para o mais antigo — é o
+  // calendário da ficha. E é o mesmo índice que a janela de repetição usa: ela
+  // procura a última entrada dos trinta minutos anteriores a cada registro, e
+  // sem ele a catraca varreria a collection a cada passagem.
+  await db.collection("checkins").createIndex({ instance: 1, person: 1, em: -1 }, { name: "by_person" });
+  // E por DIA da casa inteira: "quem está aqui agora", e a ocupação por horário
+  // quando ela existir.
+  await db.collection("checkins").createIndex({ instance: 1, em: -1 }, { name: "by_date" });
 
   // ── AS UNIDADES ────────────────────────────────────────────────────────
   //
@@ -715,6 +815,9 @@ async function ensureUmBanco(db) {
   // A foto é sempre buscada pela unidade dona: é assim que a faxina acha o que
   // ninguém referencia mais.
   await db.collection("unit_images").createIndex({ instance: 1, unit: 1 }, { name: "by_unit" });
+  await db
+    .collection("equipment_images")
+    .createIndex({ instance: 1, equipment: 1 }, { name: "by_equipment" });
   // E as PESSOAS POR UNIDADE. Este índice não é para uma tela: é o que faz a
   // pergunta "quantos alunos estão nesta unidade?" não virar uma varredura da
   // base inteira toda vez que alguém tenta apagar uma — e um dia ele atende o

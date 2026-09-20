@@ -385,3 +385,132 @@ test("os benefícios são lista livre, e o sem rótulo cai fora", async () => {
     { label: "Gympass", amount: 0 },
   ]);
 });
+
+// ── OS ANEXOS SÃO VÁRIOS ──────────────────────────────────────────────────
+//
+// *"ué, está deixando só colocar 1 arquivo; deixe colocar vários, no máximo
+// 10"*. Uma advertência tem o papel assinado E a foto do que aconteceu; um
+// atestado vem com duas páginas.
+function fakeAnexos(jaGravados = 0) {
+  const inseridos = [];
+  const atualizacoes = [];
+  let docs = [];
+
+  const model = new EmployeeRecord({});
+  const arquivos = {
+    async countDocuments() {
+      return jaGravados;
+    },
+    async insertMany(lista) {
+      inseridos.push(...lista);
+      docs = [
+        ...docs,
+        ...lista.map((l, i) => ({
+          _id: new ObjectId(String(i + 1).padStart(24, "0")),
+          name: l.name,
+          mime: l.mime,
+          size: l.size,
+          createdAt: new Date(),
+        })),
+      ];
+    },
+    find: () => ({ sort: () => ({ async toArray() { return docs; } }) }),
+    async findOne(filtro) {
+      return { _id: filtro._id, record: filtro.record, mime: "image/png", data: Buffer.from("x") };
+    },
+    async deleteOne() {
+      return { deletedCount: docs.length ? 1 : 0 };
+    },
+  };
+
+  model.files = async () => arquivos;
+  model.collection = async () => ({
+    async updateOne(filtro, mudanca) {
+      atualizacoes.push(mudanca.$set);
+      return { matchedCount: 1 };
+    },
+  });
+
+  return { model, inseridos, atualizacoes };
+}
+
+function anexoFalso(nome) {
+  return {
+    mime: "image/png",
+    buffer: Buffer.from("x"),
+    ficha: { name: nome, mime: "image/png", size: 1, kind: "image" },
+  };
+}
+
+test("grava vários anexos de uma vez", async () => {
+  const { model, inseridos } = fakeAnexos();
+
+  await model.saveAnexos(DONO, [anexoFalso("a.png"), anexoFalso("b.png"), anexoFalso("c.png")]);
+
+  assert.equal(inseridos.length, 3);
+  assert.deepEqual(inseridos.map((i) => i.name), ["a.png", "b.png", "c.png"]);
+});
+
+test("o teto é DEZ, e ele conta o que já está lá", async () => {
+  // Oito gravados e cinco chegando: entram dois, e não cinco. Contar só os que
+  // chegam deixaria o teto ser furado em duas idas.
+  const { model, inseridos } = fakeAnexos(8);
+
+  await model.saveAnexos(DONO, [1, 2, 3, 4, 5].map((n) => anexoFalso(`${n}.png`)));
+
+  assert.equal(inseridos.length, 2);
+});
+
+test("com dez já gravados, nada entra — e não estoura", async () => {
+  const { model, inseridos } = fakeAnexos(10);
+  const fichas = await model.saveAnexos(DONO, [anexoFalso("tarde.png")]);
+
+  assert.deepEqual(inseridos, []);
+  assert.ok(Array.isArray(fichas));
+});
+
+test("as FICHAS voltam para o documento, sem os bytes", async () => {
+  // Trazer os arquivos junto faria uma lista de cem ocorrências arrastar
+  // megabytes para desenhar nomes.
+  const { model, atualizacoes } = fakeAnexos();
+
+  await model.saveAnexos(DONO, [anexoFalso("atestado.pdf")]);
+
+  const fichas = atualizacoes[atualizacoes.length - 1].anexos;
+  assert.equal(fichas.length, 1);
+  assert.equal(fichas[0].name, "atestado.pdf");
+  assert.ok(fichas[0].id, "sem id não há como pedir nem apagar um anexo específico");
+  assert.equal("data" in fichas[0], false);
+});
+
+test("ler um anexo exige o id da OCORRÊNCIA junto", async () => {
+  // Sem ele, um id de arquivo adivinhado leria o anexo de outra ficha — e o
+  // escopo de cliente, que é automático, não separa uma ficha da outra.
+  const { model } = fakeAnexos();
+  const anexoId = new ObjectId().toString();
+
+  const achado = await model.anexoDe(DONO, anexoId);
+  assert.equal(String(achado.record), DONO);
+  assert.equal(String(achado._id), anexoId);
+
+  assert.equal(await model.anexoDe("lixo", anexoId), undefined);
+  assert.equal(await model.anexoDe(DONO, "lixo"), undefined);
+});
+
+test("apagar UM anexo reescreve a lista do documento", async () => {
+  const { model, atualizacoes } = fakeAnexos();
+  const ok = await model.removeAnexo(DONO, new ObjectId().toString());
+
+  assert.equal(ok, false, "sem arquivo gravado não há o que apagar");
+  assert.deepEqual(atualizacoes, []);
+});
+
+test("a ocorrência sem anexo devolve lista VAZIA, e não nulo", async () => {
+  // A tela percorre sempre; um `null` no meio viraria um `.map` de nada.
+  const { paraTela } = EmployeeRecord;
+  assert.deepEqual(paraTela({ _id: new ObjectId(), employee: new ObjectId() }).anexos, []);
+});
+
+test("o teto de dez é o que o modelo publica", () => {
+  assert.equal(EmployeeRecord.MAX_ANEXOS, 10);
+});

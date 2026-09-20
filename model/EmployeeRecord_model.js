@@ -111,23 +111,64 @@ function coerente(doc) {
   return doc;
 }
 
-// ── O ANEXO ───────────────────────────────────────────────────────────────
+// ── OS ANEXOS ─────────────────────────────────────────────────────────────
 //
-// O atestado escaneado, a advertência assinada, o certificado do curso. Mesma
-// forma do comprovante de uma conta a pagar: os BYTES numa collection à parte e
-// uma FICHA leve no documento, para a linha do tempo não arrastar arquivo.
-const TIPOS_ANEXO = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-const MAX_ANEXO = 8 * 1024 * 1024;
+// O atestado escaneado, a advertência assinada, o certificado do curso — e
+// *"quero poder pôr qualquer arquivo, tentei colocar mp3 e não consegui"*.
+//
+// ── QUALQUER TIPO ENTRA, e o cuidado mudou de lugar ──────────────────────
+//
+// Era uma lista de quatro (JPEG, PNG, WebP, PDF). A lista existia para proteger
+// a LEITURA: um `.html` guardado e servido `inline` da nossa origem executa
+// script na nossa origem, que é um XSS com passo a passo.
+//
+// Mas recusar na entrada protege errado — o áudio da conversa que gerou a
+// advertência, o `.docx` do contrato e o `.xlsx` da apuração são anexos
+// legítimos, e nenhum deles é perigoso guardado. O que é perigoso é SERVIR sem
+// pensar.
+//
+// Então a proteção foi para a rota: só imagem e PDF saem `inline`; todo o resto
+// sai `attachment` com `application/octet-stream`, e `nosniff` vai em tudo. Ver
+// `controllers/Employee.js`.
+//
+// SVG é a exceção que fica de fora do `inline` mesmo sendo `image/`: é um
+// documento executável com cara de imagem.
+//
+// ── O TETO É 7 MB, e o número vem do corpo da requisição ─────────────────
+//
+// O `bodyParser` corta em 10 MB e o base64 infla ~33%. Um teto de 8 MB era um
+// teto que MENTE: o arquivo de 8 MB virava 10,7 MB no corpo e era recusado
+// antes de chegar aqui, com um 413 sem mensagem nossa. 7 MB é o que de fato
+// passa.
+//
+// E é UM POR REQUISIÇÃO. Dez anexos no mesmo corpo estourariam o limite mesmo
+// com cada um dentro do teto — o segundo arquivo de 6 MB derrubaria o lote
+// inteiro, incluindo o texto da advertência.
+const MAX_ANEXO = 7 * 1024 * 1024;
+
+// O que pode sair `inline` no navegador. O resto vira download.
+const INLINE = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"];
+
+function podeSairInline(mime) {
+  return INLINE.includes(String(mime || "").toLowerCase());
+}
+
+// No protótipo também: a rota pergunta por `app.api.employeeRecord`, e uma
+// função de módulo não chega lá.
+EmployeeRecord_model.prototype.podeSairInline = function (mime) {
+  return podeSairInline(mime);
+};
 
 EmployeeRecord_model.prototype.parseAnexo = function (arquivo) {
   if (!arquivo || !arquivo.dataUri) return undefined;
 
-  const lido = parseDataUri(arquivo.dataUri, { maxBytes: MAX_ANEXO, mimes: TIPOS_ANEXO });
+  // `mimes` ausente: qualquer tipo entra. O teto de tamanho continua valendo.
+  const lido = parseDataUri(arquivo.dataUri, { maxBytes: MAX_ANEXO });
   if (!lido) return undefined;
 
-  // O nome vem do navegador e vira texto numa tela. Fica só o último pedaço do
-  // caminho, e caractere de controle sai fora — um "\r" no meio do nome quebra
-  // o cabeçalho do download em duas linhas.
+  // O nome vem do navegador e vira texto numa tela E no cabeçalho do download.
+  // Fica só o último pedaço do caminho, e caractere de controle sai fora — um
+  // "\r" no meio do nome quebra o cabeçalho em duas linhas.
   const nome = [...String(arquivo.name || "").split(/[\\/]/).pop()]
     .filter((c) => c.codePointAt(0) >= 32)
     .join("")
@@ -141,47 +182,90 @@ EmployeeRecord_model.prototype.parseAnexo = function (arquivo) {
       name: nome || "anexo",
       mime: lido.mime,
       size: lido.buffer.length,
-      kind: lido.mime.startsWith("image/") ? "image" : "file",
+      kind: podeSairInline(lido.mime) ? "abre" : "baixa",
     },
   };
 };
 
-EmployeeRecord_model.prototype.saveAnexo = async function (id, anexo) {
-  const arquivos = await this.files();
+// ── QUANTOS CABEM ─────────────────────────────────────────────────────────
+//
+// *"deixe colocar vários, no máximo 10"*. O teto é aqui, e não num índice:
+// índice não conta linha.
+const MAX_ANEXOS = 10;
 
-  await arquivos.updateOne(
-    { record: new ObjectId(id) },
-    {
-      $set: {
-        record: new ObjectId(id),
-        mime: anexo.mime,
-        name: anexo.ficha.name,
-        size: anexo.ficha.size,
-        data: anexo.buffer,
-        updatedAt: new Date(),
-      },
-    },
-    { upsert: true }
+EmployeeRecord_model.prototype.saveAnexos = async function (id, lista) {
+  if (!ObjectId.isValid(id) || !lista?.length) return [];
+
+  const arquivos = await this.files();
+  const col = await this.collection();
+  const record = new ObjectId(id);
+
+  const quantos = await arquivos.countDocuments({ record });
+  const cabem = Math.max(0, MAX_ANEXOS - quantos);
+  if (!cabem) return this.fichasDe(id);
+
+  const agora = new Date();
+  const docs = lista.slice(0, cabem).map((a) => ({
+    record,
+    mime: a.mime,
+    name: a.ficha.name,
+    size: a.ficha.size,
+    data: a.buffer,
+    createdAt: agora,
+    updatedAt: agora,
+  }));
+
+  await arquivos.insertMany(docs);
+
+  const fichas = await this.fichasDe(id);
+  await col.updateOne({ _id: record }, { $set: { anexos: fichas } });
+  return fichas;
+};
+
+// As fichas LEVES, sem os bytes: é o que viaja na linha do tempo. Trazer os
+// arquivos junto faria uma lista de cem ocorrências arrastar megabytes para
+// desenhar nomes.
+EmployeeRecord_model.prototype.fichasDe = async function (id) {
+  if (!ObjectId.isValid(id)) return [];
+
+  const arquivos = await this.files();
+  const docs = await arquivos
+    .find({ record: new ObjectId(id) }, { projection: { name: 1, mime: 1, size: 1, createdAt: 1 } })
+    .sort({ createdAt: 1, _id: 1 })
+    .toArray();
+
+  return docs.map((d) => ({
+    id: String(d._id),
+    name: d.name,
+    mime: d.mime,
+    size: d.size,
+    // `abre` sai inline no navegador; `baixa` vira download. A tela usa isto
+    // para escolher o ícone e o texto do link.
+    kind: podeSairInline(d.mime) ? "abre" : "baixa",
+  }));
+};
+
+// UM anexo, pelos dois ids. O da ocorrência entra no filtro de propósito: sem
+// ele, um id de arquivo adivinhado leria o anexo de outra ocorrência — e o
+// escopo de cliente, que é automático, não separa uma ficha da outra.
+EmployeeRecord_model.prototype.anexoDe = async function (id, anexoId) {
+  if (!ObjectId.isValid(id) || !ObjectId.isValid(anexoId)) return undefined;
+
+  const arquivos = await this.files();
+  return (
+    (await arquivos.findOne({ _id: new ObjectId(anexoId), record: new ObjectId(id) })) || undefined
   );
-
-  const col = await this.collection();
-  await col.updateOne({ _id: new ObjectId(id) }, { $set: { anexo: anexo.ficha } });
 };
 
-EmployeeRecord_model.prototype.anexoDe = async function (id) {
-  if (!ObjectId.isValid(id)) return undefined;
-  const arquivos = await this.files();
-  return (await arquivos.findOne({ record: new ObjectId(id) })) || undefined;
-};
-
-EmployeeRecord_model.prototype.removeAnexo = async function (id) {
-  if (!ObjectId.isValid(id)) return false;
+EmployeeRecord_model.prototype.removeAnexo = async function (id, anexoId) {
+  if (!ObjectId.isValid(id) || !ObjectId.isValid(anexoId)) return false;
 
   const arquivos = await this.files();
-  await arquivos.deleteMany({ record: new ObjectId(id) });
+  const r = await arquivos.deleteOne({ _id: new ObjectId(anexoId), record: new ObjectId(id) });
+  if (!r.deletedCount) return false;
 
   const col = await this.collection();
-  await col.updateOne({ _id: new ObjectId(id) }, { $set: { anexo: null } });
+  await col.updateOne({ _id: new ObjectId(id) }, { $set: { anexos: await this.fichasDe(id) } });
   return true;
 };
 
@@ -240,7 +324,9 @@ function paraTela(r) {
     cienteEm: r.cienteEm || null,
     justificada: !!r.justificada,
     cargo: r.cargo || "",
-    anexo: r.anexo || null,
+    // `anexos` no plural desde 20/09/2026. A lista vazia é `[]`, e não `null`:
+    // a tela percorre sempre, e um `null` no meio viraria um `.map` de nada.
+    anexos: r.anexos || [],
     createdAt: r.createdAt,
     createdByName: r.createdByName || "",
   };
@@ -312,3 +398,6 @@ EmployeeRecord_model.prototype.remove = async function (id) {
 
 module.exports = EmployeeRecord_model;
 module.exports.paraTela = paraTela;
+module.exports.MAX_ANEXOS = MAX_ANEXOS;
+module.exports.MAX_ANEXO = MAX_ANEXO;
+module.exports.podeSairInline = podeSairInline;

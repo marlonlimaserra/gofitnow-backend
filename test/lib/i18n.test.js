@@ -150,3 +150,40 @@ test("o conferidor de tradução passa", () => {
     stdio: "pipe",
   });
 });
+
+// ── TODO CATÁLOGO QUE VIAJA TRADUZIDO ESTÁ NA CONFERÊNCIA ─────────────────
+//
+// *"campos: documentTemplates.fieldName... apareceu bugado assim"* — as oito
+// chaves cruas em cima do editor, porque eu traduzi os campos no FRONTEND e
+// quem os resolve é o servidor.
+//
+// O conferidor já tinha uma lista para exatamente isso, com um comentário
+// dizendo que ela torna o erro impossível de subir. Não tornava: ela cobria dois
+// catálogos, e nasceram sete depois — nenhum entrou.
+//
+// Este teste é o que fecha a porta: ele descobre os catálogos varrendo `lib/`,
+// e cobra que cada um esteja citado no conferidor. Um catálogo novo que ninguém
+// registrar quebra aqui, e não na tela de alguém.
+const fsCatalogos = require("node:fs");
+const pathCatalogos = require("node:path");
+
+test("todo arquivo de `lib` com `rotulo:` está citado no conferidor", () => {
+  const lib = pathCatalogos.join(__dirname, "..", "..", "lib");
+  const conferidor = fsCatalogos.readFileSync(pathCatalogos.join(lib, "i18n", "check.js"), "utf8");
+
+  const catalogos = fsCatalogos
+    .readdirSync(lib)
+    .filter((f) => f.endsWith(".js"))
+    .filter((f) => /rotulo:\s*"/.test(fsCatalogos.readFileSync(pathCatalogos.join(lib, f), "utf8")));
+
+  // O próprio conferidor não é catálogo, e `modelosDeCartao` e `recorrencia` já
+  // estavam lá — a varredura os encontra e a citação os cobre.
+  const ausentes = catalogos.filter((f) => !conferidor.includes(f.replace(/\.js$/, "")));
+
+  assert.deepEqual(
+    ausentes,
+    [],
+    "catálogo com `rotulo:` que o conferidor de i18n não conhece — " +
+      "os rótulos dele sairiam como chave crua na tela"
+  );
+});

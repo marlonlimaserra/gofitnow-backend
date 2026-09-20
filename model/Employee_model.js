@@ -93,6 +93,12 @@ const CAMPOS = {
   // está lá às seis da manhã, sozinho, abrindo a porta.
   emergencyName: texto(120),
   emergencyPhone: texto(30),
+  // ── E O WHATSAPP DE QUEM AVISAR ───────────────────────────────────────
+  //
+  // Dois campos, e não um. Às seis da manhã de um domingo a mensagem chega onde
+  // a ligação não é atendida — e o contrário também acontece. Quase nunca é o
+  // mesmo número da pessoa que se quer alcançar às pressas.
+  emergencyWhatsapp: texto(30),
   emergencyRelation: texto(60),
 
   // ── O VÍNCULO ─────────────────────────────────────────────────────────

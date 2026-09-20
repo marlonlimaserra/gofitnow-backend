@@ -373,3 +373,130 @@ test("a foto de funcionário EXIGE sessão, e o cache dela é privado", async ()
   const r = await call(app, "get", "/employee-photo/i1");
   assert.match(String(r.headers["cache-control"]), /private/);
 });
+
+// ── OS ANEXOS: qualquer tipo entra, mas nem tudo SAI do mesmo jeito ───────
+//
+// *"quero poder pôr qualquer arquivo, tentei colocar mp3 e não consegui"*.
+//
+// A lista de quatro tipos existia para proteger a leitura. Recusar na entrada
+// protegia errado — o áudio da conversa que gerou a advertência é um anexo
+// legítimo. A proteção foi para a ROTA, e é aqui que ela é provada.
+function comAnexo(anexo) {
+  const guardados = [];
+
+  const app = fakeApp({
+    helpers: {
+      ReqProtected: {
+        async can() {
+          return { _id: "u1", name: "Marlon", permissions: ["employees.view", "employees.manage"] };
+        },
+      },
+    },
+    api: {
+      tenant: { async currencyOfInstance() { return { currency: "BRL", currencies: [] }; } },
+      employee: { async data() { return { _id: "f1" }; }, async contagem() { return 1; } },
+      employeeRecord: {
+        async data() { return { id: "r1" }; },
+        parseAnexo: (a) =>
+          a?.dataUri
+            ? { mime: a.mime || "audio/mpeg", buffer: Buffer.from("x"), ficha: { name: a.name } }
+            : undefined,
+        async saveAnexos(id, lista) {
+          guardados.push(...lista);
+          return [{ id: "a1", name: lista[0]?.ficha?.name }];
+        },
+        async anexoDe() {
+          return anexo;
+        },
+        podeSairInline: (mime) =>
+          ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"].includes(mime),
+      },
+    },
+  });
+
+  EmployeeController(app);
+  return { app, guardados };
+}
+
+const BYTES = { data: Buffer.from("x") };
+
+test("um MP3 é aceito", async () => {
+  const { app, guardados } = comAnexo();
+  const r = await call(app, "post", "/employee-records/r1/anexos", {
+    body: { name: "conversa.mp3", mime: "audio/mpeg", dataUri: "data:audio/mpeg;base64,eA==" },
+  });
+
+  assert.equal(r.status, 201);
+  assert.equal(guardados.length, 1);
+});
+
+test("um arquivo por requisição — e o que falha diz qual foi", async () => {
+  // Todos no corpo do lançamento não cabia: o `bodyParser` corta em 10 MB, o
+  // base64 infla ~33%, e dois de 6 MB derrubariam o pedido inteiro, levando
+  // junto o texto da advertência.
+  const { app } = comAnexo();
+  const r = await call(app, "post", "/employee-records/r1/anexos", { body: {} });
+
+  assert.equal(r.status, 400);
+  assert.match(String(r.body.msg), /7 MB/);
+});
+
+test("PDF sai INLINE — o atestado é para olhar", async () => {
+  const { app } = comAnexo({ ...BYTES, mime: "application/pdf", name: "atestado.pdf" });
+  const r = await call(app, "get", "/employee-records/r1/anexos/a1");
+
+  assert.equal(r.headers["content-type"], "application/pdf");
+  assert.match(r.headers["content-disposition"], /^inline/);
+});
+
+test("MP3 vira DOWNLOAD, e não toca na nossa origem", async () => {
+  const { app } = comAnexo({ ...BYTES, mime: "audio/mpeg", name: "conversa.mp3" });
+  const r = await call(app, "get", "/employee-records/r1/anexos/a1");
+
+  assert.equal(r.headers["content-type"], "application/octet-stream");
+  assert.match(r.headers["content-disposition"], /^attachment/);
+  assert.match(r.headers["content-disposition"], /conversa\.mp3/);
+});
+
+test("HTML NUNCA sai inline — seria XSS na nossa origem", async () => {
+  // Servido `inline`, ele roda script na nossa origem, com a sessão de quem
+  // abriu. É a razão de a lista de tipos ter existido, e é o que substitui ela.
+  const { app } = comAnexo({ ...BYTES, mime: "text/html", name: "x.html" });
+  const r = await call(app, "get", "/employee-records/r1/anexos/a1");
+
+  assert.equal(r.headers["content-type"], "application/octet-stream");
+  assert.match(r.headers["content-disposition"], /^attachment/);
+});
+
+test("SVG também não — é documento executável com cara de imagem", async () => {
+  const { app } = comAnexo({ ...BYTES, mime: "image/svg+xml", name: "a.svg" });
+  const r = await call(app, "get", "/employee-records/r1/anexos/a1");
+
+  assert.equal(r.headers["content-type"], "application/octet-stream");
+});
+
+test("`nosniff` vai em TODOS", async () => {
+  // Sem ele o navegador adivinha o tipo pelo conteúdo, e um `.txt` com HTML
+  // dentro volta a ser página.
+  for (const mime of ["application/pdf", "audio/mpeg", "text/plain"]) {
+    const { app } = comAnexo({ ...BYTES, mime, name: "a" });
+    const r = await call(app, "get", "/employee-records/r1/anexos/a1");
+    assert.equal(r.headers["x-content-type-options"], "nosniff", mime);
+  }
+});
+
+test("aspas no nome não quebram o cabeçalho", async () => {
+  const { app } = comAnexo({ ...BYTES, mime: "audio/mpeg", name: 'con"versa.mp3' });
+  const r = await call(app, "get", "/employee-records/r1/anexos/a1");
+
+  assert.equal(r.headers["content-disposition"], 'attachment; filename="conversa.mp3"');
+});
+
+test("o anexo é servido com cache PRIVADO", async () => {
+  // É conteúdo de uma sessão: um proxy compartilhado não pode guardar o
+  // atestado de alguém e servir para outro.
+  const { app } = comAnexo({ ...BYTES, mime: "application/pdf", name: "a.pdf" });
+  const r = await call(app, "get", "/employee-records/r1/anexos/a1");
+
+  assert.match(String(r.headers["cache-control"]), /private/);
+});
