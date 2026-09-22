@@ -514,3 +514,64 @@ test("a ocorrência sem anexo devolve lista VAZIA, e não nulo", async () => {
 test("o teto de dez é o que o modelo publica", () => {
   assert.equal(EmployeeRecord.MAX_ANEXOS, 10);
 });
+
+// ── A FICHA TRAZ A SITUAÇÃO, COMO A LISTA ─────────────────────────────────
+//
+// `data()` era um `findOne` cru: devolvia o documento como está no banco, sem
+// a `situacao` — que é CALCULADA a partir da linha do tempo (férias, atestado,
+// licença que cubram hoje) e de `dismissedAt`/`active`.
+//
+// O buraco não aparecia no servidor: a tela é que mostrava
+// `employees.status.undefined`, a chave de tradução de um valor que não
+// existe. Um caso que só olhasse `name` passaria por cima dele.
+test("a ficha calcula a situação com as MESMAS etapas da lista", async () => {
+  const pedidos = [];
+
+  const col = {
+    aggregate(etapas) {
+      pedidos.push(etapas);
+      return { toArray: async () => [{ _id: "e1", name: "Bruna", situacao: "ferias" }] };
+    },
+    findOne: async () => ({ _id: "e1", name: "Bruna" }),
+  };
+
+  const model = new Employee({
+    mongodb: { connectToServer: async () => ({ collection: () => col }) },
+  });
+
+  const ficha = await model.data("6a80de570056d24c09f5da61");
+
+  assert.equal(ficha.situacao, "ferias");
+
+  // Pelo AGREGADO, e não pelo findOne: é o que garante que a conta é a mesma.
+  // Um `findOne` aqui devolveria o documento sem a situação, calado.
+  assert.equal(pedidos.length, 1);
+  const etapas = pedidos[0];
+  assert.ok(etapas.some((e) => e.$lookup?.from === "employee_records"));
+  assert.ok(etapas.some((e) => e.$addFields?.situacao));
+});
+
+test("`hoje` é o instante da consulta, e não o da subida do processo", async () => {
+  // Num processo que fica semanas de pé, um `new Date()` no escopo do módulo
+  // congelaria a data — e todo mundo continuaria de férias para sempre.
+  const janelas = [];
+
+  const col = {
+    aggregate(etapas) {
+      const lookup = etapas.find((e) => e.$lookup?.from === "employee_records");
+      const condicoes = lookup.$lookup.pipeline[0].$match.$expr.$and;
+      janelas.push(condicoes.find((c) => c.$lte)?.$lte?.[1]);
+      return { toArray: async () => [{ _id: "e1" }] };
+    },
+  };
+
+  const model = new Employee({
+    mongodb: { connectToServer: async () => ({ collection: () => col }) },
+  });
+
+  await model.data("6a80de570056d24c09f5da61");
+  await new Promise((r) => setTimeout(r, 5));
+  await model.data("6a80de570056d24c09f5da61");
+
+  assert.ok(janelas[1] > janelas[0], "a data deveria avançar entre duas consultas");
+});

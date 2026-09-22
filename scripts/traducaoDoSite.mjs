@@ -30,7 +30,12 @@ const DESTINO = path.join(AQUI, "..", "lib", "i18n", "documentos");
 //
 // `financeiro` entrou em 17/09/2026, com o EXTRATO da pessoa: "Cobrado",
 // "Recebido", "Vence", os nomes das sete formas de pagamento de fábrica.
-const PARTES = ["avaliacoes", "comum", "dietas", "financeiro"];
+//
+// `funcionarios` entrou em 21/09/2026, com a FOLHA DE PONTO: "Batidas",
+// "Assinatura do funcionário", "Falta justificada". O papel do app nasce aqui e
+// o do painel é React — as duas metades falando as MESMAS palavras é o que este
+// espelho garante.
+const PARTES = ["avaliacoes", "comum", "dietas", "financeiro", "funcionarios"];
 const IDIOMAS = ["pt-BR", "en", "es", "fr"];
 
 if (!fs.existsSync(SITE)) {

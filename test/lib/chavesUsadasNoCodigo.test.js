@@ -48,6 +48,11 @@ const OUTRO_CATALOGO = new Set([
   // os rótulos dele são os da TELA ("Cobrado", "Vence", "Pix"), espelhados em
   // `lib/i18n/documentos` — não o catálogo de mensagens do backend.
   "lib/documentoFinanceiro.js",
+  // A folha de ponto e a planilha dela (21/09/2026). Os rótulos são os da TELA
+  // de funcionários ("Batidas", "Falta justificada", "Assinatura do
+  // funcionário"), espelhados do site pelo `scripts/traducaoDoSite.mjs`.
+  "lib/documentoPonto.js",
+  "lib/planilhaDoPonto.js",
   "lib/rotulosDeDocumento.js",
 ]);
 

@@ -313,7 +313,8 @@
     "unitRemoved": "Unidade removida.",
     "unitSaved": "Ordem salva.",
     "userRemoved": "Usuário removido.",
-    "workoutRemoved": "Treino removido."
+    "workoutRemoved": "Treino removido.",
+    "timeSheetEmailed": "Folha de ponto enviada por e-mail."
   },
   "permissions": {
     "groups": {
@@ -852,6 +853,9 @@
     },
     "document": {
       "subject": "Documento de {{nome}}"
+    },
+    "timeSheet": {
+      "subject": "Sua folha de ponto"
     }
   },
   "apiDocs": {

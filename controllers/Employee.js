@@ -1,5 +1,9 @@
 const limiteDoPlano = require("../lib/limiteDoPlano.js");
 const arquivos = require("../lib/arquivos.js");
+const { logoDaCasa } = require("../lib/logoDaCasa.js");
+const { registrarRotasDeDocumento } = require("../lib/rotasDeDocumento.js");
+const { documentoPonto } = require("../lib/documentoPonto.js");
+const { planilhaDoPonto, nomeDaPlanilha } = require("../lib/planilhaDoPonto.js");
 const vinculos = require("../lib/vinculosDeTrabalho.js");
 const tiposDeOcorrencia = require("../lib/tiposDeOcorrencia.js");
 
@@ -422,9 +426,30 @@ module.exports = function (app) {
       jornadaSemanal: ficha.weeklyHours,
     });
 
+    // ── O QUE VAI JUNTO DA FOLHA ──────────────────────────────────────────
+    //
+    // Nome, cargo e jornada a tela sempre usou. A FOTO e o WHATSAPP entraram
+    // pela folha impressa: *"no pdf faltou a foto da pessoa"*, *"também faltou
+    // pôr o whatsapp para facilitar"*. Um papel que circula na mão do gerente
+    // precisa dizer de QUEM é sem depender de quem o imprimiu lembrar.
+    //
+    // A foto vai como ID, e não como bytes: quem a busca é a tela, pela rota
+    // `/employee-photo/:id`, que exige sessão — é o rosto de uma pessoa
+    // empregada, e ele não sai numa resposta que a folha inteira carrega.
+    //
+    // Aqui não entra endereço, PIS nem salário: a folha de ponto é sobre
+    // horário, e o resto seria dado sensível viajando sem ninguém pedir.
     res.send({
       ...espelho,
-      funcionario: { id: String(ficha._id), name: ficha.name, role: ficha.role, weeklyHours: ficha.weeklyHours },
+      funcionario: {
+        id: String(ficha._id),
+        name: ficha.name,
+        nickname: ficha.nickname || "",
+        role: ficha.role,
+        photo: ficha.photo ? String(ficha.photo) : null,
+        whatsapp: ficha.whatsapp || "",
+        weeklyHours: ficha.weeklyHours,
+      },
     });
   });
 
@@ -444,4 +469,189 @@ module.exports = function (app) {
 
     res.send(gravado);
   });
+
+  // ── A FOLHA DE PONTO EM PLANILHA ────────────────────────────────────────
+  //
+  // O painel gera a dele no navegador; o celular não tem onde. Esta rota
+  // devolve os MESMOS bytes para os dois mundos — o app baixa e entrega ao
+  // compartilhar do sistema.
+  //
+  // `employees.view` basta: quem pode ver a folha na tela pode levá-la embora.
+  // Não há salário nenhum aqui dentro — só horário.
+  app.get("/employees/:id/time.xlsx", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "employees.view");
+    if (user === false) return;
+
+    const ficha = await app.api.employee.data(req.params.id);
+    if (!ficha) return res.status(404).send({ msg: req.t("errors.employeeNotFound") });
+
+    const mes = mesPedido(req.query.mes);
+    const espelho = await app.api.employeeTime.espelho({
+      employee: req.params.id,
+      ...janelaDoMes(mes),
+      jornadaSemanal: ficha.weeklyHours,
+    });
+
+    const bytes = await planilhaDoPonto({
+      funcionario: ficha,
+      mes,
+      dias: espelho.dias,
+      resumo: espelho.resumo,
+      lang: user.lang || req.language,
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    // `private, no-store`: é a jornada de uma pessoa, e proxy compartilhado não
+    // pode guardar isto e servir para outra.
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${nomeDaPlanilha(ficha.name, mes)}"`
+    );
+    res.send(bytes);
+  });
+
+  // ── A FOLHA DE PONTO COMO DOCUMENTO ─────────────────────────────────────
+  //
+  // Ver, imprimir, baixar em PDF e mandar por e-mail — as mesmas quatro saídas
+  // da avaliação, do plano alimentar e do extrato, pela mesma fábrica.
+  //
+  // Existe porque *"no aplicativo não tem os botões de imprimir nem xlsx"*: o
+  // app não desenha documento, ele pede o HTML pronto e entrega ao
+  // `expo-print`. Com isto, o botão no app é uma linha — e o e-mail veio junto
+  // de graça, o que resolve mandar a folha para o próprio funcionário assinar.
+  //
+  // O MÊS vai na query (`?mes=2026-09`), como o dia da chamada da aula: sem
+  // ele, é o mês corrente, que é o que se imprime em quase toda vez.
+  registrarRotasDeDocumento(app, {
+    base: "employees",
+    prefixoDoArquivo: "folha-de-ponto",
+    chaveDoAssunto: "email.timeSheet.subject",
+    chaveDeOk: "ok.timeSheetEmailed",
+    acao: "email_time_sheet",
+
+    montar: async function (req, res) {
+      const user = await app.helpers.ReqProtected.can(req, res, "employees.view");
+      if (user === false) return null;
+
+      const ficha = await app.api.employee.data(req.params.id);
+      if (!ficha) {
+        res.status(404).send({ msg: req.t("errors.employeeNotFound") });
+        return null;
+      }
+
+      const mes = mesPedido(req.query.mes);
+      const [espelho, fuso, casa] = await Promise.all([
+        app.api.employeeTime.espelho({
+          employee: req.params.id,
+          ...janelaDoMes(mes),
+          jornadaSemanal: ficha.weeklyHours,
+        }),
+        app.api.tenant.timezoneOfInstance(),
+        app.api.tenant.dataOfInstance(),
+      ]);
+
+      // ── A FOTO, embutida ────────────────────────────────────────────
+      //
+      // `data:` URI e não a URL de `/employee-photo/:id`: aquela exige sessão,
+      // e um `<img>` apontando para ela sai em branco no e-mail, no PDF e no
+      // `expo-print`. Embutida, a folha funciona salva em disco, meses depois.
+      let bytesDaFoto = null;
+      let mimeDaFoto = "image/jpeg";
+
+      try {
+        if (ficha.photo) {
+          const img = await app.api.employeeImage.data(String(ficha.photo));
+          if (img) {
+            const crus = await arquivos.bytesDoDocumento(img);
+            // Buffer de zero bytes é VERDADEIRO em JavaScript: sem o teste de
+            // tamanho sairia `data:image/jpeg;base64,` — sintaxe perfeita e
+            // nenhuma imagem, que vira ícone quebrado sem erro nenhum.
+            if (crus && crus.length) {
+              bytesDaFoto = crus;
+              mimeDaFoto = img.mime || mimeDaFoto;
+            }
+          }
+        }
+      } catch (erro) {
+        // Foto que não carrega não pode custar a folha: as horas são o
+        // conteúdo, e o retrato é quem confere de quem elas são.
+        console.warn("[documento:employees] foto:", erro.message);
+      }
+
+      const marca = await logoDaCasa(casa?.theme);
+      const CID_LOGO = "logo-da-casa";
+      const CID_FOTO = "foto-do-funcionario";
+
+      const desenhar = (comFoto, comMarca) =>
+        documentoPonto({
+          funcionario: ficha,
+          mes,
+          dias: espelho.dias,
+          resumo: espelho.resumo,
+          foto: comFoto,
+          lang: user.lang || req.language,
+          fuso,
+          marca: comMarca,
+        });
+
+      // DUAS VERSÕES DA MESMA FOLHA: o Gmail descarta `data:` e o Chromium do
+      // PDF não resolve `cid:` — cada saída recebe a que sabe ler.
+      const fotos = [];
+
+      if (bytesDaFoto) {
+        fotos.push({
+          cid: CID_FOTO,
+          filename: `foto.${mimeDaFoto.split("/")[1] || "jpg"}`,
+          content: bytesDaFoto,
+          contentType: mimeDaFoto,
+        });
+      }
+
+      if (marca) {
+        const [cabecalho, base64] = marca.split(",");
+        fotos.push({
+          cid: CID_LOGO,
+          filename: "logo.png",
+          content: Buffer.from(base64 || "", "base64"),
+          contentType: (cabecalho.match(/data:([^;]+)/) || [])[1] || "image/png",
+        });
+      }
+
+      return {
+        trainer: user,
+        pessoa: ficha,
+        html: desenhar(
+          bytesDaFoto ? `data:${mimeDaFoto};base64,${bytesDaFoto.toString("base64")}` : null,
+          marca
+        ),
+        htmlDeEmail: desenhar(
+          bytesDaFoto ? `cid:${CID_FOTO}` : null,
+          marca ? `cid:${CID_LOGO}` : null
+        ),
+        fotos,
+        nome: ficha.name,
+        data: new Date(),
+      };
+    },
+  });
 };
+
+// "2026-09", ou o mês corrente quando a query não traz nada que se pareça com
+// um. Validar aqui é o que impede `?mes=../../etc` de virar uma janela de
+// consulta esquisita lá embaixo.
+function mesPedido(valor) {
+  const limpo = String(valor || "");
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(limpo)) return limpo;
+  return new Date().toISOString().slice(0, 7);
+}
+
+// Do dia 1 ao último. Em UTC de propósito: aqui a data é um contador de dias.
+function janelaDoMes(mes) {
+  const [ano, m] = mes.split("-").map(Number);
+  const ultimo = new Date(Date.UTC(ano, m, 0)).getUTCDate();
+  return { de: `${mes}-01`, ate: `${mes}-${String(ultimo).padStart(2, "0")}` };
+}

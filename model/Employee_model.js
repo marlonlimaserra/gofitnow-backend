@@ -215,54 +215,21 @@ const ORDEM = {
 const LIMITE_PADRAO = 25;
 const LIMITE_MAXIMO = 200;
 
-// ── A LISTA ───────────────────────────────────────────────────────────────
+// ── QUEM ESTÁ AFASTADO HOJE ───────────────────────────────────────────────
 //
-// `situacao` é CALCULADA, e é o que a tela mostra no lugar de um "ativo/
-// inativo" que não diz nada: quem está de férias hoje aparece de férias, e não
-// some da lista nem finge que está no balcão.
+// As etapas que calculam `situacao` e `afastadoAte`, numa função e não numa
+// constante: `hoje` tem de ser o instante da CONSULTA. Num processo que fica
+// semanas de pé, um `new Date()` no escopo do módulo congelaria a data e todo
+// mundo continuaria de férias para sempre.
 //
-// Ela sai de um `$lookup` na linha do tempo, procurando uma ocorrência de
-// afastamento que cubra hoje. É uma consulta a mais por página — e é a resposta
-// da pergunta que se faz olhando a lista de manhã: "quem eu tenho hoje?".
-Employee_model.prototype.listar = async function ({
-  busca,
-  situacao,
-  bond,
-  unit,
-  semUnidade,
-  ordem,
-  direcao,
-  pagina,
-  limite,
-} = {}) {
-  const col = await this.collection();
-
-  const recorte = [];
-
-  const termo = normalizar(busca);
-  if (termo) {
-    const esc = termo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    recorte.push({
-      $match: {
-        $or: [
-          { nameSort: { $regex: esc } },
-          { cpf: { $regex: esc } },
-          { role: { $regex: esc, $options: "i" } },
-        ],
-      },
-    });
-  }
-
-  if (bond) recorte.push({ $match: { bond: String(bond) } });
-
-  // "Da casa toda" é um recorte de verdade, e não a ausência de filtro: o
-  // contador e o faxineiro que atende as duas unidades não pertencem a nenhuma.
-  if (semUnidade) recorte.push({ $match: { unit: null } });
-  else if (unit && ObjectId.isValid(unit)) recorte.push({ $match: { unit: new ObjectId(unit) } });
-
+// Elas são usadas pela LISTA e pela FICHA. Antes só a lista as tinha, e a
+// ficha vinha de um `findOne` cru — sem `situacao`. A tela do app mostrou o
+// buraco cru: `employees.status.undefined`, que é a chave de tradução de um
+// valor que não existe.
+function etapasDoAfastamento() {
   const hoje = new Date();
 
-  const afastamento = [
+  return [
     {
       $lookup: {
         from: "employee_records",
@@ -309,6 +276,54 @@ Employee_model.prototype.listar = async function ({
     },
     { $project: { afastado: 0 } },
   ];
+}
+
+// ── A LISTA ───────────────────────────────────────────────────────────────
+//
+// `situacao` é CALCULADA, e é o que a tela mostra no lugar de um "ativo/
+// inativo" que não diz nada: quem está de férias hoje aparece de férias, e não
+// some da lista nem finge que está no balcão.
+//
+// Ela sai de um `$lookup` na linha do tempo, procurando uma ocorrência de
+// afastamento que cubra hoje. É uma consulta a mais por página — e é a resposta
+// da pergunta que se faz olhando a lista de manhã: "quem eu tenho hoje?".
+Employee_model.prototype.listar = async function ({
+  busca,
+  situacao,
+  bond,
+  unit,
+  semUnidade,
+  ordem,
+  direcao,
+  pagina,
+  limite,
+} = {}) {
+  const col = await this.collection();
+
+  const recorte = [];
+
+  const termo = normalizar(busca);
+  if (termo) {
+    const esc = termo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    recorte.push({
+      $match: {
+        $or: [
+          { nameSort: { $regex: esc } },
+          { cpf: { $regex: esc } },
+          { role: { $regex: esc, $options: "i" } },
+        ],
+      },
+    });
+  }
+
+  if (bond) recorte.push({ $match: { bond: String(bond) } });
+
+  // "Da casa toda" é um recorte de verdade, e não a ausência de filtro: o
+  // contador e o faxineiro que atende as duas unidades não pertencem a nenhuma.
+  if (semUnidade) recorte.push({ $match: { unit: null } });
+  else if (unit && ObjectId.isValid(unit)) recorte.push({ $match: { unit: new ObjectId(unit) } });
+
+  const afastamento = etapasDoAfastamento();
 
   // O filtro de situação vem DEPOIS do cálculo — ele pergunta pelo derivado.
   const porSituacao = [];
@@ -418,10 +433,18 @@ function projecao() {
   };
 }
 
+// A FICHA traz a MESMA `situacao` da lista — calculada pelas mesmas etapas, e
+// não por um segundo `switch` escrito aqui. Sem ela a tela caía em
+// `employees.status.undefined`: a chave de tradução de um valor que não existe.
 Employee_model.prototype.data = async function (id) {
   if (!ObjectId.isValid(id)) return undefined;
+
   const col = await this.collection();
-  return (await col.findOne({ _id: new ObjectId(id) })) || undefined;
+  const [doc] = await col
+    .aggregate([{ $match: { _id: new ObjectId(id) } }, ...etapasDoAfastamento()])
+    .toArray();
+
+  return doc || undefined;
 };
 
 // A lista enxuta para seletores — quem está na casa, em ordem.

@@ -313,7 +313,8 @@
     "unitRemoved": "Unité supprimée.",
     "unitSaved": "Ordre enregistré.",
     "userRemoved": "Utilisateur supprimé.",
-    "workoutRemoved": "Entraînement supprimé."
+    "workoutRemoved": "Entraînement supprimé.",
+    "timeSheetEmailed": "Feuille de présence envoyée par e-mail."
   },
   "permissions": {
     "groups": {
@@ -852,6 +853,9 @@
     },
     "document": {
       "subject": "Document de {{nome}}"
+    },
+    "timeSheet": {
+      "subject": "Votre feuille de présence"
     }
   },
   "apiDocs": {

@@ -313,7 +313,8 @@
     "unitRemoved": "Unit removed.",
     "unitSaved": "Order saved.",
     "userRemoved": "User removed.",
-    "workoutRemoved": "Workout removed."
+    "workoutRemoved": "Workout removed.",
+    "timeSheetEmailed": "Time sheet emailed."
   },
   "permissions": {
     "groups": {
@@ -852,6 +853,9 @@
     },
     "document": {
       "subject": "{{nome}}'s document"
+    },
+    "timeSheet": {
+      "subject": "Your time sheet"
     }
   },
   "apiDocs": {

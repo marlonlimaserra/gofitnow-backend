@@ -29,6 +29,11 @@ const FICHA = {
   bankAgency: "1234",
   bankAccount: "56789-0",
   weeklyHours: 44,
+  photo: "abc123",
+  whatsapp: "(21) 98812-4471",
+  cpf: "123.456.789-00",
+  endereco: "Rua X, 10",
+  pis: "1234567890",
 };
 
 const CAMPOS_SENSIVEIS = [
@@ -269,6 +274,41 @@ test("quem só VÊ não cadastra", async () => {
 
   assert.equal(r.status, 403);
   assert.deepEqual(gravado.criados, []);
+});
+
+// ── O QUE A FOLHA DE PONTO LEVA JUNTO ────────────────────────────────────
+//
+// A folha impressa é assinada e arquivada: *"no pdf faltou a foto da pessoa"*,
+// *"também faltou pôr o whatsapp para facilitar"*. Mas ela é sobre HORÁRIO — e
+// endereço, PIS e salário não têm por que viajar com ela.
+test("a folha de ponto leva foto e whatsapp, e nada de folha de pagamento", async () => {
+  const { app } = monta();
+  const r = await call(app, "get", "/employees/f1/time", {
+    query: { de: "2026-09-01", ate: "2026-09-30" },
+  });
+
+  assert.equal(r.status, 200);
+  assert.equal(r.body.funcionario.name, "Bruna");
+  // A foto vai como ID: quem busca os bytes é a tela, pela rota que exige
+  // sessão — é o rosto de uma pessoa empregada.
+  assert.equal(r.body.funcionario.photo, "abc123");
+  assert.equal(r.body.funcionario.whatsapp, "(21) 98812-4471");
+
+  for (const campo of [...CAMPOS_SENSIVEIS, "cpf", "endereco", "pis"]) {
+    assert.equal(campo in r.body.funcionario, false, `${campo} não devia viajar com a folha`);
+  }
+});
+
+test("sem foto, a folha de ponto manda nulo — e não o ObjectId de ninguém", async () => {
+  const { app } = monta({
+    api: { employee: { async data() { return { ...FICHA, photo: null, whatsapp: "" }; } } },
+  });
+  const r = await call(app, "get", "/employees/f1/time", {
+    query: { de: "2026-09-01", ate: "2026-09-30" },
+  });
+
+  assert.equal(r.body.funcionario.photo, null);
+  assert.equal(r.body.funcionario.whatsapp, "");
 });
 
 test("quem só VÊ não preenche o ponto", async () => {

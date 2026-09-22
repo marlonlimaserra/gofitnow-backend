@@ -313,7 +313,8 @@
     "unitRemoved": "Unidad eliminada.",
     "unitSaved": "Orden guardado.",
     "userRemoved": "Usuario eliminado.",
-    "workoutRemoved": "Entrenamiento eliminado."
+    "workoutRemoved": "Entrenamiento eliminado.",
+    "timeSheetEmailed": "Hoja de asistencia enviada por correo."
   },
   "permissions": {
     "groups": {
@@ -852,6 +853,9 @@
     },
     "document": {
       "subject": "Documento de {{nome}}"
+    },
+    "timeSheet": {
+      "subject": "Tu hoja de asistencia"
     }
   },
   "apiDocs": {
