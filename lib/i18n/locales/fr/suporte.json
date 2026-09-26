@@ -1,0 +1,15 @@
+{
+  "errors": {
+    "ideaCommentEmpty": "Écrivez quelque chose avant d'envoyer.",
+    "ideaCommentTooMany": "Vous avez beaucoup commenté aujourd'hui. Revenez demain.",
+    "ideaNoTitle": "Écrivez un titre d'au moins 4 caractères.",
+    "ideaNotFound": "Je n'ai pas trouvé cette idée.",
+    "ideaTooMany": "Vous avez déjà beaucoup proposé aujourd'hui. Revenez demain — les idées ne s'envolent pas.",
+    "ticketFileTooBig": "Le fichier dépasse 12 Mo.",
+    "ticketFileType": "Envoyez une image, un audio ou un PDF.",
+    "ticketNoMessage": "Écrivez le message ou joignez quelque chose.",
+    "ticketNoSubject": "Dites de quoi il s'agit.",
+    "ticketNotFound": "Ticket introuvable.",
+    "ticketUploadFailed": "Impossible d'enregistrer le fichier. Réessayez."
+  }
+}

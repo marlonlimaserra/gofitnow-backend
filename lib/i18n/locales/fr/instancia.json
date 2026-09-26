@@ -1,0 +1,11 @@
+{
+  "errors": {
+    "domainTaken": "Ce domaine est déjà sur un autre compte.",
+    "noCustomDomain": "Aucun domaine personnel n’est configuré.",
+    "noInstance": "Instance non fournie. Envoyez l’en-tête X-Instance, ou passez par l’adresse de l’instance.",
+    "ourDomain": "Cette adresse est la nôtre. Pour une adresse en {{base}}, utilisez l’option de sous-domaine.",
+    "subdomainTaken": "Cette adresse appartient déjà à un autre compte.",
+    "unitInUse": "Cette unité compte {{count}} personne(s). Désactivez-la au lieu de la supprimer.",
+    "unitNotFound": "Unité introuvable."
+  }
+}

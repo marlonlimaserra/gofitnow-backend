@@ -1,0 +1,31 @@
+{
+  "errors": {
+    "payableNoDescription": "The bill needs a description.",
+    "payableNotFound": "Bill not found.",
+    "supplierInUse": "{{count}} bill(s) point to this supplier. Deactivate it instead of deleting.",
+    "supplierNoName": "The supplier needs a name.",
+    "supplierNotFound": "Supplier not found."
+  },
+  "payables": {
+    "category": {
+      "agua": "Water",
+      "aluguel": "Rent",
+      "contabilidade": "Accounting",
+      "energia": "Electricity",
+      "equipamento": "Equipment",
+      "folha": "Payroll",
+      "fornecedor": "Supplier",
+      "gas": "Gas",
+      "impostos": "Taxes",
+      "internet": "Internet",
+      "manutencao": "Maintenance",
+      "marketing": "Marketing",
+      "outros": "Other",
+      "seguranca": "Security",
+      "seguro": "Insurance",
+      "software": "Software",
+      "taxas": "Bank and card fees",
+      "telefone": "Phone"
+    }
+  }
+}

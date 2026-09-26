@@ -1,0 +1,15 @@
+{
+  "errors": {
+    "aulaoAlreadyIn": "Esa persona ya está inscrita.",
+    "aulaoBadImage": "No pude leer esa imagen. Prueba con JPG, PNG o WebP.",
+    "aulaoFree": "Esta clase es gratuita — no hay cobro.",
+    "aulaoFull": "Esta clase está llena.",
+    "aulaoNoDate": "Indica la fecha y la hora de la clase.",
+    "aulaoNoName": "Ponle un nombre a la clase.",
+    "aulaoNoPerson": "Elige a quién inscribir.",
+    "aulaoNotEnrolled": "Esa persona no está inscrita en esta clase.",
+    "aulaoNotFound": "Esa clase grupal ya no existe.",
+    "aulaoRateLimited": "Demasiadas inscripciones desde este dispositivo. Inténtalo de nuevo en una hora.",
+    "aulaoTooManyImages": "Esta clase ya tiene el máximo de fotos."
+  }
+}

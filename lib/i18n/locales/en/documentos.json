@@ -1,0 +1,23 @@
+{
+  "documentTemplates": {
+    "fieldAddress": "Address",
+    "fieldBirth": "Date of birth",
+    "fieldCpf": "Tax ID",
+    "fieldEmail": "Email",
+    "fieldHouse": "Business",
+    "fieldName": "Name",
+    "fieldPhone": "Phone",
+    "fieldToday": "Today's date"
+  },
+  "pendencies": {
+    "category": {
+      "delivery": "Handover",
+      "document": "Document",
+      "health": "Health",
+      "other": "Other",
+      "payment": "Payment"
+    },
+    "owedByHouse": "The house owes it",
+    "owedByPerson": "The person owes it"
+  }
+}

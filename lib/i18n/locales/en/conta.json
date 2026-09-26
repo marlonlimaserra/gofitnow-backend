@@ -1,0 +1,9 @@
+{
+  "errors": {
+    "deletionFailed": "I could not finish the deletion. Try again in a moment.",
+    "deletionNeedsPassword": "Enter your password to confirm the deletion.",
+    "deletionNothingScheduled": "There is no deletion scheduled on this account.",
+    "deletionOwnerBlocked": "You are the account holder, so it cannot be deleted here — the platform would be left with nobody responsible. Contact support to close the whole account.",
+    "deletionWrongPassword": "Wrong password. Enter your account password to confirm."
+  }
+}

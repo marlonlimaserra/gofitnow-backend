@@ -1,0 +1,15 @@
+{
+  "errors": {
+    "aulaoAlreadyIn": "Cette personne est déjà inscrite.",
+    "aulaoBadImage": "Impossible de lire cette image. Essayez un JPG, PNG ou WebP.",
+    "aulaoFree": "Ce cours est gratuit — il n'y a pas de facture.",
+    "aulaoFull": "Ce cours est complet.",
+    "aulaoNoDate": "Indiquez la date et l'heure du cours.",
+    "aulaoNoName": "Donnez un nom au cours.",
+    "aulaoNoPerson": "Choisissez qui inscrire.",
+    "aulaoNotEnrolled": "Cette personne n'est pas inscrite à ce cours.",
+    "aulaoNotFound": "Ce cours collectif n'existe plus.",
+    "aulaoRateLimited": "Trop d'inscriptions depuis cet appareil. Réessayez dans une heure.",
+    "aulaoTooManyImages": "Ce cours a déjà le maximum de photos."
+  }
+}

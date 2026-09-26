@@ -1,0 +1,11 @@
+{
+  "errors": {
+    "domainTaken": "Ese dominio ya está en otra cuenta.",
+    "noCustomDomain": "No hay ningún dominio propio configurado.",
+    "noInstance": "Instancia no informada. Envía el encabezado X-Instance, o entra por la dirección de la instancia.",
+    "ourDomain": "Esa dirección es nuestra. Para una dirección en {{base}}, usa la opción de subdominio.",
+    "subdomainTaken": "Esa dirección ya es de otra cuenta.",
+    "unitInUse": "Esta unidad tiene {{count}} persona(s). Desactívala en vez de borrarla.",
+    "unitNotFound": "Unidad no encontrada."
+  }
+}

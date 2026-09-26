@@ -1,0 +1,36 @@
+{
+  "employees": {
+    "bond": {
+      "apprentice": "Apprentice",
+      "autonomous": "Freelance",
+      "clt": "Employee",
+      "intern": "Intern",
+      "partner": "Partner",
+      "pj": "Contractor",
+      "temporary": "Temporary",
+      "volunteer": "Volunteer"
+    },
+    "record": {
+      "absence": "Absence",
+      "leave": "Leave",
+      "note": "Note",
+      "praise": "Praise",
+      "promotion": "Promotion",
+      "raise": "Pay rise",
+      "sickNote": "Sick note",
+      "training": "Training",
+      "vacation": "Holiday",
+      "warning": "Warning"
+    },
+    "severity": {
+      "suspension": "Suspension",
+      "verbal": "Verbal",
+      "written": "Written"
+    }
+  },
+  "errors": {
+    "employeeHasHistory": "This employee has {{ocorrencias}} entr(ies) and {{pontos}} day(s) on the time sheet. Deleting takes it all — off-boarding is the usual way.",
+    "employeeNotFound": "This employee no longer exists.",
+    "payrollOnly": "Only someone who can see pay may log a raise."
+  }
+}

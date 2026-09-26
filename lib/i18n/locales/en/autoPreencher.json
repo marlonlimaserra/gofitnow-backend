@@ -1,0 +1,88 @@
+{
+  "autoFill": {
+    "fields": {
+      "appointment": {
+        "note": {
+          "hint": "E.g.: Bring a towel and water bottle",
+          "label": "Appointment note"
+        },
+        "title": {
+          "hint": "E.g.: Training, Consultation",
+          "label": "Appointment type"
+        }
+      },
+      "assessment": {
+        "note": {
+          "hint": "E.g.: Fasted, taken in the morning",
+          "label": "Assessment note"
+        }
+      },
+      "charge": {
+        "description": {
+          "hint": "E.g.: September membership",
+          "label": "Charge description"
+        },
+        "note": {
+          "hint": "E.g.: Agreed to pay half on the 10th",
+          "label": "Charge note"
+        }
+      },
+      "diet": {
+        "goal": {
+          "hint": "e.g. Weight loss",
+          "label": "Plan goal"
+        },
+        "mealNote": {
+          "hint": "e.g. Chew slowly and drink water beforehand",
+          "label": "Meal note"
+        },
+        "name": {
+          "hint": "e.g. August plan",
+          "label": "Plan name"
+        }
+      },
+      "person": {
+        "goal": {
+          "hint": "e.g. Weight loss",
+          "label": "Record goal"
+        }
+      },
+      "session": {
+        "name": {
+          "hint": "e.g. Workout A — Chest and triceps",
+          "label": "Session name"
+        }
+      },
+      "workout": {
+        "calories": {
+          "hint": "e.g. 400",
+          "label": "Workout calories burned"
+        },
+        "goal": {
+          "hint": "e.g. Muscle gain",
+          "label": "Workout goal"
+        },
+        "name": {
+          "hint": "e.g. Hypertrophy 4 weeks",
+          "label": "Workout name"
+        },
+        "tip": {
+          "hint": "What you usually advise",
+          "label": "Workout tip"
+        },
+        "totalSessions": {
+          "hint": "e.g. 12",
+          "label": "Workout total sessions"
+        }
+      }
+    },
+    "groups": {
+      "assessments": "Physical assessment",
+      "diet": "Diet",
+      "finance": "Finance",
+      "people": "People",
+      "schedule": "Schedule",
+      "workout": "Workout"
+    }
+  }
+}

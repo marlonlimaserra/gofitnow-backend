@@ -1,0 +1,15 @@
+{
+  "errors": {
+    "aulaoAlreadyIn": "That person is already enrolled.",
+    "aulaoBadImage": "We could not read that image. Try a JPG, PNG or WebP.",
+    "aulaoFree": "This class is free — there is no charge.",
+    "aulaoFull": "This group class is full.",
+    "aulaoNoDate": "Set the date and time of the group class.",
+    "aulaoNoName": "Give the group class a name.",
+    "aulaoNoPerson": "Choose who to enroll.",
+    "aulaoNotEnrolled": "That person is not enrolled in this group class.",
+    "aulaoNotFound": "That group class no longer exists.",
+    "aulaoRateLimited": "Too many sign-ups from this device. Please try again in an hour.",
+    "aulaoTooManyImages": "This class already has the maximum number of photos."
+  }
+}

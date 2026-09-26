@@ -1,0 +1,88 @@
+{
+  "autoFill": {
+    "fields": {
+      "appointment": {
+        "note": {
+          "hint": "Ex.: Levar toalha e garrafa",
+          "label": "Observação do compromisso"
+        },
+        "title": {
+          "hint": "Ex.: Treino, Consulta",
+          "label": "Tipo do compromisso"
+        }
+      },
+      "assessment": {
+        "note": {
+          "hint": "Ex.: Coleta em jejum, pela manhã",
+          "label": "Observação da avaliação"
+        }
+      },
+      "charge": {
+        "description": {
+          "hint": "Ex.: Mensalidade de setembro",
+          "label": "Descrição da cobrança"
+        },
+        "note": {
+          "hint": "Ex.: Combinado pagar metade no dia 10",
+          "label": "Observação da cobrança"
+        }
+      },
+      "diet": {
+        "goal": {
+          "hint": "Ex.: Emagrecimento",
+          "label": "Objetivo do plano"
+        },
+        "mealNote": {
+          "hint": "Ex.: Mastigue devagar e beba água antes",
+          "label": "Observação da refeição"
+        },
+        "name": {
+          "hint": "Ex.: Plano de agosto",
+          "label": "Nome do plano"
+        }
+      },
+      "person": {
+        "goal": {
+          "hint": "Ex.: Emagrecimento",
+          "label": "Objetivo da ficha"
+        }
+      },
+      "session": {
+        "name": {
+          "hint": "Ex.: Treino A — Peito e tríceps",
+          "label": "Nome da sessão"
+        }
+      },
+      "workout": {
+        "calories": {
+          "hint": "Ex.: 400",
+          "label": "Gasto calórico do treino"
+        },
+        "goal": {
+          "hint": "Ex.: Ganho de massa muscular",
+          "label": "Objetivo do treino"
+        },
+        "name": {
+          "hint": "Ex.: Hipertrofia 4 semanas",
+          "label": "Nome do treino"
+        },
+        "tip": {
+          "hint": "O que você costuma orientar",
+          "label": "Dica do treino"
+        },
+        "totalSessions": {
+          "hint": "Ex.: 12",
+          "label": "Total de sessões do treino"
+        }
+      }
+    },
+    "groups": {
+      "assessments": "Avaliação física",
+      "diet": "Dieta",
+      "finance": "Financeiro",
+      "people": "Pessoas",
+      "schedule": "Agenda",
+      "workout": "Treino"
+    }
+  }
+}

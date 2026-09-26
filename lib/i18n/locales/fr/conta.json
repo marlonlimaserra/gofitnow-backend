@@ -1,0 +1,9 @@
+{
+  "errors": {
+    "deletionFailed": "Je n'ai pas pu terminer la suppression. Réessayez dans un instant.",
+    "deletionNeedsPassword": "Saisissez votre mot de passe pour confirmer la suppression.",
+    "deletionNothingScheduled": "Aucune suppression n'est programmée sur ce compte.",
+    "deletionOwnerBlocked": "Vous êtes le titulaire de ce compte, il ne peut donc pas être supprimé ici — la plateforme resterait sans responsable. Contactez le support pour fermer le compte entier.",
+    "deletionWrongPassword": "Mot de passe incorrect. Saisissez celui de votre compte pour confirmer."
+  }
+}

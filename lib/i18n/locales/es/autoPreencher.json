@@ -1,0 +1,88 @@
+{
+  "autoFill": {
+    "fields": {
+      "appointment": {
+        "note": {
+          "hint": "Ej.: Traer toalla y botella",
+          "label": "Observación de la cita"
+        },
+        "title": {
+          "hint": "Ej.: Entrenamiento, Consulta",
+          "label": "Tipo de cita"
+        }
+      },
+      "assessment": {
+        "note": {
+          "hint": "Ej.: Medición en ayunas, por la mañana",
+          "label": "Observación de la evaluación"
+        }
+      },
+      "charge": {
+        "description": {
+          "hint": "Ej.: Mensualidad de septiembre",
+          "label": "Descripción del cobro"
+        },
+        "note": {
+          "hint": "Ej.: Acordó pagar la mitad el día 10",
+          "label": "Observación del cobro"
+        }
+      },
+      "diet": {
+        "goal": {
+          "hint": "Ej.: Pérdida de peso",
+          "label": "Objetivo del plan"
+        },
+        "mealNote": {
+          "hint": "Ej.: Mastica despacio y bebe agua antes",
+          "label": "Observación de la comida"
+        },
+        "name": {
+          "hint": "Ej.: Plan de agosto",
+          "label": "Nombre del plan"
+        }
+      },
+      "person": {
+        "goal": {
+          "hint": "Ej.: Adelgazamiento",
+          "label": "Objetivo de la ficha"
+        }
+      },
+      "session": {
+        "name": {
+          "hint": "Ej.: Entrenamiento A — Pecho y tríceps",
+          "label": "Nombre de la sesión"
+        }
+      },
+      "workout": {
+        "calories": {
+          "hint": "Ej.: 400",
+          "label": "Gasto calórico del entrenamiento"
+        },
+        "goal": {
+          "hint": "Ej.: Ganancia de masa muscular",
+          "label": "Objetivo del entrenamiento"
+        },
+        "name": {
+          "hint": "Ej.: Hipertrofia 4 semanas",
+          "label": "Nombre del entrenamiento"
+        },
+        "tip": {
+          "hint": "Lo que sueles orientar",
+          "label": "Consejo del entrenamiento"
+        },
+        "totalSessions": {
+          "hint": "Ej.: 12",
+          "label": "Total de sesiones del entrenamiento"
+        }
+      }
+    },
+    "groups": {
+      "assessments": "Evaluación física",
+      "diet": "Dieta",
+      "finance": "Finanzas",
+      "people": "Personas",
+      "schedule": "Agenda",
+      "workout": "Entrenamiento"
+    }
+  }
+}

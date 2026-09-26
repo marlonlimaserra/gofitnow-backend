@@ -1,0 +1,19 @@
+{
+  "errors": {
+    "assessmentNotFound": "Evaluación no encontrada.",
+    "attachmentTooBig": "Archivo demasiado grande. El límite es 7 MB por adjunto.",
+    "dietNotFound": "Plan no encontrado.",
+    "documentNotFound": "Este documento ya no existe.",
+    "examNotFound": "Examen no encontrado.",
+    "inviteEmailTaken": "No se pudo completar el registro con ese correo. Intenta entrar o usa otro.",
+    "inviteNotFound": "Este enlace de registro ya no es válido. Pide uno nuevo a quien te lo envió.",
+    "pendencyNotFound": "Este pendiente ya no existe.",
+    "personNotFound": "Persona no encontrada.",
+    "personWithoutEmail": "Esta persona no tiene correo registrado.",
+    "prescriptionNotFound": "Prescripción no encontrada.",
+    "studentAreaOnly": "Esta área es de quien es atendido. Tu acceso es por la ficha.",
+    "studentNotFound": "Alumno no encontrado.",
+    "studentWithoutEmail": "Esta persona no tiene correo electrónico registrado.",
+    "workoutNotFound": "Entrenamiento no encontrado."
+  }
+}

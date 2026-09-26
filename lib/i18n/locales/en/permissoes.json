@@ -1,0 +1,302 @@
+{
+  "errors": {
+    "adminRoleLocked": "The Administrator type cannot be changed. Create another type to adjust permissions.",
+    "groupNameTaken": "A group with that name already exists.",
+    "invalidRole": "Invalid user type.",
+    "lastAccountManagingRoles": "This is the last active account that manages permissions.",
+    "lastAccountManagingRolesEdit": "This is the last active account that manages permissions — promote another one before changing this.",
+    "lastManagerGroup": "This group is what grants you permission to manage permissions. Deleting it would lock this screen.",
+    "lastRoleManagingRoles": "This is the only type that still manages permissions, and it is yours. Give that permission to another type first.",
+    "noPermission": "Your user type does not have permission for this.",
+    "roleNameTaken": "A type with that name already exists.",
+    "roleNotFound": "User type not found."
+  },
+  "permissions": {
+    "groups": {
+      "ai": {
+        "description": "The assistant that drives the screen for you.",
+        "title": "Assistant"
+      },
+      "anamnesis": {
+        "description": "Medical history, habits and eating routine",
+        "title": "Health history"
+      },
+      "assessments": {
+        "description": "Measurements, skinfolds and progress",
+        "title": "Assessment"
+      },
+      "chat": {
+        "description": "Conversations with the people you follow.",
+        "title": "Chat"
+      },
+      "diets": {
+        "description": "Meal plans and meals",
+        "title": "Diets"
+      },
+      "employees": {
+        "description": "Your team: profile, time sheet, records and pay",
+        "title": "Employees"
+      },
+      "exams": {
+        "description": "Blood work and marker trends",
+        "title": "Lab results"
+      },
+      "exercises": {
+        "description": "The professional's exercise catalog",
+        "title": "Exercises"
+      },
+      "finance": {
+        "description": "Charges, payments and receipts",
+        "title": "Billing"
+      },
+      "foods": {
+        "description": "The food catalogue",
+        "title": "Foods"
+      },
+      "logs": {
+        "description": "The record of everything done on the platform",
+        "title": "History"
+      },
+      "people": {
+        "description": "Who the professional follows",
+        "title": "People"
+      },
+      "prescriptions": {
+        "description": "Prescriptions, lab orders, referrals and notes",
+        "title": "Prescriptions"
+      },
+      "roles": {
+        "description": "The types themselves and what each one may do",
+        "title": "User types"
+      },
+      "schedule": {
+        "description": "Classes, times and bookings",
+        "title": "Schedule"
+      },
+      "structure": {
+        "description": "Equipment, maintenance and stock",
+        "title": "Assets"
+      },
+      "supplements": {
+        "description": "What the person takes, and when in the day",
+        "title": "Supplements"
+      },
+      "users": {
+        "description": "Every account on the platform",
+        "title": "Users"
+      },
+      "workouts": {
+        "description": "Workout plans and sessions",
+        "title": "Workouts"
+      }
+    },
+    "items": {
+      "ai": {
+        "manage": {
+          "hint": "Change the key and the model. Affects what the account is billed.",
+          "label": "Configure the assistant"
+        },
+        "use": {
+          "hint": "Talk to the assistant and let it drive the screen.",
+          "label": "Use the assistant"
+        }
+      },
+      "anamnesis": {
+        "manage": {
+          "hint": "Write and change the health history and habits.",
+          "label": "Fill in history"
+        },
+        "view": {
+          "hint": "Open the tab and read the health history.",
+          "label": "View history"
+        }
+      },
+      "assessments": {
+        "manage": {
+          "hint": "Record and delete measurements. The screen is under construction.",
+          "label": "Manage assessments"
+        },
+        "view": {
+          "hint": "Open the assessment tab. The screen is under construction.",
+          "label": "View assessments"
+        }
+      },
+      "chat": {
+        "send": {
+          "hint": "Write, and start a conversation with someone.",
+          "label": "Send messages"
+        },
+        "view": {
+          "hint": "Open the chat and read your own conversations.",
+          "label": "View conversations"
+        }
+      },
+      "diets": {
+        "manage": {
+          "hint": "Create, edit and delete plans and meals.",
+          "label": "Manage diets"
+        },
+        "view": {
+          "hint": "Open people's meal plans.",
+          "label": "View diets"
+        }
+      },
+      "employees": {
+        "manage": {
+          "hint": "Add, edit, off-board, log warnings and fill in the time sheet.",
+          "label": "Manage employees"
+        },
+        "payroll": {
+          "hint": "See salary, benefits and bank details, and log raises.",
+          "label": "View and change pay"
+        },
+        "view": {
+          "hint": "Open the team list and each profile, without the salary.",
+          "label": "View employees"
+        }
+      },
+      "exams": {
+        "manage": {
+          "hint": "Enter, correct and delete reports.",
+          "label": "Enter lab results"
+        },
+        "view": {
+          "hint": "Open the tab and read reports and trends.",
+          "label": "View lab results"
+        }
+      },
+      "exercises": {
+        "manage": {
+          "hint": "Create, change and delete exercises.",
+          "label": "Edit the catalog"
+        },
+        "view": {
+          "hint": "Browse exercises and groups.",
+          "label": "View the catalog"
+        }
+      },
+      "finance": {
+        "manage": {
+          "hint": "Create charges and settle them. The screen is under construction.",
+          "label": "Manage billing"
+        },
+        "view": {
+          "hint": "Open the billing tab and see charges. The screen is under construction.",
+          "label": "View billing"
+        }
+      },
+      "foods": {
+        "manage": {
+          "hint": "Create, edit and delete catalogue foods — applies to every account.",
+          "label": "Manage foods"
+        },
+        "view": {
+          "hint": "Browse foods and categories.",
+          "label": "View the catalogue"
+        }
+      },
+      "logs": {
+        "view": {
+          "hint": "See who did what, when and from which address.",
+          "label": "View the history"
+        }
+      },
+      "people": {
+        "access": {
+          "hint": "Set or revoke the password of whoever you registered.",
+          "label": "Manage the person's access"
+        },
+        "create": {
+          "hint": "Register a new record and ask access from whoever already has an account.",
+          "label": "Add person"
+        },
+        "delete": {
+          "hint": "Undo the link. The person still exists if another professional follows them.",
+          "label": "Remove from list"
+        },
+        "edit": {
+          "hint": "Change data, measurements and notes.",
+          "label": "Edit record"
+        },
+        "view": {
+          "hint": "Open the list and the record of whoever is already linked.",
+          "label": "View people"
+        }
+      },
+      "prescriptions": {
+        "manage": {
+          "hint": "Create, change and delete documents. This is who signs.",
+          "label": "Issue prescription"
+        },
+        "view": {
+          "hint": "Open issued documents and reprint them.",
+          "label": "View prescriptions"
+        }
+      },
+      "roles": {
+        "manage": {
+          "hint": "Create types and change each one's permissions. Whoever has this can give themselves any power.",
+          "label": "Manage types"
+        },
+        "view": {
+          "hint": "Open the User types menu.",
+          "label": "View types"
+        }
+      },
+      "schedule": {
+        "manage": {
+          "hint": "Book and cancel times. The screen is under construction.",
+          "label": "Manage the schedule"
+        },
+        "team": {
+          "hint": "See and book on other professionals’ schedules.",
+          "label": "Team schedule"
+        },
+        "view": {
+          "hint": "Open the schedule tab. The screen is under construction.",
+          "label": "View the schedule"
+        }
+      },
+      "structure": {
+        "manage": {
+          "hint": "Add equipment and supplies, and log maintenance.",
+          "label": "Manage assets"
+        },
+        "view": {
+          "hint": "Open equipment and stock, and log stock usage.",
+          "label": "View assets"
+        }
+      },
+      "supplements": {
+        "manage": {
+          "hint": "Add, change and end supplement items.",
+          "label": "Recommend supplement"
+        },
+        "view": {
+          "hint": "Open the tab and read what was recommended.",
+          "label": "View supplements"
+        }
+      },
+      "users": {
+        "manage": {
+          "hint": "Register professionals, edit, deactivate and delete any account.",
+          "label": "Manage users"
+        },
+        "view": {
+          "hint": "Open the Users menu.",
+          "label": "View users"
+        }
+      },
+      "workouts": {
+        "manage": {
+          "hint": "Create, edit, duplicate and delete workouts, sessions and session exercises.",
+          "label": "Build workouts"
+        },
+        "view": {
+          "hint": "Open the workouts and the sessions.",
+          "label": "View workouts"
+        }
+      }
+    }
+  }
+}

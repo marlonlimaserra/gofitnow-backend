@@ -1,0 +1,8 @@
+{
+  "errors": {
+    "apiKeyCannotManage": "Una clave de API no puede crear ni revocar claves. Entra en la app para eso.",
+    "apiKeyNotFound": "Clave no encontrada.",
+    "invalidApiKey": "Clave de API inválida o revocada.",
+    "noApiKey": "Clave de API no informada."
+  }
+}

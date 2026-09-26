@@ -1,0 +1,19 @@
+{
+  "errors": {
+    "assessmentNotFound": "Évaluation introuvable.",
+    "attachmentTooBig": "Fichier trop volumineux. La limite est de 7 Mo par pièce jointe.",
+    "dietNotFound": "Plan introuvable.",
+    "documentNotFound": "Ce document n'existe plus.",
+    "examNotFound": "Analyse introuvable.",
+    "inviteEmailTaken": "Impossible de terminer l’inscription avec cet e-mail. Essayez de vous connecter ou utilisez-en un autre.",
+    "inviteNotFound": "Ce lien d’inscription n’est plus valide. Demandez-en un nouveau à son expéditeur.",
+    "pendencyNotFound": "Cet élément n'existe plus.",
+    "personNotFound": "Personne introuvable.",
+    "personWithoutEmail": "Cette personne n'a pas d'e-mail enregistré.",
+    "prescriptionNotFound": "Prescription introuvable.",
+    "studentAreaOnly": "Cet espace appartient aux personnes suivies. Votre accès passe par leur fiche.",
+    "studentNotFound": "Élève introuvable.",
+    "studentWithoutEmail": "Cette personne n'a pas d'adresse e-mail enregistrée.",
+    "workoutNotFound": "Entraînement introuvable."
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "errors": {
+    "alreadyOnPlan": "You are already on that plan.",
+    "brandImagesNotInPlan": "Your plan does not include brand images. You can still point to an image hosted somewhere else.",
+    "membershipBenefitInUse": "This benefit is ticked on {{count}} plan(s). Deactivate it instead of deleting.",
+    "membershipBenefitNotFound": "Benefit not found.",
+    "membershipInUse": "This plan is used by {{count}} recurrence(s). Deactivate it instead of deleting.",
+    "membershipNotFound": "Plan not found.",
+    "notInPlan": "Your plan does not include {{o}}. Talk to whoever manages your account.",
+    "planInactive": "That plan is no longer available.",
+    "planIsFree": "The free plan needs no payment.",
+    "planLimitReached": "Your plan allows up to {{max}} in {{o}}. Delete what you no longer use, or upgrade.",
+    "planNotFound": "That plan does not exist.",
+    "planNotSellable": "That plan is not ready to be sold yet. Support has been notified."
+  },
+  "memberships": {
+    "model": {
+      "brand": "Brand",
+      "dark": "Dark",
+      "energy": "Energy",
+      "light": "Light",
+      "neon": "Neon",
+      "ocean": "Ocean",
+      "sand": "Sand"
+    }
+  },
+  "planLimits": {
+    "anamnesis": "anamneses",
+    "apiKeys": "API keys",
+    "appearance": "appearance customization",
+    "assessments": "assessments",
+    "aulaoes": "group classes",
+    "dietTemplates": "diet templates",
+    "diets": "diets",
+    "employees": "employees",
+    "equipments": "equipment",
+    "exams": "exams",
+    "exercisesPerWorkout": "exercises per workout",
+    "foodsPerMeal": "foods per meal",
+    "groupClasses": "group classes",
+    "memberships": "plans",
+    "people": "people",
+    "photoSides": "photo categories in the assessment",
+    "prescriptions": "prescriptions",
+    "professionals": "team",
+    "schedule": "scheduling",
+    "setsPerExercise": "sets per exercise",
+    "supplements": "supplementation",
+    "units": "units",
+    "whitelabel": "whitelabel",
+    "workoutTemplates": "workout templates",
+    "workouts": "workouts"
+  }
+}

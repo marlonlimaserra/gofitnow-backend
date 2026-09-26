@@ -1,0 +1,40 @@
+{
+  "apiDocs": {
+    "groups": {
+      "account": "Compte",
+      "exercises": "Exercices",
+      "people": "Personnes",
+      "sessions": "Séances",
+      "workouts": "Entraînements"
+    },
+    "routes": {
+      "createExercise": "Crée un exercice dans ce compte. Avec `fromCatalog`, garde de quel exercice partagé il a été copié.",
+      "createPerson": "Ajoute une personne à votre liste.",
+      "createSession": "Crée une séance dans un entraînement.",
+      "createWorkout": "Crée un entraînement pour une personne.",
+      "deleteExercise": "Supprime un exercice de ce compte. Les entraînements déjà montés avec lui ne changent pas.",
+      "deleteSession": "Supprime la séance avec ses exercices.",
+      "deleteWorkout": "Supprime l’entraînement avec toutes ses séances.",
+      "duplicateSession": "Copie la séance avec ses exercices et ses séries. Sans `workoutId`, la copie reste dans le même entraînement.",
+      "duplicateWorkout": "Copie l’entraînement entier, séances et exercices compris.",
+      "exerciseGroups": "Les groupes musculaires utilisés, avec le compte de chacun.",
+      "getExercise": "Un exercice du catalogue.",
+      "getMe": "Les données du compte propriétaire de la clé.",
+      "getPerson": "La fiche d’une personne.",
+      "getSession": "Une séance avec les exercices qui y sont montés.",
+      "getWorkout": "Un entraînement avec ses séances.",
+      "listAllWorkouts": "Liste tous les entraînements du professionnel, toutes personnes confondues, du plus récent au plus ancien.",
+      "listExercises": "Le catalogue d'exercices, paginé : les partagés et ceux de ce compte. `mine=1` ne renvoie que ceux de ce compte.",
+      "listPeople": "Liste les personnes que vous suivez.",
+      "listWorkouts": "Les entraînements d’une personne, avec le compte par situation.",
+      "peopleSummary": "Votre liste en chiffres : total, actifs, avec accès et nouveaux du mois.",
+      "reorderWorkouts": "Enregistre l’ordre de la liste d’entraînements de la personne. Envoyez les ids dans le nouvel ordre.",
+      "setSessionExercises": "Remplace toute la liste d’exercices de la séance, dans l’ordre envoyé.",
+      "unlinkPerson": "Retire la personne de votre liste. Son compte continue d’exister.",
+      "updateExercise": "Modifie un exercice de ce compte. Les partagés ne sont pas modifiables.",
+      "updatePerson": "Modifie la fiche. L’e-mail n’y entre pas : seule la personne change le sien.",
+      "updateSession": "Modifie le nom ou la position de la séance.",
+      "updateWorkout": "Modifie un entraînement."
+    }
+  }
+}

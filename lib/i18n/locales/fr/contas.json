@@ -1,0 +1,31 @@
+{
+  "errors": {
+    "payableNoDescription": "La facture a besoin d'une description.",
+    "payableNotFound": "Facture introuvable.",
+    "supplierInUse": "{{count}} facture(s) pointent vers ce fournisseur. Désactivez-le au lieu de le supprimer.",
+    "supplierNoName": "Le fournisseur a besoin d'un nom.",
+    "supplierNotFound": "Fournisseur introuvable."
+  },
+  "payables": {
+    "category": {
+      "agua": "Eau",
+      "aluguel": "Loyer",
+      "contabilidade": "Comptabilité",
+      "energia": "Électricité",
+      "equipamento": "Équipement",
+      "folha": "Paie",
+      "fornecedor": "Fournisseur",
+      "gas": "Gaz",
+      "impostos": "Impôts",
+      "internet": "Internet",
+      "manutencao": "Maintenance",
+      "marketing": "Marketing",
+      "outros": "Autres",
+      "seguranca": "Sécurité",
+      "seguro": "Assurance",
+      "software": "Logiciel",
+      "taxas": "Frais bancaires et de carte",
+      "telefone": "Téléphone"
+    }
+  }
+}

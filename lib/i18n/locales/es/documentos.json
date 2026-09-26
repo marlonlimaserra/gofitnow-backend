@@ -1,0 +1,23 @@
+{
+  "documentTemplates": {
+    "fieldAddress": "Dirección",
+    "fieldBirth": "Nacimiento",
+    "fieldCpf": "Documento",
+    "fieldEmail": "Correo",
+    "fieldHouse": "Gimnasio",
+    "fieldName": "Nombre",
+    "fieldPhone": "Teléfono",
+    "fieldToday": "Fecha de hoy"
+  },
+  "pendencies": {
+    "category": {
+      "delivery": "Entrega",
+      "document": "Documento",
+      "health": "Salud",
+      "other": "Otro",
+      "payment": "Pago"
+    },
+    "owedByHouse": "La casa debe entregar",
+    "owedByPerson": "El alumno debe entregar"
+  }
+}

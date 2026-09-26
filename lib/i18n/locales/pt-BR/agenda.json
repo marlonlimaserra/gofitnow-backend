@@ -1,0 +1,21 @@
+{
+  "errors": {
+    "appointmentNotFound": "Compromisso não encontrado.",
+    "bookingName": "Diga seu nome.",
+    "bookingPageName": "Dê um nome à página.",
+    "bookingPageNotFound": "Página de agendamento não encontrada.",
+    "bookingPageSlugRequired": "Escreva o apelido que vai na URL.",
+    "bookingPageSlugReserved": "Esse apelido é reservado pelo sistema. Escolha outro.",
+    "bookingPageSlugShort": "O apelido precisa de ao menos duas letras.",
+    "bookingPageSlugTaken": "Já existe uma página com esse apelido.",
+    "bookingPhone": "Informe seu WhatsApp.",
+    "checkinNotFound": "Esta entrada não existe mais.",
+    "endBeforeStart": "A data final não pode ser antes da inicial.",
+    "groupClassAlreadyToday": "Esta pessoa já entrou numa aula hoje.",
+    "groupClassClosed": "A aula deste horário está fechada.",
+    "groupClassFull": "A aula está lotada.",
+    "groupClassIncomplete": "A aula precisa de nome, horário e pelo menos um dia da semana.",
+    "groupClassNotFound": "Aula não encontrada.",
+    "invalidDay": "Dia inválido. Use o formato AAAA-MM-DD."
+  }
+}

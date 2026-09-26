@@ -1,0 +1,47 @@
+{
+  "errors": {
+    "equipmentNotFound": "Este equipo ya no existe.",
+    "maintenanceNotFound": "Este mantenimiento ya no existe."
+  },
+  "structure": {
+    "equipment": {
+      "accessory": "Accesorio",
+      "building": "Edificio",
+      "cardio": "Cardio",
+      "free": "Peso libre",
+      "other": "Otro",
+      "strength": "Musculación"
+    },
+    "maintenance": {
+      "corrective": "Correctivo",
+      "install": "Instalación",
+      "preventive": "Preventivo"
+    },
+    "move": {
+      "fix": "Ajuste de conteo",
+      "in": "Entrada",
+      "out": "Salida"
+    },
+    "state": {
+      "idle": "Parado",
+      "maintenance": "En reparación",
+      "ok": "En uso",
+      "retired": "Dado de baja"
+    },
+    "supply": {
+      "bathroom": "Baño",
+      "cleaning": "Limpieza",
+      "maintenance": "Mantenimiento",
+      "office": "Oficina",
+      "other": "Otro",
+      "resale": "Reventa"
+    },
+    "unit": {
+      "box": "caja",
+      "kilo": "kg",
+      "liter": "L",
+      "meter": "m",
+      "piece": "un"
+    }
+  }
+}

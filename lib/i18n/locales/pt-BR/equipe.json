@@ -1,0 +1,36 @@
+{
+  "employees": {
+    "bond": {
+      "apprentice": "Jovem aprendiz",
+      "autonomous": "Autônomo",
+      "clt": "CLT",
+      "intern": "Estágio",
+      "partner": "Sócio",
+      "pj": "PJ",
+      "temporary": "Temporário",
+      "volunteer": "Voluntário"
+    },
+    "record": {
+      "absence": "Falta",
+      "leave": "Licença",
+      "note": "Anotação",
+      "praise": "Elogio",
+      "promotion": "Promoção",
+      "raise": "Reajuste salarial",
+      "sickNote": "Atestado",
+      "training": "Treinamento",
+      "vacation": "Férias",
+      "warning": "Advertência"
+    },
+    "severity": {
+      "suspension": "Suspensão",
+      "verbal": "Verbal",
+      "written": "Escrita"
+    }
+  },
+  "errors": {
+    "employeeHasHistory": "Este funcionário tem {{ocorrencias}} lançamento(s) e {{pontos}} dia(s) de ponto. Apagar leva tudo junto — o normal é desligar.",
+    "employeeNotFound": "Este funcionário não existe mais.",
+    "payrollOnly": "Só quem pode ver salário lança reajuste."
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "errors": {
+    "ideaCommentEmpty": "Escribe algo antes de enviar.",
+    "ideaCommentTooMany": "Comentaste bastante hoy. Vuelve mañana.",
+    "ideaNoTitle": "Escribe un título con al menos 4 letras.",
+    "ideaNotFound": "No encontré esa idea.",
+    "ideaTooMany": "Ya sugeriste bastante hoy. Vuelve mañana — las ideas no se van a ningún lado.",
+    "ticketFileTooBig": "El archivo supera los 12 MB.",
+    "ticketFileType": "Envía imagen, audio o PDF.",
+    "ticketNoMessage": "Escribe el mensaje o adjunta algo.",
+    "ticketNoSubject": "Di de qué se trata.",
+    "ticketNotFound": "Ticket no encontrado.",
+    "ticketUploadFailed": "No pude guardar el archivo. Inténtalo de nuevo."
+  }
+}

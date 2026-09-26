@@ -1,0 +1,47 @@
+{
+  "errors": {
+    "equipmentNotFound": "Cet équipement n'existe plus.",
+    "maintenanceNotFound": "Cet entretien n'existe plus."
+  },
+  "structure": {
+    "equipment": {
+      "accessory": "Accessoire",
+      "building": "Bâtiment",
+      "cardio": "Cardio",
+      "free": "Poids libres",
+      "other": "Autre",
+      "strength": "Musculation"
+    },
+    "maintenance": {
+      "corrective": "Correctif",
+      "install": "Installation",
+      "preventive": "Préventif"
+    },
+    "move": {
+      "fix": "Ajustement d'inventaire",
+      "in": "Entrée",
+      "out": "Sortie"
+    },
+    "state": {
+      "idle": "À l'arrêt",
+      "maintenance": "En réparation",
+      "ok": "En service",
+      "retired": "Retiré"
+    },
+    "supply": {
+      "bathroom": "Sanitaires",
+      "cleaning": "Nettoyage",
+      "maintenance": "Entretien",
+      "office": "Bureau",
+      "other": "Autre",
+      "resale": "Revente"
+    },
+    "unit": {
+      "box": "boîte",
+      "kilo": "kg",
+      "liter": "L",
+      "meter": "m",
+      "piece": "u"
+    }
+  }
+}

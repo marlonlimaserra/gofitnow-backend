@@ -1,0 +1,31 @@
+{
+  "errors": {
+    "aiBadKey": "A Anthropic recusou a chave. Confira em Configurações.",
+    "aiChatTooLong": "A conversa ficou longa demais. Comece uma nova.",
+    "aiDisabled": "O assistente está desligado nesta conta.",
+    "aiEmptyChat": "Mande ao menos uma mensagem.",
+    "aiEmptyLog": "A conversa a registrar chegou vazia.",
+    "aiFailed": "O assistente não conseguiu responder.",
+    "aiInvalidKey": "A chave da Anthropic começa com sk-ant-. Confira o que foi colado.",
+    "aiInvalidModel": "Informe o nome do modelo, como qwen3:8b.",
+    "aiInvalidUrl": "Informe um endereço válido, começando com https://",
+    "aiInvalidVoiceKey": "A chave da OpenAI começa com sk-. Confira o que foi colado.",
+    "aiNoOwner": "Esta instância ainda não tem um profissional cadastrado.",
+    "aiNotConfigured": "O assistente ainda não foi configurado. Ponha a chave em Configurações.",
+    "aiOllamaFailed": "O seu Ollama recusou o pedido. O modelo informado foi baixado nessa máquina?",
+    "aiOllamaUnreachable": "Não deu para falar com o seu Ollama. Confira se ele está no ar e se o túnel continua aberto.",
+    "aiPrivateUrl": "Endereço de rede interna não é aceito. Use o endereço público do túnel (ngrok).",
+    "aiRateLimited": "A Anthropic pediu para esperar um pouco. Tente de novo em instantes.",
+    "aiRefused": "O assistente preferiu não responder a isso.",
+    "aiRejected": "A Anthropic recusou o pedido.",
+    "aiSessionNotFound": "Esta conversa não existe mais.",
+    "aiUnreachable": "Não deu para falar com a Anthropic. Tente de novo em instantes.",
+    "aiVoiceBadKey": "A OpenAI recusou a chave. Confira em Configurações › Assistente.",
+    "aiVoiceFailed": "A OpenAI recusou o pedido de voz.",
+    "aiVoiceModelNotFound": "O modelo de voz informado não existe nessa conta. Confira o nome em Configurações › Assistente.",
+    "aiVoiceNoCredit": "Sua conta da OpenAI está sem créditos. Adicione saldo em platform.openai.com/settings/organization/billing — cartão cadastrado não basta, é preciso comprar crédito.",
+    "aiVoiceNotConfigured": "O modo conversa ainda não tem uma chave da OpenAI configurada.",
+    "aiVoiceRateLimited": "A OpenAI pediu para esperar um pouco. Tente de novo em instantes.",
+    "aiVoiceUnreachable": "Não deu para falar com a OpenAI. Tente de novo em instantes."
+  }
+}

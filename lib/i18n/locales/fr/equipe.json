@@ -1,0 +1,36 @@
+{
+  "employees": {
+    "bond": {
+      "apprentice": "Apprenti",
+      "autonomous": "Indépendant",
+      "clt": "Salarié",
+      "intern": "Stage",
+      "partner": "Associé",
+      "pj": "Prestataire",
+      "temporary": "Temporaire",
+      "volunteer": "Bénévole"
+    },
+    "record": {
+      "absence": "Absence",
+      "leave": "Congé",
+      "note": "Note",
+      "praise": "Félicitation",
+      "promotion": "Promotion",
+      "raise": "Augmentation",
+      "sickNote": "Arrêt maladie",
+      "training": "Formation",
+      "vacation": "Congés",
+      "warning": "Avertissement"
+    },
+    "severity": {
+      "suspension": "Mise à pied",
+      "verbal": "Verbal",
+      "written": "Écrit"
+    }
+  },
+  "errors": {
+    "employeeHasHistory": "Cet employé a {{ocorrencias}} entrée(s) et {{pontos}} jour(s) de pointage. Supprimer emporte tout — le départ est la voie normale.",
+    "employeeNotFound": "Cet employé n'existe plus.",
+    "payrollOnly": "Seul qui peut voir le salaire consigne une augmentation."
+  }
+}

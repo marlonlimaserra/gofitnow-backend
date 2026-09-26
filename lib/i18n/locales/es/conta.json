@@ -1,0 +1,9 @@
+{
+  "errors": {
+    "deletionFailed": "No pude completar la eliminación. Inténtalo de nuevo en unos instantes.",
+    "deletionNeedsPassword": "Escribe tu contraseña para confirmar la eliminación.",
+    "deletionNothingScheduled": "No hay ninguna eliminación programada en esta cuenta.",
+    "deletionOwnerBlocked": "Eres el titular de esta cuenta, así que no se puede eliminar por aquí — la plataforma quedaría sin responsable. Habla con soporte para cerrar la cuenta completa.",
+    "deletionWrongPassword": "Contraseña incorrecta. Escribe la contraseña de tu cuenta para confirmar."
+  }
+}

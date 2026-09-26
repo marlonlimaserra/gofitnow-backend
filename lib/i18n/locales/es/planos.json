@@ -1,0 +1,54 @@
+{
+  "errors": {
+    "alreadyOnPlan": "Ya estás en ese plan.",
+    "brandImagesNotInPlan": "Tu plan no incluye imágenes de marca. Todavía puedes usar la dirección de una imagen alojada en otro lugar.",
+    "membershipBenefitInUse": "Este beneficio está marcado en {{count}} plan(es). Desactívelo en vez de borrarlo.",
+    "membershipBenefitNotFound": "Beneficio no encontrado.",
+    "membershipInUse": "Este plan está en {{count}} recurrencia(s). Desactívelo en vez de borrarlo.",
+    "membershipNotFound": "Plan no encontrado.",
+    "notInPlan": "Tu plan no incluye {{o}}. Habla con quien gestiona tu cuenta.",
+    "planInactive": "Ese plan ya no está disponible.",
+    "planIsFree": "El plan gratuito no necesita pago.",
+    "planLimitReached": "Tu plan permite hasta {{max}} en {{o}}. Borra lo que ya no usas, o sube de plan.",
+    "planNotFound": "Ese plan no existe.",
+    "planNotSellable": "Ese plan todavía no está listo para la venta. Ya avisamos a soporte."
+  },
+  "memberships": {
+    "model": {
+      "brand": "De la marca",
+      "dark": "Oscuro",
+      "energy": "Energía",
+      "light": "Claro",
+      "neon": "Neón",
+      "ocean": "Océano",
+      "sand": "Arena"
+    }
+  },
+  "planLimits": {
+    "anamnesis": "anamnesis",
+    "apiKeys": "claves de API",
+    "appearance": "personalizar apariencia",
+    "assessments": "evaluaciones físicas",
+    "aulaoes": "clases grupales",
+    "dietTemplates": "plantillas de dieta",
+    "diets": "dietas",
+    "employees": "empleados",
+    "equipments": "equipos",
+    "exams": "exámenes",
+    "exercisesPerWorkout": "ejercicios por entrenamiento",
+    "foodsPerMeal": "alimentos por comida",
+    "groupClasses": "clases colectivas",
+    "memberships": "planes",
+    "people": "personas",
+    "photoSides": "categorías de foto en la evaluación",
+    "prescriptions": "prescripciones",
+    "professionals": "equipo",
+    "schedule": "agenda",
+    "setsPerExercise": "series por ejercicio",
+    "supplements": "suplementación",
+    "units": "unidades",
+    "whitelabel": "whitelabel",
+    "workoutTemplates": "plantillas de entrenamiento",
+    "workouts": "entrenamientos"
+  }
+}

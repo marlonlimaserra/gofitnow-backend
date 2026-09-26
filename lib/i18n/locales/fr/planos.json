@@ -1,0 +1,54 @@
+{
+  "errors": {
+    "alreadyOnPlan": "Vous êtes déjà sur ce forfait.",
+    "brandImagesNotInPlan": "Votre forfait n’inclut pas les images de marque. Vous pouvez toujours utiliser l’adresse d’une image hébergée ailleurs.",
+    "membershipBenefitInUse": "Cet avantage est coché sur {{count}} formule(s). Désactivez-le au lieu de le supprimer.",
+    "membershipBenefitNotFound": "Avantage introuvable.",
+    "membershipInUse": "Cette formule est utilisée par {{count}} récurrence(s). Désactivez-la au lieu de la supprimer.",
+    "membershipNotFound": "Formule introuvable.",
+    "notInPlan": "Votre forfait n'inclut pas {{o}}. Contactez la personne qui gère votre compte.",
+    "planInactive": "Ce forfait n'est plus disponible.",
+    "planIsFree": "Le forfait gratuit ne nécessite aucun paiement.",
+    "planLimitReached": "Votre forfait autorise jusqu'à {{max}} en {{o}}. Supprimez ce qui ne sert plus, ou changez de forfait.",
+    "planNotFound": "Ce forfait n'existe pas.",
+    "planNotSellable": "Ce forfait n'est pas encore prêt à être vendu. Le support a été prévenu."
+  },
+  "memberships": {
+    "model": {
+      "brand": "De la marque",
+      "dark": "Sombre",
+      "energy": "Énergie",
+      "light": "Clair",
+      "neon": "Néon",
+      "ocean": "Océan",
+      "sand": "Sable"
+    }
+  },
+  "planLimits": {
+    "anamnesis": "anamnèses",
+    "apiKeys": "clés d'API",
+    "appearance": "personnalisation de l'apparence",
+    "assessments": "évaluations",
+    "aulaoes": "cours collectifs",
+    "dietTemplates": "modèles de régime",
+    "diets": "régimes",
+    "employees": "employés",
+    "equipments": "équipements",
+    "exams": "examens",
+    "exercisesPerWorkout": "exercices par séance",
+    "foodsPerMeal": "aliments par repas",
+    "groupClasses": "cours collectifs",
+    "memberships": "forfaits",
+    "people": "personnes",
+    "photoSides": "catégories de photo dans l'évaluation",
+    "prescriptions": "prescriptions",
+    "professionals": "équipe",
+    "schedule": "agenda",
+    "setsPerExercise": "séries par exercice",
+    "supplements": "supplémentation",
+    "units": "unités",
+    "whitelabel": "marque blanche",
+    "workoutTemplates": "modèles de séance",
+    "workouts": "séances"
+  }
+}

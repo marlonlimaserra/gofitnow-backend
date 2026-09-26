@@ -1,0 +1,9 @@
+{
+  "errors": {
+    "deletionFailed": "Não consegui concluir a exclusão. Tente de novo em alguns instantes.",
+    "deletionNeedsPassword": "Digite sua senha para confirmar a exclusão.",
+    "deletionNothingScheduled": "Não há exclusão agendada nesta conta.",
+    "deletionOwnerBlocked": "Você é o titular desta conta, então ela não pode ser excluída por aqui — a plataforma ficaria sem responsável. Fale com o suporte para encerrar a conta inteira.",
+    "deletionWrongPassword": "Senha incorreta. Digite a senha da sua conta para confirmar."
+  }
+}

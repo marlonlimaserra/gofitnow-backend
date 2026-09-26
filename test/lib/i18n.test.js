@@ -10,6 +10,7 @@ const {
   fromAcceptLanguage,
   translate,
   translator,
+  carregarIdioma,
 } = require("../../lib/i18n");
 
 test("normalizeLanguage: as quatro tags exatas passam intactas", () => {
@@ -77,9 +78,11 @@ test("translate: chave inexistente devolve a própria chave", () => {
 });
 
 test("translate: chave que só existe em pt-BR cai no português, não na chave crua", () => {
-  const dir = path.join(__dirname, "..", "..", "lib", "i18n", "locales");
-  const pt = JSON.parse(fs.readFileSync(path.join(dir, "pt-BR.json"), "utf8"));
-  const en = JSON.parse(fs.readFileSync(path.join(dir, "en.json"), "utf8"));
+  // A tradução é repartida por ÁREA desde 26/09/2026: quem junta a pasta é o
+  // carregador, e é dele que os casos leem — ler um arquivo solto passaria a
+  // conferir um pedaço do catálogo.
+  const pt = carregarIdioma("pt-BR");
+  const en = carregarIdioma("en");
   // Garante a premissa do teste: se algum dia en tiver TUDO, isto avisa.
   assert.ok(pt.errors.internal && en.errors.internal, "a chave de controle sumiu");
   assert.equal(translate("en", "errors.internal"), en.errors.internal);
@@ -91,7 +94,6 @@ test("translator: expõe o idioma já normalizado", () => {
 });
 
 test("as quatro tabelas têm exatamente as mesmas chaves", () => {
-  const dir = path.join(__dirname, "..", "..", "lib", "i18n", "locales");
   const flat = (o, p = "", out = new Set()) => {
     for (const [k, v] of Object.entries(o)) {
       const key = p ? `${p}.${k}` : k;
@@ -101,9 +103,7 @@ test("as quatro tabelas têm exatamente as mesmas chaves", () => {
     return out;
   };
 
-  const tabelas = Object.fromEntries(
-    LANGUAGES.map((l) => [l, flat(JSON.parse(fs.readFileSync(path.join(dir, `${l}.json`), "utf8")))])
-  );
+  const tabelas = Object.fromEntries(LANGUAGES.map((l) => [l, flat(carregarIdioma(l))]));
   const base = tabelas[DEFAULT_LANGUAGE];
 
   for (const l of LANGUAGES.filter((x) => x !== DEFAULT_LANGUAGE)) {
@@ -121,13 +121,12 @@ test("as quatro tabelas têm exatamente as mesmas chaves", () => {
 });
 
 test("nenhuma tradução ficou vazia", () => {
-  const dir = path.join(__dirname, "..", "..", "lib", "i18n", "locales");
   for (const l of LANGUAGES) {
     const flat = (o, p = "") =>
       Object.entries(o).flatMap(([k, v]) =>
         v && typeof v === "object" ? flat(v, p + k + ".") : [[p + k, v]]
       );
-    for (const [k, v] of flat(JSON.parse(fs.readFileSync(path.join(dir, `${l}.json`), "utf8")))) {
+    for (const [k, v] of flat(carregarIdioma(l))) {
       assert.ok(typeof v === "string" && v.trim().length > 0, `${l}: ${k} vazia`);
     }
   }

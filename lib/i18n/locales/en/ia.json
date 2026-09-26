@@ -1,0 +1,31 @@
+{
+  "errors": {
+    "aiBadKey": "Anthropic rejected the key. Check it under Settings.",
+    "aiChatTooLong": "This conversation got too long. Start a new one.",
+    "aiDisabled": "The assistant is turned off for this account.",
+    "aiEmptyChat": "Send at least one message.",
+    "aiEmptyLog": "The conversation to record came in empty.",
+    "aiFailed": "The assistant could not answer.",
+    "aiInvalidKey": "An Anthropic key starts with sk-ant-. Check what was pasted.",
+    "aiInvalidModel": "Enter the model name, such as qwen3:8b.",
+    "aiInvalidUrl": "Enter a valid address, starting with https://",
+    "aiInvalidVoiceKey": "An OpenAI key starts with sk-. Check what was pasted.",
+    "aiNoOwner": "This instance has no professional registered yet.",
+    "aiNotConfigured": "The assistant is not configured yet. Add the key under Settings.",
+    "aiOllamaFailed": "Your Ollama rejected the request. Has that model been pulled on the machine?",
+    "aiOllamaUnreachable": "Could not reach your Ollama. Check that it is running and the tunnel is still open.",
+    "aiPrivateUrl": "Internal network addresses are not accepted. Use the tunnel's public address (ngrok).",
+    "aiRateLimited": "Anthropic asked us to wait a bit. Try again in a moment.",
+    "aiRefused": "The assistant chose not to answer that.",
+    "aiRejected": "Anthropic rejected the request.",
+    "aiSessionNotFound": "This conversation no longer exists.",
+    "aiUnreachable": "Could not reach Anthropic. Try again in a moment.",
+    "aiVoiceBadKey": "OpenAI rejected the key. Check it under Settings › Assistant.",
+    "aiVoiceFailed": "OpenAI rejected the voice request.",
+    "aiVoiceModelNotFound": "That voice model does not exist on this account. Check the name under Settings › Assistant.",
+    "aiVoiceNoCredit": "Your OpenAI account is out of credit. Add funds at platform.openai.com/settings/organization/billing — a card on file is not enough, you have to buy credit.",
+    "aiVoiceNotConfigured": "Conversation mode has no OpenAI key configured yet.",
+    "aiVoiceRateLimited": "OpenAI asked us to wait a bit. Try again in a moment.",
+    "aiVoiceUnreachable": "Could not reach OpenAI. Try again in a moment."
+  }
+}

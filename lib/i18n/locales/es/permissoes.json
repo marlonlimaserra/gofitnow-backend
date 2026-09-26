@@ -1,0 +1,302 @@
+{
+  "errors": {
+    "adminRoleLocked": "El tipo Administrador no se puede alterar. Crea otro tipo para ajustar permisos.",
+    "groupNameTaken": "Ya existe un grupo con ese nombre.",
+    "invalidRole": "Tipo de usuario inválido.",
+    "lastAccountManagingRoles": "Esta es la última cuenta activa que gestiona permisos.",
+    "lastAccountManagingRolesEdit": "Esta es la última cuenta activa que gestiona permisos — promueve otra antes de alterar esta.",
+    "lastManagerGroup": "Este grupo es el que te da permiso para gestionar permisos. Borrarlo bloquearía esta pantalla.",
+    "lastRoleManagingRoles": "Este es el único tipo que todavía gestiona permisos, y es el tuyo. Dale ese permiso a otro tipo antes.",
+    "noPermission": "Tu tipo de usuario no tiene permiso para esto.",
+    "roleNameTaken": "Ya existe un tipo con ese nombre.",
+    "roleNotFound": "Tipo de usuario no encontrado."
+  },
+  "permissions": {
+    "groups": {
+      "ai": {
+        "description": "El asistente que maneja la pantalla por ti.",
+        "title": "Asistente"
+      },
+      "anamnesis": {
+        "description": "Historial de salud, hábitos y rutina alimentaria",
+        "title": "Anamnesis"
+      },
+      "assessments": {
+        "description": "Medidas, pliegues y evolución",
+        "title": "Evaluación física"
+      },
+      "chat": {
+        "description": "Las conversaciones con las personas acompañadas.",
+        "title": "Chat"
+      },
+      "diets": {
+        "description": "Planes alimentarios y comidas",
+        "title": "Dietas"
+      },
+      "employees": {
+        "description": "El equipo de la casa: ficha, fichaje, incidencias y sueldo",
+        "title": "Empleados"
+      },
+      "exams": {
+        "description": "Análisis de sangre y la evolución de los marcadores",
+        "title": "Exámenes"
+      },
+      "exercises": {
+        "description": "El catálogo de ejercicios del profesional",
+        "title": "Ejercicios"
+      },
+      "finance": {
+        "description": "Cobros, pagos y recibos",
+        "title": "Financiero"
+      },
+      "foods": {
+        "description": "El catálogo de alimentos",
+        "title": "Alimentos"
+      },
+      "logs": {
+        "description": "El registro de todo lo que se hizo en la plataforma",
+        "title": "Historial"
+      },
+      "people": {
+        "description": "A quién acompaña el profesional",
+        "title": "Personas"
+      },
+      "prescriptions": {
+        "description": "Recetas, exámenes, derivaciones y certificados",
+        "title": "Prescripciones"
+      },
+      "roles": {
+        "description": "Los propios tipos y lo que cada uno puede",
+        "title": "Tipos de usuario"
+      },
+      "schedule": {
+        "description": "Clases, horarios y turnos",
+        "title": "Agenda"
+      },
+      "structure": {
+        "description": "Equipos, mantenimiento e inventario",
+        "title": "Estructura"
+      },
+      "supplements": {
+        "description": "Lo que toma la persona, y en qué momento del día",
+        "title": "Suplementación"
+      },
+      "users": {
+        "description": "Todas las cuentas de la plataforma",
+        "title": "Usuarios"
+      },
+      "workouts": {
+        "description": "Planes y sesiones de entrenamiento",
+        "title": "Entrenamientos"
+      }
+    },
+    "items": {
+      "ai": {
+        "manage": {
+          "hint": "Cambiar la clave y el modelo. Afecta lo que se cobra a la cuenta.",
+          "label": "Configurar el asistente"
+        },
+        "use": {
+          "hint": "Conversar con el asistente y dejar que maneje la pantalla.",
+          "label": "Usar el asistente"
+        }
+      },
+      "anamnesis": {
+        "manage": {
+          "hint": "Escribir y cambiar el historial de salud y los hábitos.",
+          "label": "Completar anamnesis"
+        },
+        "view": {
+          "hint": "Abrir la pestaña y leer el historial de salud.",
+          "label": "Ver anamnesis"
+        }
+      },
+      "assessments": {
+        "manage": {
+          "hint": "Registrar y borrar medidas. La pantalla está en construcción.",
+          "label": "Gestionar evaluaciones"
+        },
+        "view": {
+          "hint": "Abrir la pestaña de evaluación física. La pantalla está en construcción.",
+          "label": "Ver evaluaciones"
+        }
+      },
+      "chat": {
+        "send": {
+          "hint": "Escribir e iniciar una conversación con alguien.",
+          "label": "Enviar mensajes"
+        },
+        "view": {
+          "hint": "Abrir el chat y leer las propias conversaciones.",
+          "label": "Ver conversaciones"
+        }
+      },
+      "diets": {
+        "manage": {
+          "hint": "Crear, editar y borrar planes y comidas.",
+          "label": "Gestionar dietas"
+        },
+        "view": {
+          "hint": "Abrir los planes alimentarios de las personas.",
+          "label": "Ver dietas"
+        }
+      },
+      "employees": {
+        "manage": {
+          "hint": "Dar de alta, editar, dar de baja, registrar amonestaciones y rellenar el fichaje.",
+          "label": "Gestionar empleados"
+        },
+        "payroll": {
+          "hint": "Ver sueldo, beneficios y datos bancarios del equipo, y registrar subidas.",
+          "label": "Ver y cambiar el sueldo"
+        },
+        "view": {
+          "hint": "Abrir la lista del equipo y la ficha de cada uno, sin el sueldo.",
+          "label": "Ver empleados"
+        }
+      },
+      "exams": {
+        "manage": {
+          "hint": "Registrar, corregir y eliminar informes.",
+          "label": "Registrar examen"
+        },
+        "view": {
+          "hint": "Abrir la pestaña y leer los informes y la evolución.",
+          "label": "Ver exámenes"
+        }
+      },
+      "exercises": {
+        "manage": {
+          "hint": "Crear, alterar y eliminar ejercicios.",
+          "label": "Editar el catálogo"
+        },
+        "view": {
+          "hint": "Consultar ejercicios y grupos.",
+          "label": "Ver el catálogo"
+        }
+      },
+      "finance": {
+        "manage": {
+          "hint": "Registrar cobros y pagos. La pantalla está en construcción.",
+          "label": "Gestionar el financiero"
+        },
+        "view": {
+          "hint": "Abrir la pestaña financiera y ver cobros. La pantalla está en construcción.",
+          "label": "Ver el financiero"
+        }
+      },
+      "foods": {
+        "manage": {
+          "hint": "Crear, editar y borrar alimentos del catálogo — vale para todas las cuentas.",
+          "label": "Gestionar alimentos"
+        },
+        "view": {
+          "hint": "Consultar alimentos y categorías.",
+          "label": "Ver el catálogo"
+        }
+      },
+      "logs": {
+        "view": {
+          "hint": "Consultar quién hizo qué, cuándo y desde qué dirección.",
+          "label": "Ver el historial"
+        }
+      },
+      "people": {
+        "access": {
+          "hint": "Definir o quitar la contraseña de quien registraste.",
+          "label": "Gestionar el acceso de la persona"
+        },
+        "create": {
+          "hint": "Registrar una ficha nueva y pedir acceso a quien ya tiene cuenta.",
+          "label": "Agregar persona"
+        },
+        "delete": {
+          "hint": "Deshacer el vínculo. La persona sigue existiendo si otro profesional la acompaña.",
+          "label": "Quitar de la lista"
+        },
+        "edit": {
+          "hint": "Cambiar datos, medidas y observaciones.",
+          "label": "Editar ficha"
+        },
+        "view": {
+          "hint": "Abrir la lista y la ficha de quien ya está vinculado.",
+          "label": "Ver personas"
+        }
+      },
+      "prescriptions": {
+        "manage": {
+          "hint": "Crear, cambiar y eliminar documentos. Es quien firma.",
+          "label": "Emitir prescripción"
+        },
+        "view": {
+          "hint": "Abrir los documentos emitidos y reimprimirlos.",
+          "label": "Ver prescripciones"
+        }
+      },
+      "roles": {
+        "manage": {
+          "hint": "Crear tipos y cambiar los permisos de cada uno. Quien tiene esto puede darse cualquier poder a sí mismo.",
+          "label": "Gestionar tipos"
+        },
+        "view": {
+          "hint": "Abrir el menú Tipos de usuario.",
+          "label": "Ver tipos"
+        }
+      },
+      "schedule": {
+        "manage": {
+          "hint": "Reservar y cancelar horarios. La pantalla está en construcción.",
+          "label": "Gestionar la agenda"
+        },
+        "team": {
+          "hint": "Ver y agendar en la agenda de otros profesionales.",
+          "label": "Agenda del equipo"
+        },
+        "view": {
+          "hint": "Abrir la pestaña de agenda. La pantalla está en construcción.",
+          "label": "Ver la agenda"
+        }
+      },
+      "structure": {
+        "manage": {
+          "hint": "Dar de alta equipos e insumos, y registrar mantenimiento.",
+          "label": "Gestionar la estructura"
+        },
+        "view": {
+          "hint": "Abrir equipos e inventario, y dar salida a insumos.",
+          "label": "Ver la estructura"
+        }
+      },
+      "supplements": {
+        "manage": {
+          "hint": "Agregar, cambiar y finalizar ítems de suplementación.",
+          "label": "Indicar suplemento"
+        },
+        "view": {
+          "hint": "Abrir la pestaña y leer lo indicado.",
+          "label": "Ver suplementación"
+        }
+      },
+      "users": {
+        "manage": {
+          "hint": "Registrar profesionales, editar, desactivar y eliminar cualquier cuenta.",
+          "label": "Gestionar usuarios"
+        },
+        "view": {
+          "hint": "Abrir el menú Usuarios.",
+          "label": "Ver usuarios"
+        }
+      },
+      "workouts": {
+        "manage": {
+          "hint": "Crear, editar, duplicar y eliminar entrenamientos, sesiones y ejercicios de la sesión.",
+          "label": "Armar entrenamientos"
+        },
+        "view": {
+          "hint": "Abrir los entrenamientos y las sesiones.",
+          "label": "Ver entrenamientos"
+        }
+      }
+    }
+  }
+}

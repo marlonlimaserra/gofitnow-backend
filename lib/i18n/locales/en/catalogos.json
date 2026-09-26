@@ -1,0 +1,7 @@
+{
+  "errors": {
+    "exerciseNotFound": "Exercise not found.",
+    "foodNotFound": "Food not found.",
+    "foodShared": "This food belongs to the shared catalog and cannot be changed here. Create your own to have your version."
+  }
+}

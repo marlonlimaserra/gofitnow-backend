@@ -1,0 +1,43 @@
+{
+  "errors": {
+    "billingOff": "Billing is not enabled on this installation. Contact support.",
+    "chargeNotFound": "Charge not found.",
+    "checkoutFailed": "I could not open the payment screen. Try again in a few minutes.",
+    "invalidReceipt": "Invalid receipt. Use an image or PDF up to 8 MB.",
+    "noSubscription": "You do not have a subscription to manage yet.",
+    "paymentMethodExists": "A payment method with that name already exists.",
+    "paymentMethodInUse": "There are payments recorded with this method. Disable it to take it out of the picker without touching history.",
+    "paymentMethodNotFound": "Payment method not found.",
+    "paymentMethodSystem": "Built-in methods cannot be deleted — disable it to take it out of the picker.",
+    "paymentNotFound": "Payment not found.",
+    "recurrenceNotFound": "Recurrence not found.",
+    "requireAmount": "Enter the amount."
+  },
+  "finance": {
+    "every": {
+      "annual": "Yearly",
+      "bimonthly": "Every two months",
+      "biweekly": "Every two weeks",
+      "monthly": "Monthly",
+      "quarterly": "Quarterly",
+      "semiannual": "Every six months",
+      "weekly": "Weekly"
+    },
+    "paymentStatus": {
+      "canceled": "Cancelled",
+      "paid": "Paid",
+      "pending": "Pending",
+      "refunded": "Refunded"
+    },
+    "recurrenceStatus": {
+      "active": "Active",
+      "canceled": "Cancelled"
+    },
+    "status": {
+      "canceled": "Canceled",
+      "late": "Late",
+      "open": "Open",
+      "paid": "Paid"
+    }
+  }
+}

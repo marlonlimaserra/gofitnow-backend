@@ -1,0 +1,32 @@
+{
+  "push": {
+    "assessment": {
+      "body": "{{profissional}} finished your assessment. See how you are doing.",
+      "title": "Assessment ready"
+    },
+    "aulao": {
+      "body": "{{name}} · {{when}}",
+      "title": "You are enrolled"
+    },
+    "booking": {
+      "body": "{{person}} · {{service}} · {{when}}",
+      "title": "New booking on your calendar"
+    },
+    "diet": {
+      "body": "{{profissional}} put together a meal plan for you.",
+      "title": "New meal plan"
+    },
+    "message": {
+      "body": "{{trecho}}",
+      "title": "{{profissional}}"
+    },
+    "ticket": {
+      "body": "{{assunto}}",
+      "title": "We answered your ticket"
+    },
+    "workout": {
+      "body": "{{profissional}} put together a workout for you.",
+      "title": "New workout"
+    }
+  }
+}

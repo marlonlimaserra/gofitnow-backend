@@ -1,0 +1,8 @@
+{
+  "errors": {
+    "apiKeyCannotManage": "Une clé d’API ne peut ni créer ni révoquer de clés. Connectez-vous à l’app pour cela.",
+    "apiKeyNotFound": "Clé introuvable.",
+    "invalidApiKey": "Clé d’API invalide ou révoquée.",
+    "noApiKey": "Clé d’API non fournie."
+  }
+}

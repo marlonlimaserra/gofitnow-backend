@@ -1,0 +1,43 @@
+{
+  "errors": {
+    "billingOff": "La facturation n'est pas activée sur cette installation. Contactez le support.",
+    "chargeNotFound": "Facture introuvable.",
+    "checkoutFailed": "Je n'ai pas pu ouvrir l'écran de paiement. Réessayez dans quelques minutes.",
+    "invalidReceipt": "Justificatif invalide. Image ou PDF jusqu'à 8 Mo.",
+    "noSubscription": "Vous n'avez pas encore d'abonnement à gérer.",
+    "paymentMethodExists": "Un moyen de paiement portant ce nom existe déjà.",
+    "paymentMethodInUse": "Des paiements sont enregistrés avec ce moyen. Désactivez-le pour le retirer du sélecteur sans toucher à l'historique.",
+    "paymentMethodNotFound": "Moyen de paiement introuvable.",
+    "paymentMethodSystem": "Les moyens d'origine ne peuvent pas être supprimés — désactivez-le pour le retirer du sélecteur.",
+    "paymentNotFound": "Paiement introuvable.",
+    "recurrenceNotFound": "Récurrence introuvable.",
+    "requireAmount": "Indiquez le montant."
+  },
+  "finance": {
+    "every": {
+      "annual": "Annuel",
+      "bimonthly": "Tous les deux mois",
+      "biweekly": "Toutes les deux semaines",
+      "monthly": "Mensuel",
+      "quarterly": "Trimestriel",
+      "semiannual": "Tous les six mois",
+      "weekly": "Hebdomadaire"
+    },
+    "paymentStatus": {
+      "canceled": "Annulé",
+      "paid": "Payé",
+      "pending": "En attente",
+      "refunded": "Remboursé"
+    },
+    "recurrenceStatus": {
+      "active": "Active",
+      "canceled": "Annulée"
+    },
+    "status": {
+      "canceled": "Annulée",
+      "late": "En retard",
+      "open": "En attente",
+      "paid": "Payée"
+    }
+  }
+}

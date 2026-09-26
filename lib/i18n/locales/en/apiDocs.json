@@ -1,0 +1,40 @@
+{
+  "apiDocs": {
+    "groups": {
+      "account": "Account",
+      "exercises": "Exercises",
+      "people": "People",
+      "sessions": "Sessions",
+      "workouts": "Workouts"
+    },
+    "routes": {
+      "createExercise": "Creates an exercise in this account. With `fromCatalog`, records which shared exercise it was copied from.",
+      "createPerson": "Adds a person to your list.",
+      "createSession": "Creates a session inside a workout.",
+      "createWorkout": "Creates a workout for a person.",
+      "deleteExercise": "Deletes an exercise from this account. Workouts already built with it stay unchanged.",
+      "deleteSession": "Deletes the session with its exercises.",
+      "deleteWorkout": "Deletes the workout with all of its sessions.",
+      "duplicateSession": "Copies the session with its exercises and sets. Without `workoutId`, the copy stays in the same workout.",
+      "duplicateWorkout": "Copies the whole workout, sessions and exercises included.",
+      "exerciseGroups": "The muscle groups in use, with each one's count.",
+      "getExercise": "One exercise from the catalog.",
+      "getMe": "The data of the account that owns the key.",
+      "getPerson": "A person's record.",
+      "getSession": "A session with the exercises built into it.",
+      "getWorkout": "A workout with its sessions.",
+      "listAllWorkouts": "Lists every workout of the professional, across all people, newest first.",
+      "listExercises": "The exercise catalog, paginated: the shared ones plus this account's. `mine=1` returns only this account's.",
+      "listPeople": "Lists the people you follow.",
+      "listWorkouts": "A person's workouts, with the count per status.",
+      "peopleSummary": "Your list in numbers: total, active, with access and new this month.",
+      "reorderWorkouts": "Saves the order of the person's workout list. Send the ids in their new sequence.",
+      "setSessionExercises": "Replaces the session's whole exercise list, in the order sent.",
+      "unlinkPerson": "Removes the person from your list. Their account still exists.",
+      "updateExercise": "Updates an exercise in this account. Shared ones cannot be changed.",
+      "updatePerson": "Changes the record. The e-mail is not included: only the person changes their own.",
+      "updateSession": "Changes the session's name or position.",
+      "updateWorkout": "Changes a workout."
+    }
+  }
+}

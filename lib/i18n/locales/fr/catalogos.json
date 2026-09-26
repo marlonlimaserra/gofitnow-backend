@@ -1,0 +1,7 @@
+{
+  "errors": {
+    "exerciseNotFound": "Exercice introuvable.",
+    "foodNotFound": "Aliment introuvable.",
+    "foodShared": "Cet aliment appartient au catalogue partagé et ne peut pas être modifié ici. Créez le vôtre pour avoir votre version."
+  }
+}

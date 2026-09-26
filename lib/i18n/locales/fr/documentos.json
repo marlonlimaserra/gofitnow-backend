@@ -1,0 +1,23 @@
+{
+  "documentTemplates": {
+    "fieldAddress": "Adresse",
+    "fieldBirth": "Naissance",
+    "fieldCpf": "Numéro fiscal",
+    "fieldEmail": "E-mail",
+    "fieldHouse": "Salle",
+    "fieldName": "Nom",
+    "fieldPhone": "Téléphone",
+    "fieldToday": "Date du jour"
+  },
+  "pendencies": {
+    "category": {
+      "delivery": "Remise",
+      "document": "Document",
+      "health": "Santé",
+      "other": "Autre",
+      "payment": "Paiement"
+    },
+    "owedByHouse": "La maison doit le remettre",
+    "owedByPerson": "La personne doit le remettre"
+  }
+}

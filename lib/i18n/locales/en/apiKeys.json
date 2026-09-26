@@ -1,0 +1,8 @@
+{
+  "errors": {
+    "apiKeyCannotManage": "An API key cannot create or revoke keys. Sign in to the app for that.",
+    "apiKeyNotFound": "Key not found.",
+    "invalidApiKey": "Invalid or revoked API key.",
+    "noApiKey": "No API key provided."
+  }
+}

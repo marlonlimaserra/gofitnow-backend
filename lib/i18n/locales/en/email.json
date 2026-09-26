@@ -1,0 +1,69 @@
+{
+  "email": {
+    "anamnesis": {
+      "body": "{{professional}} is putting your plan together and needs to know a few things about your health and routine: what you take, what you do not eat, how you sleep. It takes a few minutes, and you can do it from your phone. The link is valid for <strong>{{days}} days</strong>.",
+      "button": "Answer now",
+      "footer": "Only someone with this link can open the form, and your answers go straight to {{professional}}. If you were not expecting this e-mail, ignore it.",
+      "subject": "{{professional}} asked you to answer a few questions",
+      "text": "{{name}}, {{professional}} needs a few details about your health and routine to put your plan together.\n\nOpen this address to answer (valid for {{days}} days):\n{{url}}\n\nIf you were not expecting this e-mail, ignore it.",
+      "title": "{{name}}, a few details are missing"
+    },
+    "assessment": {
+      "subject": "Your body assessment"
+    },
+    "booking": {
+      "body": "<strong>{{person}}</strong> booked <strong>{{service}}</strong> through your booking page.<br><br>When: <strong>{{when}}</strong><br>Contact: {{contact}}",
+      "button": "Open the calendar",
+      "footer": "The slot is already on your calendar — nothing to confirm. If you cannot make it, reschedule or cancel from there.",
+      "subject": "{{person}} booked {{service}} — {{when}}",
+      "text": "{{name}}, {{person}} booked {{service}} for {{when}}. Contact: {{contact}}. Open the calendar: {{url}}",
+      "title": "{{name}}, a slot was booked on your calendar"
+    },
+    "deletion": {
+      "body": "Someone requested, from inside your account, to delete it. <strong>Nothing has been deleted.</strong> We will get in touch to understand what happened and agree on the next steps — if you really want to leave, we will handle it with you.<br><br><strong>If this was not you</strong>, cancel the request at the address below and change your password.",
+      "button": "View or cancel the request",
+      "footer": "In the meantime your account keeps working normally, with all of your data in place.",
+      "subject": "We received your account deletion request",
+      "text": "{{name}}, we received a request to delete your VAFIT account.\\n\\nNothing has been deleted. We will get in touch to understand what happened and agree on the next steps.\\n\\nIf this was not you, cancel the request here and change your password:\\n{{url}}\\n\\nIn the meantime your account keeps working normally.",
+      "title": "{{name}}, we received your deletion request"
+    },
+    "diet": {
+      "subject": "Your meal plan"
+    },
+    "document": {
+      "subject": "{{nome}}'s document"
+    },
+    "fallbackLink": "If the button does not work, copy and paste this address into your browser:",
+    "greeting": "Hello",
+    "invite": {
+      "body": "<strong>{{trainerName}}</strong> granted you access to VAFIT. There you follow your workouts and your record.<br><br>Sign in with the e-mail <strong>{{email}}</strong> and the password {{trainerName}} agreed with you.",
+      "button": "Open VAFIT",
+      "footer": "Do not know your password? Use \"I forgot my password\" on the sign-in screen, or talk to your professional.",
+      "subject": "Your VAFIT access is ready",
+      "text": "{{name}}, {{trainerName}} granted you access to VAFIT.\n\nSign in at {{url}} with the e-mail {{email}} and the password agreed with {{trainerName}}.\n\nDo not know the password? Use \"I forgot my password\" on the sign-in screen.",
+      "title": "{{name}}, your access is open"
+    },
+    "request": {
+      "body": "<strong>{{professionalName}}</strong> ({{professionalEmail}}) wants to follow you on VAFIT.<br><br>If you grant it, this person will see your history and build plans together with the other professionals who already care for you. You can revoke this access whenever you want.<br><br>The link is valid for <strong>{{days}} days</strong>.",
+      "button": "See and answer the request",
+      "footer": "Do not know who is asking? Just ignore this e-mail — without your confirmation nobody sees anything.",
+      "subject": "{{professionalName}} wants to follow you on VAFIT",
+      "text": "{{name}}, {{professionalName}} ({{professionalEmail}}) wants to follow you on VAFIT.\n\nIf you grant it, this person will see your history. You can revoke the access whenever you want.\n\nOpen this address to answer (valid for {{days}} days):\n{{url}}\n\nDo not know who is asking? Ignore this e-mail — without your confirmation nobody sees anything.",
+      "title": "{{name}}, {{professionalName}} asked for access to your history"
+    },
+    "reset": {
+      "body": "You asked to reset the password of your VAFIT account. Click the button below to choose a new one. The link is valid for <strong>{{minutes}} minutes</strong> and can be used only once.",
+      "button": "Create a new password",
+      "footer": "If it was not you who asked, ignore this e-mail — your password stays the same and nobody accessed your account.",
+      "subject": "Reset your VAFIT password",
+      "text": "{{name}}, you asked to reset your VAFIT password.\n\nOpen this address to choose a new password (valid for {{minutes}} minutes, single use):\n{{url}}\n\nIf it was not you who asked, ignore this e-mail — your password stays the same.",
+      "title": "{{name}}, let's reset your password"
+    },
+    "statement": {
+      "subject": "Your financial statement"
+    },
+    "timeSheet": {
+      "subject": "Your time sheet"
+    }
+  }
+}

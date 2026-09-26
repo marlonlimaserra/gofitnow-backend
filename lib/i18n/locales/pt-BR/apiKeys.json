@@ -1,0 +1,8 @@
+{
+  "errors": {
+    "apiKeyCannotManage": "Uma chave de API não pode criar nem revogar chaves. Entre no app para isso.",
+    "apiKeyNotFound": "Chave não encontrada.",
+    "invalidApiKey": "Chave de API inválida ou revogada.",
+    "noApiKey": "Chave de API não informada."
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "errors": {
+    "assessmentNotFound": "Assessment not found.",
+    "attachmentTooBig": "File too large. The limit is 7 MB per attachment.",
+    "dietNotFound": "Plan not found.",
+    "documentNotFound": "This document no longer exists.",
+    "examNotFound": "Lab result not found.",
+    "inviteEmailTaken": "Could not finish signup with that e-mail. Try signing in or use another one.",
+    "inviteNotFound": "This signup link is no longer valid. Ask whoever sent it for a new one.",
+    "pendencyNotFound": "This pendency no longer exists.",
+    "personNotFound": "Person not found.",
+    "personWithoutEmail": "This person has no e-mail on file.",
+    "prescriptionNotFound": "Prescription not found.",
+    "studentAreaOnly": "This area belongs to the people you follow. Your access is through their records.",
+    "studentNotFound": "Student not found.",
+    "studentWithoutEmail": "This person has no email address on file.",
+    "workoutNotFound": "Workout not found."
+  }
+}

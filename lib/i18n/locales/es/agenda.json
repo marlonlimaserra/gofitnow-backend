@@ -1,0 +1,21 @@
+{
+  "errors": {
+    "appointmentNotFound": "Cita no encontrada.",
+    "bookingName": "Dinos tu nombre.",
+    "bookingPageName": "Dale un nombre a la página.",
+    "bookingPageNotFound": "Página de reserva no encontrada.",
+    "bookingPageSlugRequired": "Escribe el alias que va en la URL.",
+    "bookingPageSlugReserved": "Ese alias está reservado por el sistema. Elige otro.",
+    "bookingPageSlugShort": "El alias necesita al menos dos letras.",
+    "bookingPageSlugTaken": "Ya existe una página con ese alias.",
+    "bookingPhone": "Indica tu WhatsApp.",
+    "checkinNotFound": "Esta entrada ya no existe.",
+    "endBeforeStart": "La fecha final no puede ser anterior a la inicial.",
+    "groupClassAlreadyToday": "Esta persona ya entró en una clase hoy.",
+    "groupClassClosed": "El horario de esta clase está cerrado.",
+    "groupClassFull": "La clase está completa.",
+    "groupClassIncomplete": "La clase necesita nombre, horario y al menos un día de la semana.",
+    "groupClassNotFound": "Clase no encontrada.",
+    "invalidDay": "Día no válido. Usa el formato AAAA-MM-DD."
+  }
+}

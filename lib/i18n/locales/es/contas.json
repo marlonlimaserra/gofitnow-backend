@@ -1,0 +1,31 @@
+{
+  "errors": {
+    "payableNoDescription": "La cuenta necesita una descripción.",
+    "payableNotFound": "Cuenta no encontrada.",
+    "supplierInUse": "{{count}} cuenta(s) apuntan a este proveedor. Desactívalo en vez de borrarlo.",
+    "supplierNoName": "El proveedor necesita un nombre.",
+    "supplierNotFound": "Proveedor no encontrado."
+  },
+  "payables": {
+    "category": {
+      "agua": "Agua",
+      "aluguel": "Alquiler",
+      "contabilidade": "Contabilidad",
+      "energia": "Energía",
+      "equipamento": "Equipamiento",
+      "folha": "Nómina",
+      "fornecedor": "Proveedor",
+      "gas": "Gas",
+      "impostos": "Impuestos",
+      "internet": "Internet",
+      "manutencao": "Mantenimiento",
+      "marketing": "Marketing",
+      "outros": "Otros",
+      "seguranca": "Seguridad",
+      "seguro": "Seguro",
+      "software": "Software",
+      "taxas": "Tasas bancarias y de tarjeta",
+      "telefone": "Teléfono"
+    }
+  }
+}

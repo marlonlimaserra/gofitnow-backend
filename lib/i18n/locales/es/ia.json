@@ -1,0 +1,31 @@
+{
+  "errors": {
+    "aiBadKey": "Anthropic rechazó la clave. Revísala en Configuración.",
+    "aiChatTooLong": "La conversación quedó demasiado larga. Empieza una nueva.",
+    "aiDisabled": "El asistente está apagado en esta cuenta.",
+    "aiEmptyChat": "Envía al menos un mensaje.",
+    "aiEmptyLog": "La conversación a registrar llegó vacía.",
+    "aiFailed": "El asistente no pudo responder.",
+    "aiInvalidKey": "Una clave de Anthropic empieza con sk-ant-. Revisa lo que pegaste.",
+    "aiInvalidModel": "Escribe el nombre del modelo, como qwen3:8b.",
+    "aiInvalidUrl": "Escribe una dirección válida, que empiece con https://",
+    "aiInvalidVoiceKey": "Una clave de OpenAI empieza con sk-. Revisa lo que pegaste.",
+    "aiNoOwner": "Esta instancia todavía no tiene un profesional registrado.",
+    "aiNotConfigured": "El asistente aún no está configurado. Pon la clave en Configuración.",
+    "aiOllamaFailed": "Tu Ollama rechazó la solicitud. ¿Se descargó ese modelo en esa máquina?",
+    "aiOllamaUnreachable": "No se pudo hablar con tu Ollama. Comprueba que esté activo y que el túnel siga abierto.",
+    "aiPrivateUrl": "No se aceptan direcciones de red interna. Usa la dirección pública del túnel (ngrok).",
+    "aiRateLimited": "Anthropic pidió esperar un poco. Inténtalo de nuevo en unos instantes.",
+    "aiRefused": "El asistente prefirió no responder a eso.",
+    "aiRejected": "Anthropic rechazó la solicitud.",
+    "aiSessionNotFound": "Esta conversación ya no existe.",
+    "aiUnreachable": "No se pudo hablar con Anthropic. Inténtalo de nuevo en unos instantes.",
+    "aiVoiceBadKey": "OpenAI rechazó la clave. Revísala en Configuración › Asistente.",
+    "aiVoiceFailed": "OpenAI rechazó la solicitud de voz.",
+    "aiVoiceModelNotFound": "Ese modelo de voz no existe en esta cuenta. Revisa el nombre en Configuración › Asistente.",
+    "aiVoiceNoCredit": "Tu cuenta de OpenAI está sin créditos. Añade saldo en platform.openai.com/settings/organization/billing — no basta con tener tarjeta, hay que comprar crédito.",
+    "aiVoiceNotConfigured": "El modo conversación todavía no tiene una clave de OpenAI configurada.",
+    "aiVoiceRateLimited": "OpenAI pidió esperar un poco. Inténtalo de nuevo en unos instantes.",
+    "aiVoiceUnreachable": "No se pudo hablar con OpenAI. Inténtalo de nuevo en unos instantes."
+  }
+}

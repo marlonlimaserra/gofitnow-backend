@@ -1,0 +1,88 @@
+{
+  "autoFill": {
+    "fields": {
+      "appointment": {
+        "note": {
+          "hint": "Ex. : Apporter serviette et gourde",
+          "label": "Remarque du rendez-vous"
+        },
+        "title": {
+          "hint": "Ex. : Entraînement, Consultation",
+          "label": "Type de rendez-vous"
+        }
+      },
+      "assessment": {
+        "note": {
+          "hint": "Ex. : Relevé à jeun, le matin",
+          "label": "Remarque de l’évaluation"
+        }
+      },
+      "charge": {
+        "description": {
+          "hint": "Ex. : Mensualité de septembre",
+          "label": "Description de la facture"
+        },
+        "note": {
+          "hint": "Ex. : Convenu de payer la moitié le 10",
+          "label": "Remarque de la facture"
+        }
+      },
+      "diet": {
+        "goal": {
+          "hint": "Ex. : Perte de poids",
+          "label": "Objectif du plan"
+        },
+        "mealNote": {
+          "hint": "Ex. : Mâchez lentement et buvez de l’eau avant",
+          "label": "Remarque du repas"
+        },
+        "name": {
+          "hint": "Ex. : Plan d’août",
+          "label": "Nom du plan"
+        }
+      },
+      "person": {
+        "goal": {
+          "hint": "Ex. : Perte de poids",
+          "label": "Objectif de la fiche"
+        }
+      },
+      "session": {
+        "name": {
+          "hint": "Ex. : Séance A — Pectoraux et triceps",
+          "label": "Nom de la séance"
+        }
+      },
+      "workout": {
+        "calories": {
+          "hint": "Ex. : 400",
+          "label": "Dépense calorique de l’entraînement"
+        },
+        "goal": {
+          "hint": "Ex. : Prise de masse",
+          "label": "Objectif de l’entraînement"
+        },
+        "name": {
+          "hint": "Ex. : Hypertrophie 4 semaines",
+          "label": "Nom de l’entraînement"
+        },
+        "tip": {
+          "hint": "Ce que vous conseillez d’habitude",
+          "label": "Conseil de l’entraînement"
+        },
+        "totalSessions": {
+          "hint": "Ex. : 12",
+          "label": "Total de séances de l’entraînement"
+        }
+      }
+    },
+    "groups": {
+      "assessments": "Évaluation physique",
+      "diet": "Régime",
+      "finance": "Finances",
+      "people": "Personnes",
+      "schedule": "Agenda",
+      "workout": "Entraînement"
+    }
+  }
+}

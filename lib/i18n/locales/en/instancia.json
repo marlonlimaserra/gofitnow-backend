@@ -1,0 +1,11 @@
+{
+  "errors": {
+    "domainTaken": "That domain is already on another account.",
+    "noCustomDomain": "No domain of your own is set up.",
+    "noInstance": "Instance not provided. Send the X-Instance header, or use the instance's own address.",
+    "ourDomain": "That address is ours. For an address on {{base}}, use the subdomain option.",
+    "subdomainTaken": "That address already belongs to another account.",
+    "unitInUse": "This unit has {{count}} person(s). Deactivate it instead of deleting.",
+    "unitNotFound": "Unit not found."
+  }
+}

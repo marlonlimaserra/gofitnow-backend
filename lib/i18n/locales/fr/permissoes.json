@@ -1,0 +1,302 @@
+{
+  "errors": {
+    "adminRoleLocked": "Le type Administrateur ne peut pas être modifié. Créez un autre type pour ajuster les permissions.",
+    "groupNameTaken": "Un groupe portant ce nom existe déjà.",
+    "invalidRole": "Type d’utilisateur invalide.",
+    "lastAccountManagingRoles": "C’est le dernier compte actif qui gère les permissions.",
+    "lastAccountManagingRolesEdit": "C’est le dernier compte actif qui gère les permissions — promouvez-en un autre avant de modifier celui-ci.",
+    "lastManagerGroup": "Ce groupe est celui qui vous donne le droit de gérer les permissions. Le supprimer bloquerait cet écran.",
+    "lastRoleManagingRoles": "C’est le seul type qui gère encore les permissions, et c’est le vôtre. Donnez d’abord cette permission à un autre type.",
+    "noPermission": "Votre type d’utilisateur n’a pas la permission pour cela.",
+    "roleNameTaken": "Un type portant ce nom existe déjà.",
+    "roleNotFound": "Type d’utilisateur introuvable."
+  },
+  "permissions": {
+    "groups": {
+      "ai": {
+        "description": "L’assistant qui pilote l’écran à votre place.",
+        "title": "Assistant"
+      },
+      "anamnesis": {
+        "description": "Antécédents de santé, habitudes et routine alimentaire",
+        "title": "Anamnèse"
+      },
+      "assessments": {
+        "description": "Mesures, plis cutanés et évolution",
+        "title": "Évaluation physique"
+      },
+      "chat": {
+        "description": "Les conversations avec les personnes suivies.",
+        "title": "Chat"
+      },
+      "diets": {
+        "description": "Plans alimentaires et repas",
+        "title": "Régimes"
+      },
+      "employees": {
+        "description": "L'équipe de la maison : fiche, pointage, événements et salaire",
+        "title": "Employés"
+      },
+      "exams": {
+        "description": "Bilans sanguins et l'évolution des marqueurs",
+        "title": "Analyses"
+      },
+      "exercises": {
+        "description": "Le catalogue d’exercices du professionnel",
+        "title": "Exercices"
+      },
+      "finance": {
+        "description": "Facturations, paiements et reçus",
+        "title": "Facturation"
+      },
+      "foods": {
+        "description": "Le catalogue d’aliments",
+        "title": "Aliments"
+      },
+      "logs": {
+        "description": "Le registre de tout ce qui a été fait sur la plateforme",
+        "title": "Historique"
+      },
+      "people": {
+        "description": "Qui le professionnel suit",
+        "title": "Personnes"
+      },
+      "prescriptions": {
+        "description": "Ordonnances, examens, orientations et certificats",
+        "title": "Prescriptions"
+      },
+      "roles": {
+        "description": "Les types eux-mêmes et ce que chacun peut faire",
+        "title": "Types d’utilisateur"
+      },
+      "schedule": {
+        "description": "Cours, horaires et rendez-vous",
+        "title": "Agenda"
+      },
+      "structure": {
+        "description": "Équipements, entretien et stock",
+        "title": "Structure"
+      },
+      "supplements": {
+        "description": "Ce que la personne prend, et à quel moment de la journée",
+        "title": "Compléments"
+      },
+      "users": {
+        "description": "Tous les comptes de la plateforme",
+        "title": "Utilisateurs"
+      },
+      "workouts": {
+        "description": "Plans et séances d’entraînement",
+        "title": "Entraînements"
+      }
+    },
+    "items": {
+      "ai": {
+        "manage": {
+          "hint": "Changer la clé et le modèle. Modifie ce qui est facturé au compte.",
+          "label": "Configurer l’assistant"
+        },
+        "use": {
+          "hint": "Discuter avec l’assistant et le laisser piloter l’écran.",
+          "label": "Utiliser l’assistant"
+        }
+      },
+      "anamnesis": {
+        "manage": {
+          "hint": "Écrire et modifier les antécédents et les habitudes.",
+          "label": "Remplir l'anamnèse"
+        },
+        "view": {
+          "hint": "Ouvrir l'onglet et lire les antécédents.",
+          "label": "Voir l'anamnèse"
+        }
+      },
+      "assessments": {
+        "manage": {
+          "hint": "Enregistrer et supprimer des mesures. L’écran est en construction.",
+          "label": "Gérer les évaluations"
+        },
+        "view": {
+          "hint": "Ouvrir l’onglet d’évaluation physique. L’écran est en construction.",
+          "label": "Voir les évaluations"
+        }
+      },
+      "chat": {
+        "send": {
+          "hint": "Écrire et démarrer une conversation.",
+          "label": "Envoyer des messages"
+        },
+        "view": {
+          "hint": "Ouvrir le chat et lire ses propres conversations.",
+          "label": "Voir les conversations"
+        }
+      },
+      "diets": {
+        "manage": {
+          "hint": "Créer, modifier et supprimer plans et repas.",
+          "label": "Gérer les régimes"
+        },
+        "view": {
+          "hint": "Ouvrir les plans alimentaires des personnes.",
+          "label": "Voir les régimes"
+        }
+      },
+      "employees": {
+        "manage": {
+          "hint": "Créer, modifier, faire partir, consigner des avertissements et remplir le pointage.",
+          "label": "Gérer les employés"
+        },
+        "payroll": {
+          "hint": "Voir salaire, avantages et coordonnées bancaires, et consigner les augmentations.",
+          "label": "Voir et changer le salaire"
+        },
+        "view": {
+          "hint": "Ouvrir la liste de l'équipe et la fiche de chacun, sans le salaire.",
+          "label": "Voir les employés"
+        }
+      },
+      "exams": {
+        "manage": {
+          "hint": "Saisir, corriger et supprimer des bilans.",
+          "label": "Saisir une analyse"
+        },
+        "view": {
+          "hint": "Ouvrir l'onglet et lire les bilans et l'évolution.",
+          "label": "Voir les analyses"
+        }
+      },
+      "exercises": {
+        "manage": {
+          "hint": "Créer, modifier et supprimer des exercices.",
+          "label": "Modifier le catalogue"
+        },
+        "view": {
+          "hint": "Consulter les exercices et les groupes.",
+          "label": "Voir le catalogue"
+        }
+      },
+      "finance": {
+        "manage": {
+          "hint": "Créer des factures et les solder. L’écran est en construction.",
+          "label": "Gérer la facturation"
+        },
+        "view": {
+          "hint": "Ouvrir l’onglet facturation et voir les factures. L’écran est en construction.",
+          "label": "Voir la facturation"
+        }
+      },
+      "foods": {
+        "manage": {
+          "hint": "Créer, modifier et supprimer des aliments du catalogue — vaut pour tous les comptes.",
+          "label": "Gérer les aliments"
+        },
+        "view": {
+          "hint": "Consulter aliments et catégories.",
+          "label": "Voir le catalogue"
+        }
+      },
+      "logs": {
+        "view": {
+          "hint": "Consulter qui a fait quoi, quand et depuis quelle adresse.",
+          "label": "Voir l’historique"
+        }
+      },
+      "people": {
+        "access": {
+          "hint": "Définir ou retirer le mot de passe de qui vous avez enregistré.",
+          "label": "Gérer l’accès de la personne"
+        },
+        "create": {
+          "hint": "Créer une fiche et demander l’accès à qui a déjà un compte.",
+          "label": "Ajouter une personne"
+        },
+        "delete": {
+          "hint": "Défaire le lien. La personne continue d’exister si un autre professionnel la suit.",
+          "label": "Retirer de la liste"
+        },
+        "edit": {
+          "hint": "Changer les données, les mesures et les observations.",
+          "label": "Modifier la fiche"
+        },
+        "view": {
+          "hint": "Ouvrir la liste et la fiche de qui est déjà lié.",
+          "label": "Voir les personnes"
+        }
+      },
+      "prescriptions": {
+        "manage": {
+          "hint": "Créer, modifier et supprimer des documents. C'est qui signe.",
+          "label": "Émettre une prescription"
+        },
+        "view": {
+          "hint": "Ouvrir les documents émis et les réimprimer.",
+          "label": "Voir les prescriptions"
+        }
+      },
+      "roles": {
+        "manage": {
+          "hint": "Créer des types et changer leurs permissions. Qui a ceci peut s’accorder n’importe quel pouvoir.",
+          "label": "Gérer les types"
+        },
+        "view": {
+          "hint": "Ouvrir le menu Types d’utilisateur.",
+          "label": "Voir les types"
+        }
+      },
+      "schedule": {
+        "manage": {
+          "hint": "Réserver et annuler des horaires. L’écran est en construction.",
+          "label": "Gérer l’agenda"
+        },
+        "team": {
+          "hint": "Voir et réserver sur l’agenda des autres professionnels.",
+          "label": "Agenda de l’équipe"
+        },
+        "view": {
+          "hint": "Ouvrir l’onglet agenda. L’écran est en construction.",
+          "label": "Voir l’agenda"
+        }
+      },
+      "structure": {
+        "manage": {
+          "hint": "Créer équipements et consommables, et consigner l'entretien.",
+          "label": "Gérer la structure"
+        },
+        "view": {
+          "hint": "Ouvrir les équipements et le stock, et sortir des consommables.",
+          "label": "Voir la structure"
+        }
+      },
+      "supplements": {
+        "manage": {
+          "hint": "Ajouter, modifier et arrêter des compléments.",
+          "label": "Indiquer un complément"
+        },
+        "view": {
+          "hint": "Ouvrir l'onglet et lire ce qui a été indiqué.",
+          "label": "Voir les compléments"
+        }
+      },
+      "users": {
+        "manage": {
+          "hint": "Enregistrer des professionnels, modifier, désactiver et supprimer n’importe quel compte.",
+          "label": "Gérer les utilisateurs"
+        },
+        "view": {
+          "hint": "Ouvrir le menu Utilisateurs.",
+          "label": "Voir les utilisateurs"
+        }
+      },
+      "workouts": {
+        "manage": {
+          "hint": "Créer, modifier, dupliquer et supprimer entraînements, séances et exercices de séance.",
+          "label": "Monter des entraînements"
+        },
+        "view": {
+          "hint": "Ouvrir les entraînements et les séances.",
+          "label": "Voir les entraînements"
+        }
+      }
+    }
+  }
+}

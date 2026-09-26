@@ -1,0 +1,69 @@
+{
+  "email": {
+    "anamnesis": {
+      "body": "{{professional}} está armando tu acompañamiento y necesita saber algunas cosas sobre tu salud y tu rutina: qué tomas, qué no comes, cómo duermes. Responder toma pocos minutos y puedes hacerlo desde el celular. El enlace vale por <strong>{{days}} días</strong>.",
+      "button": "Responder ahora",
+      "footer": "Solo quien tiene este enlace puede abrir el formulario, y tus respuestas van directo a {{professional}}. Si no esperabas este correo, ignóralo.",
+      "subject": "{{professional}} te pidió responder algunas preguntas",
+      "text": "{{name}}, {{professional}} necesita algunos datos sobre tu salud y tu rutina para armar tu acompañamiento.\n\nAbre esta dirección para responder (vale por {{days}} días):\n{{url}}\n\nSi no esperabas este correo, ignóralo.",
+      "title": "{{name}}, faltan algunos datos"
+    },
+    "assessment": {
+      "subject": "Tu evaluación física"
+    },
+    "booking": {
+      "body": "<strong>{{person}}</strong> reservó <strong>{{service}}</strong> por tu página de reservas.<br><br>Cuándo: <strong>{{when}}</strong><br>Contacto: {{contact}}",
+      "button": "Abrir la agenda",
+      "footer": "El horario ya está en tu agenda — no hay que confirmar nada. Si no puedes atender, desde allí se reprograma o cancela.",
+      "subject": "{{person}} reservó {{service}} — {{when}}",
+      "text": "{{name}}, {{person}} reservó {{service}} para {{when}}. Contacto: {{contact}}. Abre la agenda: {{url}}",
+      "title": "{{name}}, entró un horario en tu agenda"
+    },
+    "deletion": {
+      "body": "Alguien pidió, desde dentro de tu cuenta, eliminarla. <strong>No se borró nada.</strong> Vamos a ponernos en contacto para entender qué pasó y acordar los próximos pasos — si de verdad quieres irte, lo resolvemos contigo.<br><br><strong>Si no fuiste tú</strong>, cancela la solicitud en la dirección de abajo y cambia tu contraseña.",
+      "button": "Ver o cancelar la solicitud",
+      "footer": "Mientras tanto tu cuenta sigue funcionando con normalidad, con todos tus datos en su lugar.",
+      "subject": "Recibimos tu solicitud para eliminar la cuenta",
+      "text": "{{name}}, recibimos una solicitud para eliminar tu cuenta de VAFIT.\\n\\nNo se borró nada. Vamos a ponernos en contacto para entender qué pasó y acordar los próximos pasos.\\n\\nSi no fuiste tú, cancela la solicitud aquí y cambia tu contraseña:\\n{{url}}\\n\\nMientras tanto tu cuenta sigue funcionando con normalidad.",
+      "title": "{{name}}, recibimos tu solicitud de eliminación"
+    },
+    "diet": {
+      "subject": "Tu plan alimentario"
+    },
+    "document": {
+      "subject": "Documento de {{nome}}"
+    },
+    "fallbackLink": "Si el botón no funciona, copia y pega esta dirección en el navegador:",
+    "greeting": "Hola",
+    "invite": {
+      "body": "<strong>{{trainerName}}</strong> habilitó tu acceso a VAFIT. Allí sigues tus entrenamientos y tu ficha.<br><br>Entra con el correo <strong>{{email}}</strong> y la contraseña que {{trainerName}} acordó contigo.",
+      "button": "Acceder a VAFIT",
+      "footer": "¿No sabes tu contraseña? Usa la opción \"Olvidé mi contraseña\" en la pantalla de inicio de sesión, o habla con tu profesional.",
+      "subject": "Tu acceso a VAFIT está listo",
+      "text": "{{name}}, {{trainerName}} habilitó tu acceso a VAFIT.\n\nEntra en {{url}} con el correo {{email}} y la contraseña acordada con {{trainerName}}.\n\n¿No sabes la contraseña? Usa \"Olvidé mi contraseña\" en la pantalla de inicio de sesión.",
+      "title": "{{name}}, tu acceso está habilitado"
+    },
+    "request": {
+      "body": "<strong>{{professionalName}}</strong> ({{professionalEmail}}) quiere acompañarte en VAFIT.<br><br>Si das acceso, esta persona verá tu historial y armará planes junto con los otros profesionales que ya te cuidan. Puedes quitar este acceso cuando quieras.<br><br>El enlace vale por <strong>{{days}} días</strong>.",
+      "button": "Ver y responder la solicitud",
+      "footer": "¿No conoces a quien pide? Ignora este correo — sin tu confirmación nadie ve nada.",
+      "subject": "{{professionalName}} quiere acompañarte en VAFIT",
+      "text": "{{name}}, {{professionalName}} ({{professionalEmail}}) quiere acompañarte en VAFIT.\n\nSi das acceso, esta persona verá tu historial. Puedes quitar el acceso cuando quieras.\n\nAbre esta dirección para responder (vale por {{days}} días):\n{{url}}\n\n¿No conoces a quien pide? Ignora este correo — sin tu confirmación nadie ve nada.",
+      "title": "{{name}}, {{professionalName}} pidió acceso a tu historial"
+    },
+    "reset": {
+      "body": "Pediste restablecer la contraseña de tu cuenta en VAFIT. Haz clic en el botón de abajo para elegir una nueva. El enlace vale por <strong>{{minutes}} minutos</strong> y solo puede usarse una vez.",
+      "button": "Crear nueva contraseña",
+      "footer": "Si no fuiste tú quien lo pidió, ignora este correo — tu contraseña sigue igual y nadie accedió a tu cuenta.",
+      "subject": "Restablecer tu contraseña de VAFIT",
+      "text": "{{name}}, pediste restablecer la contraseña de VAFIT.\n\nAbre esta dirección para elegir una nueva contraseña (vale por {{minutes}} minutos y solo puede usarse una vez):\n{{url}}\n\nSi no fuiste tú, ignora este correo — tu contraseña sigue igual.",
+      "title": "{{name}}, vamos a restablecer tu contraseña"
+    },
+    "statement": {
+      "subject": "Tu extracto financiero"
+    },
+    "timeSheet": {
+      "subject": "Tu hoja de asistencia"
+    }
+  }
+}

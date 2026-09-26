@@ -1,0 +1,36 @@
+{
+  "employees": {
+    "bond": {
+      "apprentice": "Aprendiz",
+      "autonomous": "Autónomo",
+      "clt": "Contrato",
+      "intern": "Prácticas",
+      "partner": "Socio",
+      "pj": "Autónomo con sociedad",
+      "temporary": "Temporal",
+      "volunteer": "Voluntario"
+    },
+    "record": {
+      "absence": "Falta",
+      "leave": "Permiso",
+      "note": "Nota",
+      "praise": "Felicitación",
+      "promotion": "Ascenso",
+      "raise": "Subida de sueldo",
+      "sickNote": "Justificante médico",
+      "training": "Formación",
+      "vacation": "Vacaciones",
+      "warning": "Amonestación"
+    },
+    "severity": {
+      "suspension": "Suspensión",
+      "verbal": "Verbal",
+      "written": "Escrita"
+    }
+  },
+  "errors": {
+    "employeeHasHistory": "Este empleado tiene {{ocorrencias}} registro(s) y {{pontos}} día(s) de fichaje. Borrar se lo lleva todo — lo normal es dar de baja.",
+    "employeeNotFound": "Este empleado ya no existe.",
+    "payrollOnly": "Solo quien puede ver el sueldo registra una subida."
+  }
+}

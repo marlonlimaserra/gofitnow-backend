@@ -78,10 +78,11 @@ function arquivosJs(dir) {
   return saida;
 }
 
+// A tradução é repartida por ÁREA desde 26/09/2026 — o carregador junta a
+// pasta. Ler um arquivo só aqui passaria a conferir um pedaço do catálogo e
+// acusaria como "faltando" toda chave que mora noutra área.
 function catalogo() {
-  return JSON.parse(
-    fs.readFileSync(path.join(RAIZ, "lib/i18n/locales/pt-BR.json"), "utf8")
-  );
+  return require("../../lib/i18n/index.js").carregarIdioma("pt-BR");
 }
 
 function existe(dados, chave) {

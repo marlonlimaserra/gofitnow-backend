@@ -1,0 +1,21 @@
+{
+  "errors": {
+    "appointmentNotFound": "Rendez-vous introuvable.",
+    "bookingName": "Indiquez votre nom.",
+    "bookingPageName": "Donnez un nom à la page.",
+    "bookingPageNotFound": "Page de réservation introuvable.",
+    "bookingPageSlugRequired": "Écrivez l'alias qui ira dans l'URL.",
+    "bookingPageSlugReserved": "Cet alias est réservé par le système. Choisissez-en un autre.",
+    "bookingPageSlugShort": "L'alias doit avoir au moins deux lettres.",
+    "bookingPageSlugTaken": "Une page avec cet alias existe déjà.",
+    "bookingPhone": "Indiquez votre WhatsApp.",
+    "checkinNotFound": "Cette entrée n'existe plus.",
+    "endBeforeStart": "La date de fin ne peut pas précéder la date de début.",
+    "groupClassAlreadyToday": "Cette personne est déjà dans un cours aujourd'hui.",
+    "groupClassClosed": "Ce créneau est fermé.",
+    "groupClassFull": "Le cours est complet.",
+    "groupClassIncomplete": "Le cours a besoin d'un nom, d'un horaire et d'au moins un jour.",
+    "groupClassNotFound": "Cours introuvable.",
+    "invalidDay": "Jour invalide. Utilisez le format AAAA-MM-JJ."
+  }
+}

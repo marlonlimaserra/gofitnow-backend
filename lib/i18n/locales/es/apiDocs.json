@@ -1,0 +1,40 @@
+{
+  "apiDocs": {
+    "groups": {
+      "account": "Cuenta",
+      "exercises": "Ejercicios",
+      "people": "Personas",
+      "sessions": "Sesiones",
+      "workouts": "Entrenamientos"
+    },
+    "routes": {
+      "createExercise": "Crea un ejercicio en esta cuenta. Con `fromCatalog`, guarda de qué ejercicio compartido fue copiado.",
+      "createPerson": "Registra una persona en tu lista.",
+      "createSession": "Crea una sesión dentro de un entrenamiento.",
+      "createWorkout": "Crea un entrenamiento para una persona.",
+      "deleteExercise": "Elimina un ejercicio de esta cuenta. Los entrenamientos ya armados con él no cambian.",
+      "deleteSession": "Elimina la sesión con sus ejercicios.",
+      "deleteWorkout": "Elimina el entrenamiento con todas sus sesiones.",
+      "duplicateSession": "Copia la sesión con los ejercicios y las series. Sin `workoutId`, la copia queda en el mismo entrenamiento.",
+      "duplicateWorkout": "Copia el entrenamiento entero, con sesiones y ejercicios.",
+      "exerciseGroups": "Los grupos musculares en uso, con el conteo de cada uno.",
+      "getExercise": "Un ejercicio del catálogo.",
+      "getMe": "Los datos de la cuenta dueña de la clave.",
+      "getPerson": "La ficha de una persona.",
+      "getSession": "Una sesión con los ejercicios armados en ella.",
+      "getWorkout": "Un entrenamiento con sus sesiones.",
+      "listAllWorkouts": "Lista todos los entrenamientos del profesional, de todas las personas, del más nuevo al más antiguo.",
+      "listExercises": "El catálogo de ejercicios, paginado: los compartidos y los de esta cuenta. `mine=1` devuelve solo los de esta cuenta.",
+      "listPeople": "Lista las personas que acompañas.",
+      "listWorkouts": "Los entrenamientos de una persona, con el conteo por situación.",
+      "peopleSummary": "Los números de tu lista: total, activos, con acceso y nuevos del mes.",
+      "reorderWorkouts": "Guarda el orden de la lista de entrenamientos de la persona. Envía los ids en la nueva secuencia.",
+      "setSessionExercises": "Reemplaza toda la lista de ejercicios de la sesión, en el orden enviado.",
+      "unlinkPerson": "Quita la persona de tu lista. Su cuenta sigue existiendo.",
+      "updateExercise": "Modifica un ejercicio de esta cuenta. Los compartidos no se pueden cambiar.",
+      "updatePerson": "Cambia la ficha. El correo no entra: solo la propia persona cambia el suyo.",
+      "updateSession": "Cambia el nombre o la posición de la sesión.",
+      "updateWorkout": "Cambia un entrenamiento."
+    }
+  }
+}

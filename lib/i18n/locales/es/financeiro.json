@@ -1,0 +1,43 @@
+{
+  "errors": {
+    "billingOff": "El cobro no está activado en esta instalación. Habla con soporte.",
+    "chargeNotFound": "Cobro no encontrado.",
+    "checkoutFailed": "No pude abrir la pantalla de pago. Inténtalo de nuevo en unos minutos.",
+    "invalidReceipt": "Comprobante inválido. Usa imagen o PDF de hasta 8 MB.",
+    "noSubscription": "Todavía no tienes una suscripción para gestionar.",
+    "paymentMethodExists": "Ya existe una forma de pago con ese nombre.",
+    "paymentMethodInUse": "Hay pagos registrados en esta forma. Desactívela para sacarla del selector sin tocar el historial.",
+    "paymentMethodNotFound": "Forma de pago no encontrada.",
+    "paymentMethodSystem": "Las formas originales no se pueden borrar — desactívela para sacarla del selector.",
+    "paymentNotFound": "Pago no encontrado.",
+    "recurrenceNotFound": "Recurrencia no encontrada.",
+    "requireAmount": "Informe el importe."
+  },
+  "finance": {
+    "every": {
+      "annual": "Anual",
+      "bimonthly": "Bimestral",
+      "biweekly": "Quincenal",
+      "monthly": "Mensual",
+      "quarterly": "Trimestral",
+      "semiannual": "Semestral",
+      "weekly": "Semanal"
+    },
+    "paymentStatus": {
+      "canceled": "Cancelado",
+      "paid": "Pagado",
+      "pending": "Pendiente",
+      "refunded": "Reembolsado"
+    },
+    "recurrenceStatus": {
+      "active": "Activa",
+      "canceled": "Cancelada"
+    },
+    "status": {
+      "canceled": "Cancelada",
+      "late": "Atrasada",
+      "open": "Pendiente",
+      "paid": "Pagada"
+    }
+  }
+}

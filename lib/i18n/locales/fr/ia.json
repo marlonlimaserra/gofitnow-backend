@@ -1,0 +1,31 @@
+{
+  "errors": {
+    "aiBadKey": "Anthropic a refusé la clé. Vérifiez-la dans Réglages.",
+    "aiChatTooLong": "La conversation est devenue trop longue. Commencez-en une nouvelle.",
+    "aiDisabled": "L'assistant est désactivé pour ce compte.",
+    "aiEmptyChat": "Envoyez au moins un message.",
+    "aiEmptyLog": "La conversation à enregistrer est arrivée vide.",
+    "aiFailed": "L’assistant n’a pas pu répondre.",
+    "aiInvalidKey": "Une clé Anthropic commence par sk-ant-. Vérifiez ce qui a été collé.",
+    "aiInvalidModel": "Saisissez le nom du modèle, par exemple qwen3:8b.",
+    "aiInvalidUrl": "Saisissez une adresse valide, commençant par https://",
+    "aiInvalidVoiceKey": "Une clé OpenAI commence par sk-. Vérifiez ce qui a été collé.",
+    "aiNoOwner": "Cette instance n’a encore aucun professionnel enregistré.",
+    "aiNotConfigured": "L’assistant n’est pas encore configuré. Ajoutez la clé dans Réglages.",
+    "aiOllamaFailed": "Votre Ollama a refusé la demande. Ce modèle a-t-il été téléchargé sur cette machine ?",
+    "aiOllamaUnreachable": "Impossible de joindre votre Ollama. Vérifiez qu’il tourne et que le tunnel est toujours ouvert.",
+    "aiPrivateUrl": "Les adresses de réseau interne ne sont pas acceptées. Utilisez l’adresse publique du tunnel (ngrok).",
+    "aiRateLimited": "Anthropic a demandé de patienter un peu. Réessayez dans un instant.",
+    "aiRefused": "L’assistant a préféré ne pas répondre à cela.",
+    "aiRejected": "Anthropic a refusé la demande.",
+    "aiSessionNotFound": "Cette conversation n’existe plus.",
+    "aiUnreachable": "Impossible de joindre Anthropic. Réessayez dans un instant.",
+    "aiVoiceBadKey": "OpenAI a refusé la clé. Vérifiez-la dans Réglages › Assistant.",
+    "aiVoiceFailed": "OpenAI a refusé la demande vocale.",
+    "aiVoiceModelNotFound": "Ce modèle vocal n’existe pas sur ce compte. Vérifiez le nom dans Réglages › Assistant.",
+    "aiVoiceNoCredit": "Votre compte OpenAI n’a plus de crédit. Ajoutez des fonds sur platform.openai.com/settings/organization/billing — une carte enregistrée ne suffit pas, il faut acheter du crédit.",
+    "aiVoiceNotConfigured": "Le mode conversation n’a pas encore de clé OpenAI configurée.",
+    "aiVoiceRateLimited": "OpenAI a demandé de patienter un peu. Réessayez dans un instant.",
+    "aiVoiceUnreachable": "Impossible de joindre OpenAI. Réessayez dans un instant."
+  }
+}

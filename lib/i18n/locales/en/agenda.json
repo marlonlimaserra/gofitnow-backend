@@ -1,0 +1,21 @@
+{
+  "errors": {
+    "appointmentNotFound": "Appointment not found.",
+    "bookingName": "Tell us your name.",
+    "bookingPageName": "Give the page a name.",
+    "bookingPageNotFound": "Booking page not found.",
+    "bookingPageSlugRequired": "Write the alias that goes in the URL.",
+    "bookingPageSlugReserved": "That alias is reserved by the system. Pick another.",
+    "bookingPageSlugShort": "The alias needs at least two letters.",
+    "bookingPageSlugTaken": "A page with that alias already exists.",
+    "bookingPhone": "Enter your WhatsApp number.",
+    "checkinNotFound": "This entry no longer exists.",
+    "endBeforeStart": "The end date cannot be before the start date.",
+    "groupClassAlreadyToday": "This person is already in a class today.",
+    "groupClassClosed": "This time slot is closed.",
+    "groupClassFull": "The class is full.",
+    "groupClassIncomplete": "The class needs a name, a time and at least one weekday.",
+    "groupClassNotFound": "Class not found.",
+    "invalidDay": "Invalid day. Use the YYYY-MM-DD format."
+  }
+}

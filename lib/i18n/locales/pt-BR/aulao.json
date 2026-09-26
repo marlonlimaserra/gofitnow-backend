@@ -1,0 +1,15 @@
+{
+  "errors": {
+    "aulaoAlreadyIn": "Essa pessoa já está inscrita.",
+    "aulaoBadImage": "Não consegui ler essa imagem. Tente um JPG, PNG ou WebP.",
+    "aulaoFree": "Este aulão é gratuito — não há cobrança.",
+    "aulaoFull": "Este aulão está lotado.",
+    "aulaoNoDate": "Informe a data e a hora do aulão.",
+    "aulaoNoName": "Dê um nome ao aulão.",
+    "aulaoNoPerson": "Escolha quem vai ser inscrito.",
+    "aulaoNotEnrolled": "Essa pessoa não está inscrita neste aulão.",
+    "aulaoNotFound": "Esse aulão não existe mais.",
+    "aulaoRateLimited": "Muitas inscrições deste aparelho. Tente novamente em uma hora.",
+    "aulaoTooManyImages": "Este aulão já está com o máximo de fotos."
+  }
+}

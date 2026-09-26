@@ -1,0 +1,32 @@
+{
+  "push": {
+    "assessment": {
+      "body": "{{profissional}} a terminé votre bilan. Voyez où vous en êtes.",
+      "title": "Bilan prêt"
+    },
+    "aulao": {
+      "body": "{{name}} · {{when}}",
+      "title": "Vous êtes inscrit"
+    },
+    "booking": {
+      "body": "{{person}} · {{service}} · {{when}}",
+      "title": "Réservation sur votre agenda"
+    },
+    "diet": {
+      "body": "{{profissional}} a préparé un plan alimentaire pour vous.",
+      "title": "Nouveau plan alimentaire"
+    },
+    "message": {
+      "body": "{{trecho}}",
+      "title": "{{profissional}}"
+    },
+    "ticket": {
+      "body": "{{assunto}}",
+      "title": "Nous avons répondu à votre ticket"
+    },
+    "workout": {
+      "body": "{{profissional}} a préparé un entraînement pour vous.",
+      "title": "Nouvel entraînement"
+    }
+  }
+}

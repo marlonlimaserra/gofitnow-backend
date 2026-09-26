@@ -1,0 +1,32 @@
+{
+  "push": {
+    "assessment": {
+      "body": "{{profissional}} finalizou sua avaliação. Veja como você está.",
+      "title": "Avaliação física pronta"
+    },
+    "aulao": {
+      "body": "{{name}} · {{when}}",
+      "title": "Você está inscrito"
+    },
+    "booking": {
+      "body": "{{person}} · {{service}} · {{when}}",
+      "title": "Marcaram na sua agenda"
+    },
+    "diet": {
+      "body": "{{profissional}} montou um plano alimentar para você.",
+      "title": "Plano alimentar novo"
+    },
+    "message": {
+      "body": "{{trecho}}",
+      "title": "{{profissional}}"
+    },
+    "ticket": {
+      "body": "{{assunto}}",
+      "title": "Respondemos seu chamado"
+    },
+    "workout": {
+      "body": "{{profissional}} montou um treino para você.",
+      "title": "Treino novo"
+    }
+  }
+}
