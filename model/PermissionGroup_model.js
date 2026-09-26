@@ -68,6 +68,24 @@ PermissionGroup_model.prototype.insert = async function (obj) {
     // não entra. Um grupo com `financeiro.ver` (que não existe) não concederia
     // nada e apareceria na contagem, o que é pior que recusar.
     permissions: permissions.sanitize(obj.permissions),
+
+    // ── AS CONTAS DE FORA ────────────────────────────────────────────────
+    //
+    // *"amanhã vamos integrar contas de Instagram, Facebook e números de
+    // WhatsApp; então no grupo de permissão vamos poder adicionar essas
+    // coisas"* (26/09/2026).
+    //
+    // O campo nasce hoje, VAZIO, e a integração chega amanhã. É de propósito:
+    // assim o trabalho de amanhã é ligar o catálogo, e não migrar documento —
+    // acrescentar um array a uma collection que já tem grupos salvos é o tipo
+    // de mudança que se faz sem pensar e depois aparece como `undefined.map`
+    // na tela de alguém.
+    //
+    // São IDS de contas conectadas, não credenciais. Token de Instagram e
+    // número de WhatsApp verificado moram na integração, com o resto do que é
+    // segredo; aqui fica só "este grupo alcança aquela conta".
+    accounts: contasLimpas(obj.accounts),
+
     createdAt: agora,
     updatedAt: agora,
   });
@@ -84,6 +102,7 @@ PermissionGroup_model.prototype.update = async function (id, obj) {
   if (obj.name !== undefined) set.name = String(obj.name).trim();
   if (obj.description !== undefined) set.description = String(obj.description).trim();
   if (obj.permissions !== undefined) set.permissions = permissions.sanitize(obj.permissions);
+  if (obj.accounts !== undefined) set.accounts = contasLimpas(obj.accounts);
 
   await col.updateOne({ _id: new ObjectId(String(id)) }, { $set: set });
   return { ok: true };
@@ -184,6 +203,19 @@ PermissionGroup_model.prototype.definirUsuarios = async function (id, userIds) {
 
   return { ok: true, quantos: querem.length };
 };
+
+// Só texto, sem repetição e sem vazio. Sem um formato fechado ainda: quem vai
+// dizer como uma conta se identifica é a integração de amanhã, e inventar o
+// formato antes dela seria decidir no escuro — e depois migrar.
+function contasLimpas(lista) {
+  if (!Array.isArray(lista)) return [];
+
+  const limpas = lista
+    .map((c) => String(c == null ? "" : c).trim())
+    .filter(Boolean);
+
+  return [...new Set(limpas)];
+}
 
 function escapar(texto) {
   return texto.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

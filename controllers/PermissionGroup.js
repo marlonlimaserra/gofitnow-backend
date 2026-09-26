@@ -78,7 +78,7 @@ module.exports = function (app) {
     const user = await app.helpers.ReqProtected.can(req, res, "roles.manage");
     if (user === false) return;
 
-    const { name, description, permissions: lista, users } = req.body || {};
+    const { name, description, permissions: lista, users, accounts } = req.body || {};
 
     if (!name || String(name).trim().length < 2) {
       return res.status(400).send({ msg: req.t("errors.requireGroupName") });
@@ -89,7 +89,7 @@ module.exports = function (app) {
       return res.status(409).send({ msg: req.t("errors.groupNameTaken") });
     }
 
-    const id = await app.api.permissionGroup.insert({ name, description, permissions: lista });
+    const id = await app.api.permissionGroup.insert({ name, description, permissions: lista, accounts });
     if (Array.isArray(users)) await app.api.permissionGroup.definirUsuarios(id, users);
 
     const criado = await app.api.permissionGroup.data(id);
@@ -110,7 +110,7 @@ module.exports = function (app) {
     const antes = await app.api.permissionGroup.data(req.params.id);
     if (!antes) return res.status(404).send({ msg: req.t("errors.notFound") });
 
-    const { name, description, permissions: lista, users } = req.body || {};
+    const { name, description, permissions: lista, users, accounts } = req.body || {};
 
     if (name !== undefined && String(name).trim().length < 2) {
       return res.status(400).send({ msg: req.t("errors.requireGroupName") });
@@ -123,7 +123,7 @@ module.exports = function (app) {
       }
     }
 
-    await app.api.permissionGroup.update(req.params.id, { name, description, permissions: lista });
+    await app.api.permissionGroup.update(req.params.id, { name, description, permissions: lista, accounts });
     if (Array.isArray(users)) await app.api.permissionGroup.definirUsuarios(req.params.id, users);
 
     const depois = await app.api.permissionGroup.data(req.params.id);

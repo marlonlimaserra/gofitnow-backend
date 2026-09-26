@@ -131,6 +131,41 @@ test("apagar o grupo TIRA ele de quem estava nele", async () => {
   assert.equal(feito.apagados.length, 1);
 });
 
+// ── AS CONTAS DE FORA (26/09/2026) ───────────────────────────────────────
+//
+// *"amanhã vamos integrar contas de Instagram, Facebook e números de WhatsApp;
+// então no grupo de permissão vamos poder adicionar essas coisas"*. O campo
+// nasce hoje, vazio: amanhã o trabalho é ligar o catálogo, não migrar
+// documento.
+test("um grupo novo nasce com a lista de contas VAZIA, nunca indefinida", async () => {
+  // `undefined.map` na tela de alguém é exatamente o que este caso evita.
+  const { modelo, grupos } = fake();
+
+  await modelo.insert({ name: "Marketing" });
+
+  assert.deepEqual(grupos[0].accounts, []);
+});
+
+test("as contas entram como texto, sem repetição e sem vazio", async () => {
+  const { modelo, grupos } = fake();
+
+  await modelo.insert({ name: "Marketing", accounts: ["ig:1", "ig:1", "  ", "wa:55", null] });
+
+  assert.deepEqual(grupos[0].accounts, ["ig:1", "wa:55"]);
+});
+
+test("não mandar contas na edição NÃO apaga as que já estavam", async () => {
+  // A tela de permissões salva sem tocar na aba de contas. Tratar ausência
+  // como lista vazia desligaria as contas do grupo em silêncio.
+  const g = new ObjectId();
+  const { modelo, feito } = fake({ grupos: [{ _id: g, name: "Marketing", accounts: ["ig:1"] }] });
+
+  await modelo.update(g, { name: "Marketing 2" });
+
+  const set = feito.atualizacoes.at(-1).u.$set;
+  assert.equal(set.accounts, undefined);
+});
+
 test("nome repetido é achado sem diferenciar maiúscula", async () => {
   // "Caixa" e "caixa" seriam dois grupos que ninguém distingue na lista.
   const { modelo } = fake({ grupos: [{ _id: new ObjectId(), name: "Caixa" }] });
