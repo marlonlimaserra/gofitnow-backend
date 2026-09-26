@@ -101,7 +101,7 @@ module.exports = function (app) {
     // "quem mexeu na ficha da Ana" procura pela ficha dela.
     app.insertUserActionHistory(req, achado.trainer, "update_person_avatar", {
       category: "people",
-      local: { target_type: "people", target_id: String(achado.alvo._id) },
+      local: { target_type: "people", target_id: String(achado.alvo._id), person: achado.alvo._id },
       extra: { name: achado.alvo.name, size: parsed.buffer.length, mime: parsed.mime },
     });
 
@@ -120,7 +120,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, achado.trainer, "delete_person_avatar", {
       category: "people",
-      local: { target_type: "people", target_id: String(achado.alvo._id) },
+      local: { target_type: "people", target_id: String(achado.alvo._id), person: achado.alvo._id },
       extra: { name: achado.alvo.name },
     });
 

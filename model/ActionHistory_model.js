@@ -104,6 +104,25 @@ ActionHistory_model.prototype.record = async function (req, user, action, data) 
         id: local.target_id != null ? String(local.target_id) : null,
       },
 
+      // ── DE QUEM É ESTA LINHA ─────────────────────────────────────────
+      //
+      // *"de baixo de documentos de alunos, crie um chamado histórico, quero
+      // ver ali TUDO que foi feito nesse aluno"* (25/09/2026).
+      //
+      // O `target` responde "o que foi mexido" — um treino, uma cobrança, um
+      // documento. Não responde "de quem", e é essa a pergunta da ficha: o
+      // treino tem id próprio, a cobrança também, e juntá-los pelo dono
+      // exigiria buscar antes todos os ids que pertencem àquela pessoa — uma
+      // varredura por aba, a cada abertura.
+      //
+      // Um campo próprio, indexado, resolve em uma consulta. Ele é
+      // DESNORMALIZADO de propósito, como `userName`: o dono de uma cobrança
+      // pode mudar, e a linha do tempo tem de continuar contando a história de
+      // quem estava lá quando aconteceu.
+      pessoa: local.person && ObjectId.isValid(String(local.person))
+        ? new ObjectId(String(local.person))
+        : null,
+
       details: scrub(payload.extra || {}, 0),
       diff: payload.diff && Object.keys(payload.diff).length ? scrub(payload.diff, 0) : null,
 
@@ -149,7 +168,51 @@ ActionHistory_model.prototype.list = async function (filter) {
   if (filter && filter.action) query.action = String(filter.action);
   if (filter && filter.category) query.category = String(filter.category);
   if (filter && filter.targetId) query["target.id"] = String(filter.targetId);
+
+  // TUDO O QUE FOI FEITO NESTA PESSOA — a linha do tempo da ficha. Inclui o
+  // que foi feito NELA (o cadastro editado) e o que foi feito no que é dela
+  // (um treino, uma cobrança), porque as duas coisas são a mesma história.
+  if (filter && filter.person && ObjectId.isValid(filter.person)) {
+    query.$and = [
+      ...(query.$and || []),
+      {
+        $or: [
+          { pessoa: new ObjectId(filter.person) },
+          // As linhas gravadas ANTES de `pessoa` existir (25/09/2026) só têm o
+          // alvo. Para a própria pessoa isso basta, e é o que faz a ficha não
+          // nascer vazia num sistema que já roda há meses.
+          { "target.type": "people", "target.id": String(filter.person) },
+        ],
+      },
+    ];
+  }
   if (filter && filter.targetType) query["target.type"] = String(filter.targetType);
+
+  // ── SÓ O QUE ALTERA ────────────────────────────────────────────────────
+  //
+  // *"acho que chamadas GET, tipo abriu uma ficha, tá aparecendo um monte;
+  // essa GET que não acontece nada não precisa ficar no histórico, quero só as
+  // PUT, POST, DELETE, PATCH e outras que façam alteração"* (25/09/2026).
+  //
+  // E ele está certo sobre a linha do tempo de uma pessoa: abrir a ficha dez
+  // vezes num dia empurra para baixo a única linha que interessa — a edição.
+  // Uma lista em que o ruído afoga o sinal não é consultada uma segunda vez.
+  //
+  // O corte é pelo MÉTODO, e não por uma lista de ações "de leitura": método é
+  // o que o HTTP garante — GET não muda nada, por definição — e uma lista de
+  // nomes precisaria ser lembrada a cada ação nova. Quem esquecesse veria a
+  // ação nova poluindo a aba, sem nada apontando o motivo.
+  //
+  // As linhas ANTIGAS, gravadas antes de o método existir no documento, têm
+  // `method: null` e CONTINUAM aparecendo: `$nin` deixa passar quem não tem o
+  // campo. É deliberado — sumir com história já gravada seria pior que mostrar
+  // uma leitura antiga.
+  //
+  // A tela de Logs não usa isto: lá "quem andou abrindo a ficha de quem" é
+  // exatamente a pergunta, e é o que uma auditoria de acesso precisa responder.
+  if (filter && filter.somenteAlteracoes) {
+    query.method = { $nin: ["GET", "HEAD", "OPTIONS"] };
+  }
 
   if (filter && (filter.from || filter.to)) {
     query.createdAt = {};
@@ -186,6 +249,39 @@ ActionHistory_model.prototype.list = async function (filter) {
   ]);
 
   return { rows, total, limit, skip };
+};
+
+// QUANTAS LINHAS DE CADA CATEGORIA esta pessoa tem.
+//
+// É o número na aba ("Financeiro 12"), e ele é do recorte INTEIRO e não da
+// página: uma contagem que muda ao virar a página não conta nada.
+//
+// Numa consulta só, e não uma por categoria: são nove buckets, e nove
+// `countDocuments` por abertura de ficha seriam nove idas ao banco para
+// desenhar um cabeçalho.
+ActionHistory_model.prototype.contagemPorCategoria = async function (person) {
+  if (!ObjectId.isValid(String(person || ""))) return {};
+
+  const col = await this.collection();
+  const id = new ObjectId(String(person));
+
+  const linhas = await col
+    .aggregate([
+      {
+        $match: {
+          $or: [{ pessoa: id }, { "target.type": "people", "target.id": String(person) }],
+          // O MESMO corte da lista: um chip dizendo 40 sobre uma lista de 3
+          // é pior que chip nenhum.
+          method: { $nin: ["GET", "HEAD", "OPTIONS"] },
+        },
+      },
+      { $group: { _id: "$category", quantas: { $sum: 1 } } },
+    ])
+    .toArray();
+
+  const mapa = {};
+  for (const l of linhas) mapa[l._id || "outros"] = l.quantas;
+  return mapa;
 };
 
 // The values that actually occur in the collection, for the filter dropdowns.

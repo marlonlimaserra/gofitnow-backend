@@ -128,6 +128,7 @@ models.clientError = require("./model/ClientError_model.js");
 models.recipeCategory = require("./model/RecipeCategory_model.js");
 models.userCategory = require("./model/UserCategory_model.js");
 models.role = require("./model/Role_model.js");
+models.permissionGroup = require("./model/PermissionGroup_model.js");
 models.link = require("./model/Link_model.js");
 models.actionHistory = require("./model/ActionHistory_model.js");
 models.workoutTemplate = require("./model/WorkoutTemplate_model.js");

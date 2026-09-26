@@ -2,6 +2,7 @@ const avisar = require("../lib/avisar.js");
 const tempoReal = require("../lib/tempoReal.js");
 const ensureSchema = require("../database/schema.js");
 const instanceContext = require("../lib/instance.js");
+const retencaoDeLogs = require("../lib/retencaoDeLogs.js");
 
 // Rotas INTERNAS — chamadas por outro serviço nosso, nunca por um navegador.
 //
@@ -115,7 +116,12 @@ module.exports = function (app) {
       return res.status(502).send({ msg: "connect_failed", detalhe: String(erro.message || erro) });
     }
 
-    await ensureSchema.ensureUmBanco(banco);
+    // A retenção CONFIGURADA, e não o padrão: sem isto, preparar um banco
+    // recriaria a poda em 180 dias num sistema ajustado para outro prazo — e o
+    // defeito apareceria meses depois, como registro que sumiu antes da hora.
+    const dias = await retencaoDeLogs.lerDoCentral(await app.mongodb.centralDb());
+
+    await ensureSchema.ensureUmBanco(banco, { podaHistoricoDias: dias });
 
     // Os clientes QUE MORAM NESTE BANCO, e não todos: preparar um banco não é
     // motivo para tocar nos clientes dos outros.
@@ -131,6 +137,52 @@ module.exports = function (app) {
     }
 
     res.send({ ok: true, banco: nomeDoBanco, clientes });
+  });
+
+  // ── A RETENÇÃO DOS LOGS MUDOU ───────────────────────────────────────────
+  //
+  // *"na central, cadastre em Configuração mais uma rota chamada retenção de
+  // logs, para a gente definir quantos dias vamos reter esses logs"*
+  // (25/09/2026).
+  //
+  // O painel grava o número; quem o APLICA é este backend, porque quem conhece
+  // as collections e os índices é ele — a mesma fronteira do provisionamento.
+  //
+  // ── Ele LÊ o valor do painel em vez de aceitá-lo no corpo ──────────────
+  //
+  // Os dois lados falam com o mesmo Mongo, então o corpo seria uma segunda
+  // fonte da mesma verdade — e uma chamada repetida fora de ordem (duas
+  // trocas seguidas, a primeira chegando por último) gravaria o número velho
+  // por cima do novo. Lendo, a última palavra é sempre a do banco.
+  //
+  // Sem `dias` no corpo, então: o painel diz "reaplique", não "use 90".
+  app.post("/internal/logs/retention", async function (req, res) {
+    if (!autorizado(req, res)) return;
+
+    const dias = await retencaoDeLogs.lerDoCentral(await app.mongodb.centralDb());
+
+    // TODOS os bancos registrados: a poda é do sistema. Um banco dedicado que
+    // ficasse de fora guardaria o dobro do tempo sem ninguém saber.
+    const bancos = [];
+    const falhas = [];
+
+    for (const destino of await app.mongodb.bancosRegistrados()) {
+      try {
+        const banco = await app.mongodb.bancoCruSemEscopo(destino.uri);
+        await ensureSchema.garantirPodaDoHistorico(banco, dias);
+        bancos.push(destino.banco);
+      } catch (erro) {
+        // Um banco fora do ar não pode fazer os outros ficarem sem o ajuste. A
+        // lista de falhas volta para a tela dizer EM QUAL não pegou — calar
+        // seria prometer uma retenção que metade do sistema não tem.
+        falhas.push({ banco: destino.banco || destino.nome, erro: String(erro.message || erro) });
+      }
+    }
+
+    // O que este processo guardava sobre o número já não vale.
+    app.api.center.esquecerRetencao();
+
+    res.send({ ok: falhas.length === 0, dias, bancos, falhas });
   });
 
   // ── O PAINEL RESPONDEU UM CHAMADO ───────────────────────────────────────

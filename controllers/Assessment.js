@@ -233,7 +233,7 @@ module.exports = function (app) {
     if (fechando && antes.draft) {
       app.insertUserActionHistory(req, trainer, "create_assessment", {
         category: "assessments",
-        local: { target_type: "assessments", target_id: req.params.id + "" },
+        local: { target_type: "assessments", target_id: req.params.id + "", person: antes?.student },
         extra: { personId: antes.student + "", weight: depois.weight },
       });
 
@@ -255,7 +255,7 @@ module.exports = function (app) {
     } else if (!antes.draft) {
       app.insertUserActionHistory(req, trainer, "update_assessment", {
         category: "assessments",
-        local: { target_type: "assessments", target_id: req.params.id + "" },
+        local: { target_type: "assessments", target_id: req.params.id + "", person: antes?.student },
         diff: app.api.actionHistory.diff(antes, depois),
       });
     }
@@ -379,7 +379,7 @@ module.exports = function (app) {
     if (!alvo.draft) {
       app.insertUserActionHistory(req, trainer, "delete_assessment", {
         category: "assessments",
-        local: { target_type: "assessments", target_id: req.params.id + "" },
+        local: { target_type: "assessments", target_id: req.params.id + "", person: alvo?.student },
         extra: { weight: alvo.weight },
       });
     }

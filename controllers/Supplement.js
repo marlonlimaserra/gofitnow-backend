@@ -66,7 +66,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "create_supplement", {
       category: "supplements",
-      local: { target_type: "supplements", target_id: id + "" },
+      local: { target_type: "supplements", target_id: id + "", person: student._id },
       extra: { name: criado.name, person: student.name, personId: student._id + "" },
     });
 
@@ -100,7 +100,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "update_supplement", {
       category: "supplements",
-      local: { target_type: "supplements", target_id: req.params.id + "" },
+      local: { target_type: "supplements", target_id: req.params.id + "", person: antes?.student },
       extra: { name: depois.name },
       diff: app.api.actionHistory.diff(antes, depois),
     });
@@ -122,7 +122,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "delete_supplement", {
       category: "supplements",
-      local: { target_type: "supplements", target_id: req.params.id + "" },
+      local: { target_type: "supplements", target_id: req.params.id + "", person: alvo?.student },
       extra: { name: alvo.name },
     });
 

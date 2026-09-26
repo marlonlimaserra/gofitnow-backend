@@ -77,7 +77,7 @@ module.exports = function (app) {
     // acompanhamento. Quem lê o log procura uma coisa ou a outra.
     app.insertUserActionHistory(req, trainer, criou ? "create_anamnesis" : "update_anamnesis", {
       category: "anamnesis",
-      local: { target_type: "anamnesis", target_id: String(student._id) },
+      local: { target_type: "anamnesis", target_id: String(student._id), person: student._id },
       extra: { person: student.name, personId: String(student._id) },
       // Sem `diff` na criação: comparar contra nada devolveria o documento
       // inteiro como "mudança", e o log da primeira consulta viraria um muro.
@@ -153,7 +153,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "create_anamnesis_link", {
       category: "anamnesis",
-      local: { target_type: "anamnesis", target_id: String(student._id) },
+      local: { target_type: "anamnesis", target_id: String(student._id), person: student._id },
       extra: { person: student.name, personId: String(student._id) },
     });
 
@@ -238,7 +238,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "send_anamnesis_link", {
       category: "anamnesis",
-      local: { target_type: "anamnesis", target_id: String(student._id) },
+      local: { target_type: "anamnesis", target_id: String(student._id), person: student._id },
       extra: { person: student.name, email: student.email },
     });
 

@@ -1,4 +1,5 @@
 const limiteDoPlano = require("../lib/limiteDoPlano.js");
+const acoesDoCatalogo = require("../lib/actions.js");
 const fotoDoWhatsapp = require("../lib/fotoDoWhatsapp.js");
 const depoisLib = require("../lib/depois.js");
 
@@ -57,6 +58,76 @@ module.exports = function (app) {
     res.send(await app.api.user.studentsSummary(trainer._id));
   });
 
+  // ── A LINHA DO TEMPO DA PESSOA ─────────────────────────────────────────
+  //
+  // *"de baixo de documentos de alunos, crie um chamado histórico, quero ver
+  // ali TUDO que foi feito nesse aluno, paginado, separado por categoria"*
+  // (25/09/2026).
+  //
+  // Nenhuma collection nova: `user_action_history` já grava quem fez, quando, de
+  // que IP, por qual rota e QUAIS CAMPOS mudaram (de → para). O que faltava era
+  // dizer DE QUEM é cada linha — `local.person`, gravado em `pessoa`. Ver o
+  // cabeçalho do modelo.
+  //
+  // `people.view`, a mesma chave que abre a ficha: quem pode ver a pessoa pode
+  // ver o que foi feito nela. Uma chave própria criaria uma ficha em que metade
+  // se vê e metade não, sem nada explicando a diferença.
+  app.get("/people/:id/historico", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "people.view");
+    if (trainer === false) return;
+
+    // Pelo VÍNCULO, e não pelo id cru: sem isto, trocar o número na URL leria a
+    // história de alguém que este profissional não acompanha.
+    const student = await app.api.user.dataStudent(trainer._id, req.params.id);
+    if (!student) {
+      res.status(404).send({ msg: req.t("errors.personNotFound") });
+      return;
+    }
+
+    const limite = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+    const pagina = Math.max(Number(req.query.page) || 1, 1);
+
+    const [lista, porCategoria] = await Promise.all([
+      app.api.actionHistory.list({
+        person: req.params.id,
+        // A ficha mostra o que MUDOU, não quem passou por ela. Ver o modelo.
+        somenteAlteracoes: true,
+        category: req.query.categoria || undefined,
+        limit: limite,
+        skip: (pagina - 1) * limite,
+      }),
+      // A contagem é do recorte INTEIRO e não da página: um número que muda ao
+      // virar a página não conta nada.
+      app.api.actionHistory.contagemPorCategoria(req.params.id),
+    ]);
+
+    res.send({
+      rows: lista.rows,
+      total: lista.total,
+      pagina,
+      porPagina: limite,
+      porCategoria,
+
+      // Os RÓTULOS vêm juntos, e não numa segunda chamada: a aba abre uma vez
+      // e precisa dos dois para desenhar a primeira linha. Duas idas fariam a
+      // lista aparecer com `update_workout` escrito por um instante.
+      //
+      // Traduzidos no SERVIDOR, com o `t` da requisição — é o mesmo caminho da
+      // tela de Logs, e o que faz uma ação nova aparecer escrita em quatro
+      // idiomas sem ninguém tocar no painel.
+      acoes: acoesDoCatalogo.localizedActions(req.t),
+      categorias: acoesDoCatalogo.localizedCategories(req.t),
+
+      // Quantos dias a casa guarda. A tela diz isso no pé — uma linha do tempo
+      // que começa do nada há seis meses parece dado perdido.
+      //
+      // Do PAINEL, e não da constante: desde 25/09/2026 o prazo se define em
+      // Configuração › Retenção de logs, e uma tela dizendo 180 enquanto o TTL
+      // apaga aos 90 seria a pior das duas opções.
+      retencaoEmDias: await app.api.center.retencaoDeLogs(),
+    });
+  });
+
   app.get("/people/:id", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "people.view");
     if (trainer === false) return;
@@ -72,7 +143,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "view_person", {
       category: "people",
-      local: { target_type: "people", target_id: req.params.id + "" },
+      local: { target_type: "people", target_id: req.params.id + "", person: req.params.id },
       extra: { name: student.name },
     });
 
@@ -178,7 +249,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "create_person", {
       category: "people",
-      local: { target_type: "people", target_id: id + "" },
+      local: { target_type: "people", target_id: id + "", person: id },
       extra: { name: criada.name, email: criada.email, self_signup: true },
     });
 
@@ -324,7 +395,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "create_person", {
       category: "people",
-      local: { target_type: "people", target_id: id + "" },
+      local: { target_type: "people", target_id: id + "", person: id },
       extra: { name: created.name, email: created.email, hasAccess: !!created.password },
     });
 
@@ -441,7 +512,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "update_person", {
       category: "people",
-      local: { target_type: "people", target_id: req.params.id + "" },
+      local: { target_type: "people", target_id: req.params.id + "", person: req.params.id },
       extra: { name: updated.name },
       diff: app.api.actionHistory.diff(target, updated),
     });
@@ -479,7 +550,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "revoke_person_access", {
       category: "people",
-      local: { target_type: "people", target_id: req.params.id + "" },
+      local: { target_type: "people", target_id: req.params.id + "", person: req.params.id },
       extra: { name: target.name },
     });
 
@@ -517,7 +588,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "delete_person", {
       category: "people",
-      local: { target_type: "people", target_id: req.params.id + "" },
+      local: { target_type: "people", target_id: req.params.id + "", person: req.params.id },
       extra: { name: target.name, email: target.email },
     });
 

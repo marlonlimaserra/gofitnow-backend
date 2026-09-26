@@ -309,7 +309,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "create_recurrence", {
       category: "finance",
-      local: { target_type: "recurrences", target_id: id + "" },
+      local: { target_type: "recurrences", target_id: id + "", person: student._id },
       extra: { person: student.name, personId: student._id + "", amount: Number(body.amount) },
     });
 
@@ -372,7 +372,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "create_charge", {
       category: "finance",
-      local: { target_type: "charges", target_id: id + "" },
+      local: { target_type: "charges", target_id: id + "", person: student._id },
       extra: { person: student.name, personId: student._id + "", amount: criada?.amount },
     });
 
@@ -473,7 +473,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "update_charge", {
       category: "finance",
-      local: { target_type: "charges", target_id: req.params.id + "" },
+      local: { target_type: "charges", target_id: req.params.id + "", person: antes?.student },
       diff: app.api.actionHistory.diff(antes, depois),
     });
 
@@ -494,7 +494,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "delete_charge", {
       category: "finance",
-      local: { target_type: "charges", target_id: req.params.id + "" },
+      local: { target_type: "charges", target_id: req.params.id + "", person: alvo?.student },
       extra: { amount: alvo.amount },
     });
 
@@ -554,7 +554,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "create_payment", {
       category: "finance",
-      local: { target_type: "payments", target_id: id + "" },
+      local: { target_type: "payments", target_id: id + "", person: student._id },
       extra: {
         person: student.name,
         personId: student._id + "",
@@ -596,7 +596,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "update_payment", {
       category: "finance",
-      local: { target_type: "payments", target_id: req.params.id + "" },
+      local: { target_type: "payments", target_id: req.params.id + "", person: antes?.student },
       diff: app.api.actionHistory.diff(antes, depois),
     });
 
@@ -617,7 +617,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "delete_payment", {
       category: "finance",
-      local: { target_type: "payments", target_id: req.params.id + "" },
+      local: { target_type: "payments", target_id: req.params.id + "", person: alvo?.student },
       extra: { amount: alvo.amount },
     });
 

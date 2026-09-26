@@ -69,7 +69,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "create_workout", {
       category: "workouts",
-      local: { target_type: "workouts", target_id: id + "" },
+      local: { target_type: "workouts", target_id: id + "", person: student._id },
       extra: { name: created.name, person: student.name, personId: student._id + "" },
     });
 
@@ -193,7 +193,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "update_workout", {
       category: "workouts",
-      local: { target_type: "workouts", target_id: req.params.id + "" },
+      local: { target_type: "workouts", target_id: req.params.id + "", person: before?.student },
       extra: { name: updated.name },
       diff: app.api.actionHistory.diff(before, updated),
     });
@@ -215,7 +215,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "delete_workout", {
       category: "workouts",
-      local: { target_type: "workouts", target_id: req.params.id + "" },
+      local: { target_type: "workouts", target_id: req.params.id + "", person: before?.student },
       extra: { name: before ? before.name : null },
     });
 
@@ -258,7 +258,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "duplicate_workout", {
       category: "workouts",
-      local: { target_type: "workouts", target_id: newId + "" },
+      local: { target_type: "workouts", target_id: newId + "", person: targetStudent },
       extra: { name: copy.name, copiedFrom: req.params.id + "", toPerson: targetStudent || null },
     });
 
@@ -319,7 +319,7 @@ module.exports = function (app) {
     // diria nada. O que importa é quantos exercícios entraram e quais.
     app.insertUserActionHistory(req, trainer, "update_workout_exercises", {
       category: "workouts",
-      local: { target_type: "workouts", target_id: req.params.id + "" },
+      local: { target_type: "workouts", target_id: req.params.id + "", person: before?.student },
       extra: {
         workout: updated.name,
         countBefore: before && before.exercises ? before.exercises.length : 0,

@@ -69,7 +69,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "create_exam", {
       category: "exams",
-      local: { target_type: "exams", target_id: id + "" },
+      local: { target_type: "exams", target_id: id + "", person: student._id },
       extra: {
         collectedAt: criado.collectedAt,
         markers: criado.markers.length,
@@ -108,7 +108,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "update_exam", {
       category: "exams",
-      local: { target_type: "exams", target_id: req.params.id + "" },
+      local: { target_type: "exams", target_id: req.params.id + "", person: antes?.student },
       extra: { collectedAt: depois.collectedAt },
       diff: app.api.actionHistory.diff(antes, depois),
     });
@@ -130,7 +130,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "delete_exam", {
       category: "exams",
-      local: { target_type: "exams", target_id: req.params.id + "" },
+      local: { target_type: "exams", target_id: req.params.id + "", person: alvo?.student },
       extra: { collectedAt: alvo.collectedAt },
     });
 

@@ -16,6 +16,7 @@ const { seedFoods } = require("./foods.js");
 // `plans` e `groups`; este arquivo cria e indexa `exercises`. Nenhum dos dois
 // mexe no que é do outro.
 const instanceContext = require("../lib/instance.js");
+const retencaoDeLogs = require("../lib/retencaoDeLogs.js");
 
 // `ai_usage` é o consumo de IA por instância — contagem e custo, NUNCA conteúdo
 // de conversa. Este arquivo é o dono dela; o painel só lê. A conversa em si mora
@@ -25,10 +26,10 @@ const CENTRAL = ["exercises", "foods", "ai_usage"];
 // Quanto tempo o histórico de ações fica. Decisão do Marlon em 07/09/2026 — ver
 // o comentário longo em `indicesEssenciais`.
 //
-// Constante e não número solto na chamada: mudar a retenção é mudar uma linha, e
-// o nome diz o que o `expireAfterSeconds` está contando (o segundo é a unidade
-// do Mongo, o dia é a unidade da decisão).
-const PODA_HISTORICO_DIAS = 180;
+// Desde 25/09/2026 ele não é mais uma constante deste arquivo: o número é
+// CONFIGURÁVEL no painel (Configuração › Retenção de logs), e o que sobrou aqui
+// é o padrão de quem nunca abriu a tela. Ver `lib/retencaoDeLogs.js`.
+const PODA_HISTORICO_DIAS = retencaoDeLogs.PADRAO;
 
 // E quanto tempo a CONVERSA de IA fica. Mesma decisão, mesmo dia, e um número
 // separado de propósito: são dados de naturezas diferentes (auditoria de quem
@@ -38,6 +39,8 @@ const PODA_CONVERSAS_IA_DIAS = 180;
 
 const POR_INSTANCIA = [
   "users",
+  // Os GRUPOS de permissão (26/09/2026): o que SOMA ao tipo de usuário.
+  "permission_groups",
   "user_tokens",
   "workouts",
   "diets",
@@ -266,9 +269,9 @@ async function ensureCentral(app) {
 // manda o resto para depois da resposta. `ensureInstance` continua sendo a
 // verdade completa — e continua idempotente, então rodar as duas na ordem que
 // for não repete nem conflita.
-const ESSENCIAIS = ["users", "roles", "user_tokens", "password_resets", "user_action_history"];
+const ESSENCIAIS = ["users", "roles", "permission_groups", "user_tokens", "password_resets", "user_action_history"];
 
-async function indicesEssenciais(db) {
+async function indicesEssenciais(db, dias = retencaoDeLogs.PADRAO) {
   // users — o e-mail é a chave de login, então o índice único no banco é o que
   // de fato impede dois cadastros iguais (a checagem no controller sozinha
   // perde a corrida entre duas requisições simultâneas).
@@ -436,9 +439,26 @@ async function indicesEssenciais(db) {
   // Quem apaga é o monitor de TTL do Mongo, que passa a cada minuto. Criar o
   // índice JÁ É a limpeza — não existe script de poda para lembrar de rodar, que
   // era metade da objeção do comentário antigo.
+  //
+  // O nome do índice é `poda_historico`, sem o número dentro: `poda_180d` era
+  // verdade enquanto a retenção era constante, e passaria a MENTIR no primeiro
+  // ajuste pela tela. O antigo é aposentado logo abaixo.
+  await garantirPodaDoHistorico(db, dias);
+
+  // ── GRUPOS DE PERMISSÃO (26/09/2026) ──────────────────────────────────
+  //
+  // O nome é ÚNICO por instância, e a checagem no controller não basta: duas
+  // telas salvando "Caixa" ao mesmo tempo passariam as duas pela consulta e
+  // criariam dois grupos com o mesmo nome — que ninguém distingue na lista.
   await db
-    .collection("user_action_history")
-    .createIndex({ createdAt: 1 }, { expireAfterSeconds: PODA_HISTORICO_DIAS * 86400, name: "poda_180d" });
+    .collection("permission_groups")
+    .createIndex({ instance: 1, name: 1 }, { unique: true, name: "nome_unico" });
+
+  // E quem está em cada grupo: é a consulta da tela de edição e a do `$pull`
+  // ao apagar. Esparso porque a maioria dos usuários não está em grupo nenhum.
+  await db
+    .collection("users")
+    .createIndex({ instance: 1, groups: 1 }, { name: "by_groups", sparse: true });
 
   await db.collection("user_action_history").createIndex({ instance: 1, createdAt: -1 }, { name: "by_date" });
   await db
@@ -450,6 +470,21 @@ async function indicesEssenciais(db) {
   await db
     .collection("user_action_history")
     .createIndex({ instance: 1, action: 1, createdAt: -1 }, { name: "by_action" });
+
+  // ── A LINHA DO TEMPO DE UMA PESSOA ────────────────────────────────────
+  //
+  // *"de baixo de documentos de alunos, crie um chamado histórico, quero ver
+  // ali TUDO que foi feito nesse aluno"* (25/09/2026).
+  //
+  // `sparse` porque a maioria das linhas não é de ninguém: configuração da
+  // conta, cadastro de fornecedor, login. Sem isso o índice carregaria o
+  // histórico inteiro para responder por um terço dele.
+  await db
+    .collection("user_action_history")
+    .createIndex(
+      { instance: 1, pessoa: 1, createdAt: -1 },
+      { name: "by_person_date", sparse: true }
+    );
 }
 
 // ── OS DADOS: um banco só, para todos os clientes ──────────────────────────
@@ -477,9 +512,14 @@ async function ensureDados(app) {
   // `createIndex` com a mesma chave e o mesmo nome é no-op.
   const bancos = await app.mongodb.bancosRegistrados();
 
+  // A retenção dos logs é uma decisão do PAINEL, lida uma vez para todos os
+  // bancos: a poda é do sistema, não de um cliente. Painel fora do ar cai no
+  // padrão — ver `lib/retencaoDeLogs.js`.
+  const dias = await retencaoDeLogs.lerDoCentral(await app.mongodb.centralDb());
+
   for (const destino of bancos) {
     console.log(`[schema] dados: preparando "${destino.nome}" (${destino.banco})`);
-    await ensureUmBanco(await app.mongodb.bancoCruSemEscopo(destino.uri));
+    await ensureUmBanco(await app.mongodb.bancoCruSemEscopo(destino.uri), { podaHistoricoDias: dias });
   }
 
   console.log(`[schema] dados: ${bancos.length} banco(s) pronto(s)`);
@@ -488,14 +528,19 @@ async function ensureDados(app) {
 // As collections e os índices de UM banco. Separado do laço acima para o corpo
 // não ganhar um nível de indentação e para a migração poder preparar um banco
 // recém-registrado sozinha.
-async function ensureUmBanco(db) {
+async function ensureUmBanco(db, opcoes) {
+  // Os dias de retenção vêm de fora porque quem os sabe é o PAINEL, e este
+  // arquivo não abre o banco dele. Sem o argumento, o padrão — é o que faz um
+  // banco preparado à mão nascer com a poda certa mesmo assim.
+  const dias = retencaoDeLogs.normalizar(opcoes?.podaHistoricoDias);
+
   await criarFaltantes(db, POR_INSTANCIA, "dados");
 
   // Os índices que os primeiros minutos de um cliente usam (entrar, criar senha,
   // papéis, auditoria). Separados por herança da época em que o cadastro criava
   // só eles antes de responder; hoje rodam juntos, e a separação continua
   // documentando quais são os críticos.
-  await indicesEssenciais(db);
+  await indicesEssenciais(db, dias);
 
   // workouts — sempre listados por (trainer, student), na ordem do período.
   await db
@@ -1333,12 +1378,58 @@ module.exports.ESSENCIAIS = ESSENCIAIS;
 module.exports.CENTRAL = CENTRAL;
 module.exports.POR_INSTANCIA = POR_INSTANCIA;
 module.exports.PODA_HISTORICO_DIAS = PODA_HISTORICO_DIAS;
+module.exports.garantirPodaDoHistorico = garantirPodaDoHistorico;
 module.exports.PODA_CONVERSAS_IA_DIAS = PODA_CONVERSAS_IA_DIAS;
 
 // Remove um índice que existe; ignora o que já não está lá.
 //
 // Existe para índice APOSENTADO: quando um campo sai do documento, o índice
 // dele continua sendo atualizado em toda escrita sem servir a consulta nenhuma.
+// ── A PODA DO HISTÓRICO: criar, ou AJUSTAR o que já existe ───────────────
+//
+// `createIndex` com as mesmas chaves e outro `expireAfterSeconds` não muda
+// nada: o Mongo recusa com `IndexOptionsConflict`. Quem muda o prazo de um TTL
+// vivo é o `collMod` — e é por isso que esta função existe em vez de mais uma
+// linha de `createIndex` no meio das outras.
+//
+// A ordem importa: ajustar ANTES de tentar criar. Ao contrário, o `createIndex`
+// falharia primeiro e o ajuste nunca aconteceria.
+async function garantirPodaDoHistorico(db, dias) {
+  const segundos = retencaoDeLogs.normalizar(dias) * 86400;
+  const NOME = "poda_historico";
+
+  // O índice velho, com o número no nome. Sai antes: dois TTL na mesma data
+  // fariam o menor mandar, e mexer no novo não mudaria nada — um defeito que se
+  // apresenta como "mudei a retenção e não aconteceu".
+  await dropIndexIfPresent(db, "user_action_history", "poda_180d");
+
+  let atual = null;
+  try {
+    atual = (await db.collection("user_action_history").indexes()).find((i) => i.name === NOME) || null;
+  } catch (erro) {
+    // Collection que ainda não existe: `createIndex` a cria.
+    atual = null;
+  }
+
+  if (atual && atual.expireAfterSeconds !== segundos) {
+    await db.command({
+      collMod: "user_action_history",
+      index: { name: NOME, expireAfterSeconds: segundos },
+    });
+    console.log(`[schema] retenção do histórico ajustada para ${segundos / 86400} dias`);
+    return { ajustado: true, dias: segundos / 86400 };
+  }
+
+  if (!atual) {
+    await db
+      .collection("user_action_history")
+      .createIndex({ createdAt: 1 }, { expireAfterSeconds: segundos, name: NOME });
+    return { criado: true, dias: segundos / 86400 };
+  }
+
+  return { intocado: true, dias: segundos / 86400 };
+}
+
 async function dropIndexIfPresent(db, collection, name) {
   try {
     const indexes = await db.collection(collection).indexes();

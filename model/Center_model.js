@@ -2,6 +2,7 @@ const { ObjectId } = require("mongodb");
 const instanceContext = require("../lib/instance.js");
 const dominio = require("../lib/domain.js");
 const alias = require("../lib/alias.js");
+const retencaoDeLogs = require("../lib/retencaoDeLogs.js");
 
 // A collection `instances`, no banco do PAINEL (`gofitnow_center`) — o registro
 // dos clientes.
@@ -387,6 +388,42 @@ Center_model.prototype.planFor = async function (instance) {
 // Cache curto, pela mesma razão do ambiente: quem acabou de desmarcar um
 // checkbox vai recarregar a vitrine para conferir, e trinta segundos de "não
 // mudou nada" pareceriam que não salvou.
+// ── QUANTOS DIAS A CASA GUARDA O HISTÓRICO ───────────────────────────────
+//
+// Lido do painel pelo mesmo caminho dos limites do plano e da cobrança: os dois
+// backends compartilham o MongoDB. Quem APLICA o número é o índice TTL (ver
+// `database/schema.js`); o que se lê aqui é para CONTAR — a aba Histórico da
+// ficha diz no pé por quanto tempo a linha do tempo existe, e um número errado
+// ali é pior que número nenhum.
+//
+// Um minuto de cache: o valor muda uma vez por ano, e a tela que o mostra é
+// aberta o tempo todo.
+const CACHE_RETENCAO_MS = 60 * 1000;
+
+Center_model.prototype.retencaoDeLogs = async function () {
+  const guardado = lido("rl:");
+  if (guardado !== undefined) return guardado;
+
+  let dias = retencaoDeLogs.PADRAO;
+  try {
+    dias = await retencaoDeLogs.lerDoCentral(await this.app.mongodb.centralDb());
+  } catch (erro) {
+    // Painel fora do ar: o padrão. É o mesmo lado para o qual o schema erra, e
+    // errar junto é o que impede a tela de dizer 180 enquanto o TTL apaga com
+    // outro prazo.
+    dias = retencaoDeLogs.PADRAO;
+  }
+
+  cache.set("rl:", { valor: dias, vale: Date.now() + CACHE_RETENCAO_MS });
+  return dias;
+};
+
+// O painel acabou de trocar o número: esquece o que estava guardado, para a
+// mudança valer na resposta seguinte e não em até um minuto.
+Center_model.prototype.esquecerRetencao = function () {
+  cache.delete("rl:");
+};
+
 const CACHE_ESCONDIDOS_MS = 10 * 1000;
 
 Center_model.prototype.limitesEscondidos = async function () {

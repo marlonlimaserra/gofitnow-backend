@@ -109,7 +109,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "create_pendency", {
       category: "people",
-      local: { target_type: "pendencies", target_id: String(id) },
+      local: { target_type: "pendencies", target_id: String(id), person: req.params.personId },
       extra: { titulo: (req.body || {}).titulo },
     });
 
@@ -133,7 +133,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "resolve_pendency", {
       category: "people",
-      local: { target_type: "pendencies", target_id: String(req.params.id) },
+      local: { target_type: "pendencies", target_id: String(req.params.id), person: req.params.personId },
     });
 
     res.send({ pendencias: await pendencias.pendenciasDe(app, req.params.personId) });
@@ -182,7 +182,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "waive_person_document", {
       category: "people",
-      local: { target_type: "person_documents", target_id: String(modelo.id) },
+      local: { target_type: "person_documents", target_id: String(modelo.id), person: req.params.personId },
       extra: { modelo: modelo.name },
     });
 

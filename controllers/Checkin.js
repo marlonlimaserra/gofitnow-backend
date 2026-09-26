@@ -100,7 +100,7 @@ module.exports = function (app) {
     if (!r.repetido) {
       app.insertUserActionHistory(req, trainer, "create_checkin", {
         category: "people",
-        local: { target_type: "checkins", target_id: String(r.id) },
+        local: { target_type: "checkins", target_id: String(r.id), person: req.params.personId },
       });
     }
 

@@ -7,13 +7,21 @@ const permissions = require("../../lib/permissions.js");
 
 // Onde o poder de cada conta é decidido. É a função mais sensível do backend:
 // os guardas só leem a lista que ela devolve.
-function monta(role) {
+// `grupos` é o que os GRUPOS DE PERMISSÃO somam (26/09/2026). Vazio por
+// padrão: quase todo caso aqui é sobre o TIPO, e a soma tem casos próprios no
+// fim do arquivo.
+function monta(role, grupos = []) {
   const app = {
     crypto,
     api: {
       role: {
         async data() {
           return role;
+        },
+      },
+      permissionGroup: {
+        async permissoesDe() {
+          return grupos;
         },
       },
     },
@@ -86,4 +94,69 @@ test("withRole não vaza hash nem salt", async () => {
 test("withRole passa reto por documento ausente", async () => {
   assert.equal(await monta(undefined).withRole(null), null);
   assert.equal(await monta(undefined).withRole(undefined), undefined);
+});
+
+// ── A SOMA: TIPO + GRUPOS ─────────────────────────────────────────────────
+//
+// *"aí posso pôr usuários nesse grupo, aí as permissões se somam"*
+// (26/09/2026).
+test("o que o grupo dá SOMA ao que o tipo dá", async () => {
+  const u = await monta({ permissions: ["people.view"] }, ["finance.view"]).withRole({
+    _id: "u1",
+    role: "r1",
+    groups: ["g1"],
+  });
+
+  assert.deepEqual([...u.permissions].sort(), ["finance.view", "people.view"]);
+});
+
+test("permissão repetida nos dois não aparece duas vezes", async () => {
+  // A lista vai para o frontend e para todo guarda; duplicata não quebra nada e
+  // faz a contagem da tela mentir.
+  const u = await monta({ permissions: ["people.view"] }, ["people.view"]).withRole({
+    _id: "u1",
+    role: "r1",
+    groups: ["g1"],
+  });
+
+  assert.deepEqual(u.permissions, ["people.view"]);
+});
+
+test("grupo SEM tipo nenhum já concede — é soma, não multiplicação", async () => {
+  // Quem não tem tipo atribuído mas está num grupo recebe o que o grupo dá. O
+  // contrário faria o grupo depender de um tipo qualquer para valer.
+  const u = await monta(undefined, ["schedule.view"]).withRole({ _id: "u1", groups: ["g1"] });
+
+  assert.deepEqual(u.permissions, ["schedule.view"]);
+});
+
+test("grupo NUNCA tira o que o tipo deu", async () => {
+  // União pura, e é deliberado: com subtração, "por que fulano não abre o
+  // financeiro?" exigiria simular a ordem das regras.
+  const u = await monta({ permissions: ["finance.view"] }, []).withRole({
+    _id: "u1",
+    role: "r1",
+    groups: ["g1"],
+  });
+
+  assert.ok(u.permissions.includes("finance.view"));
+});
+
+test("admin não passa pela soma — ele já tem o catálogo inteiro", async () => {
+  const u = await monta({ permissions: [] }, ["people.view"]).withRole({
+    _id: "u1",
+    role: "r1",
+    admin: true,
+    groups: ["g1"],
+  });
+
+  assert.deepEqual([...u.permissions].sort(), [...permissions.ALL].sort());
+});
+
+test("os grupos da conta voltam na resposta, como texto", async () => {
+  // A tela de usuário precisa saber em quais grupos a pessoa está; ObjectId
+  // cru viraria `{}` no JSON.
+  const u = await monta({ permissions: [] }, []).withRole({ _id: "u1", groups: ["g1", "g2"] });
+
+  assert.deepEqual(u.groups, ["g1", "g2"]);
 });

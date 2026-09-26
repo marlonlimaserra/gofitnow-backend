@@ -99,7 +99,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "create_diet", {
       category: "diets",
-      local: { target_type: "diets", target_id: id + "" },
+      local: { target_type: "diets", target_id: id + "", person: student._id },
       extra: { name: criada.name, person: student.name, personId: student._id + "" },
     });
 
@@ -163,7 +163,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "update_diet", {
       category: "diets",
-      local: { target_type: "diets", target_id: req.params.id + "" },
+      local: { target_type: "diets", target_id: req.params.id + "", person: antes?.student },
       extra: { name: depois.name },
       diff: app.api.actionHistory.diff(antes, depois),
     });
@@ -185,7 +185,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "delete_diet", {
       category: "diets",
-      local: { target_type: "diets", target_id: req.params.id + "" },
+      local: { target_type: "diets", target_id: req.params.id + "", person: alvo?.student },
       extra: { name: alvo.name },
     });
 
@@ -232,7 +232,7 @@ module.exports = function (app) {
 
     app.insertUserActionHistory(req, trainer, "update_diet_meals", {
       category: "diets",
-      local: { target_type: "diets", target_id: req.params.id + "" },
+      local: { target_type: "diets", target_id: req.params.id + "", person: atualizada?.student },
       extra: { name: atualizada.name, meals: atualizada.mealCount },
     });
 

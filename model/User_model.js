@@ -124,11 +124,36 @@ User_model.prototype.withRole = async function (doc) {
   user.roleName = role ? role.name : "";
   user.admin = doc.admin === true;
 
+  // ── A SOMA: o TIPO mais os GRUPOS ────────────────────────────────────────
+  //
+  // *"aí posso pôr usuários nesse grupo, aí as permissões se somam"*
+  // (26/09/2026).
+  //
+  // União pura, e nunca subtração: um grupo só ACRESCENTA ao que o tipo já dá.
+  // Com soma e subtração juntas, responder "por que fulano não abre o
+  // financeiro?" exigiria simular a ordem das regras; assim a pergunta é sempre
+  // a mesma — quem dá? — e se responde olhando o tipo e os grupos.
+  //
+  // Este é o ÚNICO lugar onde `permissions` nasce, e é de propósito: é ele que
+  // toda rota lê pelo `ReqProtected`, e é ele que o frontend recebe para
+  // decidir que menu existe. Somar em dois lugares seria a garantia de que um
+  // dos dois ficaria para trás.
+  //
   // The master switch is read from the catalog, not from a stored list, so it
   // covers permissions that did not exist when the account was created.
   // Without it, no role means NO permissions — never "everything": a user
   // whose role was deleted must lose access, not inherit it.
-  user.permissions = user.admin ? [...permissionCatalog.ALL] : role ? role.permissions || [] : [];
+  if (user.admin) {
+    user.permissions = [...permissionCatalog.ALL];
+    user.groups = Array.isArray(doc.groups) ? doc.groups.map(String) : [];
+    return user;
+  }
+
+  const doTipo = role ? role.permissions || [] : [];
+  const dosGrupos = await this.app.api.permissionGroup.permissoesDe(doc.groups);
+
+  user.permissions = [...new Set([...doTipo, ...dosGrupos])];
+  user.groups = Array.isArray(doc.groups) ? doc.groups.map(String) : [];
 
   return user;
 };
@@ -138,7 +163,14 @@ User_model.prototype.withRole = async function (doc) {
 User_model.prototype.hasPermission = async function (doc, permission) {
   if (!doc) return false;
   if (doc.admin === true) return true;
-  return await this.app.api.role.grants(doc.role, permission);
+
+  if (await this.app.api.role.grants(doc.role, permission)) return true;
+
+  // E os GRUPOS, pela mesma soma de `withRole`. Sem esta linha existiriam dois
+  // entendimentos de "o que esta pessoa pode" no mesmo servidor — e o segundo,
+  // este, é o que alguns guardas usam quando não há sessão carregada.
+  const dosGrupos = await this.app.api.permissionGroup.permissoesDe(doc.groups);
+  return dosGrupos.includes(permission);
 };
 
 // An empty e-mail is stored as an ABSENT field, not as "". The unique index is
