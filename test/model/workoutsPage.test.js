@@ -155,3 +155,82 @@ test("limite absurdo é contido antes de virar consulta", async () => {
 
   assert.equal(daPagina(pipelines[0].pipeline).find((e) => e.$limit !== undefined).$limit, 200);
 });
+
+// ── A LENTE DA UNIDADE (22/09/2026) ──────────────────────────────────────
+//
+// *"treinos também: troquei de unidade e está igual"*.
+//
+// O treino não tem unidade — quem tem é a PESSOA dele. Então filtrar obriga a
+// juntar a pessoa, e a junção é justamente o estágio caro que este arquivo
+// existe para manter depois do corte. As duas coisas convivem assim: quem
+// filtra paga a junção, quem não filtra não paga nada.
+
+test("sem lente, a junção da pessoa continua DEPOIS do corte", async () => {
+  // A garantia de que a lente não encareceu o caminho de todo dia.
+  const { model, pipelines } = fakeModel();
+
+  await model.pageAll(TRAINER, {});
+
+  assert.equal(nomes(antesDoCorte(pipelines[0].pipeline)).includes("$lookup"), false);
+});
+
+test("com lente, a junção sobe — não dá para filtrar pelo que não existe", async () => {
+  const unidade = new ObjectId();
+  const { model, pipelines } = fakeModel();
+
+  await model.pageAll(TRAINER, { unit: String(unidade) });
+
+  const antes = nomes(antesDoCorte(pipelines[0].pipeline));
+  assert.ok(antes.includes("$lookup"), "a pessoa precisa estar junta antes do filtro");
+});
+
+test("o filtro casa a unidade DA PESSOA", async () => {
+  const unidade = new ObjectId();
+  const { model, pipelines } = fakeModel();
+
+  await model.pageAll(TRAINER, { unit: String(unidade) });
+
+  const casamento = pipelines[0].pipeline.find((e) => e.$match && e.$match["pessoa.unit"]);
+
+  assert.ok(casamento, "sem $match pela unidade da pessoa");
+  assert.equal(String(casamento.$match["pessoa.unit"]), String(unidade));
+});
+
+test("o filtro vem ANTES das contagens — senão as abas contam a casa inteira", async () => {
+  // Uma aba dizendo "Atuais 638" com quatro linhas na tela é pior que não ter
+  // número nenhum: faz procurar as outras 634.
+  const unidade = new ObjectId();
+  const { model, pipelines } = fakeModel();
+
+  await model.pageAll(TRAINER, { unit: String(unidade) });
+
+  const etapas = pipelines[0].pipeline;
+  const ondeFiltra = etapas.findIndex((e) => e.$match && e.$match["pessoa.unit"]);
+  const ondeConta = etapas.findIndex((e) => e.$facet);
+
+  assert.ok(ondeFiltra >= 0 && ondeFiltra < ondeConta);
+});
+
+test("unidade inválida é ignorada, e não vira lista vazia", async () => {
+  // Um id estragado no endereço não pode esconder os treinos todos.
+  const { model, pipelines } = fakeModel();
+
+  await model.pageAll(TRAINER, { unit: "nao-e-um-id" });
+
+  assert.equal(
+    pipelines[0].pipeline.some((e) => e.$match && e.$match["pessoa.unit"]),
+    false
+  );
+});
+
+test("a pessoa não é juntada DUAS vezes quando se filtra e se ordena por ela", async () => {
+  // `personName` já subia a junção; a lente sobe também. Somadas sem cuidado,
+  // o pipeline ganharia dois $lookup iguais.
+  const unidade = new ObjectId();
+  const { model, pipelines } = fakeModel();
+
+  await model.pageAll(TRAINER, { unit: String(unidade), sort: "personName" });
+
+  const todos = JSON.stringify(pipelines[0].pipeline).match(/"\$lookup"/g) || [];
+  assert.equal(todos.length, 1);
+});

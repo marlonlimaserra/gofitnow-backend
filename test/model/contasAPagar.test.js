@@ -339,3 +339,87 @@ test("catálogo vazio não grava nada", async () => {
   assert.deepEqual(r, { criados: 0, jaExistiam: 0 });
   assert.equal(inseridos.length, 0);
 });
+
+// ── VENCE HOJE NÃO É VENCIDA ──────────────────────────────────────────────
+//
+// *"se vence hoje, não está atrasado"* (24/09/2026), com o print de uma conta
+// de 24/09 marcada "Atrasada" e "0 dia" escrito ao lado.
+//
+// O erro era comparar com o INSTANTE: `dueDate` é meia-noite UTC do dia do
+// calendário, e qualquer hora de hoje já é maior que a meia-noite de hoje. A
+// conta nascia vencida no primeiro segundo do próprio dia de vencimento — e o
+// "0 dia" ao lado era o sintoma gritando.
+const derivados = (pipeline) =>
+  pipeline.find((e) => e.$addFields && "atrasada" in e.$addFields).$addFields;
+
+test("o marco da comparação é MEIA-NOITE de hoje, e não agora", async () => {
+  const { model, chamadas } = fakeModel();
+  await model.listar({ fuso: "America/Sao_Paulo" });
+
+  const { atrasada } = derivados(chamadas[0].pipeline);
+  const marco = atrasada.$and[1].$lt[1];
+
+  assert.ok(marco instanceof Date, "o marco tem de ser uma data");
+  assert.equal(marco.getUTCHours(), 0, "meia-noite");
+  assert.equal(marco.getUTCMinutes(), 0);
+  assert.equal(marco.getUTCSeconds(), 0);
+  assert.equal(marco.getUTCMilliseconds(), 0);
+});
+
+test("uma conta que vence HOJE não é vencida; a de ontem é", async () => {
+  // O `$lt` é exclusivo de propósito: `dueDate` igual ao marco (vence hoje)
+  // fica de fora.
+  const { model, chamadas } = fakeModel();
+  await model.listar({ fuso: "America/Sao_Paulo" });
+
+  const { atrasada } = derivados(chamadas[0].pipeline);
+  const hoje = atrasada.$and[1].$lt[1];
+
+  const ontem = new Date(hoje.getTime() - 24 * 60 * 60 * 1000);
+  const amanha = new Date(hoje.getTime() + 24 * 60 * 60 * 1000);
+
+  assert.ok(!(hoje < hoje), "vence hoje: não vencida");
+  assert.ok(ontem < hoje, "venceu ontem: vencida");
+  assert.ok(!(amanha < hoje), "vence amanhã: não vencida");
+});
+
+test("os dias de atraso saem do MESMO marco — hoje é zero, ontem é um", async () => {
+  const { model, chamadas } = fakeModel();
+  await model.listar({ fuso: "America/Sao_Paulo" });
+
+  const campos = derivados(chamadas[0].pipeline);
+  const marcoDoAtraso = campos.diasDeAtraso.$max[1].$floor.$divide[0].$subtract[0];
+
+  // O mesmo objeto do `atrasada`: dois marcos diferentes dariam uma conta
+  // "vencida" com zero dia de atraso, que foi exatamente o que apareceu na
+  // tela.
+  assert.equal(marcoDoAtraso, campos.atrasada.$and[1].$lt[1]);
+});
+
+test("e a ORDEM por situação usa o mesmo marco", async () => {
+  // Senão a conta que vence hoje apareceria no topo, entre as vencidas, com a
+  // etiqueta dizendo que não está.
+  const { model, chamadas } = fakeModel();
+  await model.listar({ fuso: "America/Sao_Paulo" });
+
+  const campos = derivados(chamadas[0].pipeline);
+  const doRanking = campos.situacao.$switch.branches.find((b) => b.then === 0);
+
+  assert.equal(doRanking.case.$lt[1], campos.atrasada.$and[1].$lt[1]);
+});
+
+test("o dia é o da CASA, e não o do servidor", async () => {
+  // O servidor roda em UTC: às 21h de Brasília ele já virou amanhã, e a conta
+  // que vence amanhã nasceria vencida.
+  const { model, chamadas } = fakeModel();
+
+  await model.listar({ fuso: "Pacific/Kiritimati" });
+  const cedo = derivados(chamadas[0].pipeline).atrasada.$and[1].$lt[1];
+
+  await model.listar({ fuso: "Pacific/Midway" });
+  const tarde = derivados(chamadas[1].pipeline).atrasada.$and[1].$lt[1];
+
+  // Kiritimati é +14 e Midway é −11: em algum instante do dia os dois estão em
+  // dias de calendário diferentes, e o marco tem de acompanhar.
+  assert.ok(cedo >= tarde, "o fuso adiantado nunca fica para trás");
+});

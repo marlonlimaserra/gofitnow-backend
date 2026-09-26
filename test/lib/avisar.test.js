@@ -53,6 +53,19 @@ describe("quando NÃO avisa", () => {
     assert.strictEqual(r.erro, "evento_desconhecido");
   });
 
+  test("quem desligou o assunto não recebe", async () => {
+    // A escolha é por ASSUNTO: o mesmo "treino novo" que sai daqui em push sai
+    // por e-mail noutro lugar, e desligar precisa calar os dois.
+    const comPessoa = {
+      ...LIGADO,
+      api: { user: { data: async () => ({ preferences: { notify: { workout: false } } }) } },
+    };
+
+    const r = await avisar(comPessoa, "workout", { para: "u9" });
+
+    assert.strictEqual(r.erro, "desligado_pela_pessoa");
+  });
+
   test("central fora do ar não derruba — só não avisa", async () => {
     const quebrado = { mongodb: { centralDb: async () => { throw new Error("sem banco"); } } };
     assert.strictEqual((await avisar(quebrado, "diet", { para: "u2" })).erro, "desligado");

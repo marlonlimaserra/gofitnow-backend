@@ -435,7 +435,32 @@ Equipment_model.prototype.sugestoes = async function () {
 // Vem com o NOME do aparelho embutido, porque uma linha de histórico sem dizer
 // de quem ela é não é histórico — e buscar trinta fichas na tela para descobrir
 // seria trinta idas ao servidor.
-Equipment_model.prototype.manutencoesNoPeriodo = async function ({ de, ate, limite } = {}) {
+
+// Os IDS dos aparelhos de uma unidade.
+//
+// *"estrutura também não respeita unidades"*: a lista de aparelhos já
+// filtrava, mas o GASTO e o HISTÓRICO de manutenção da mesma tela não — a
+// lente em Paraty mostrava zero aparelhos e o gasto da casa inteira embaixo.
+//
+// A manutenção aponta para o APARELHO, e é ele que tem unidade. Traduzir para
+// ids resolve os dois relatórios sem mexer nos dois pipelines: são dezenas de
+// aparelhos numa academia, não milhares, então o `$in` é barato aqui.
+//
+// Devolve `null` quando não há lente — e `null` é diferente de lista vazia:
+// vazia quer dizer "esta unidade não tem aparelho nenhum", e aí o relatório
+// tem de dar zero mesmo.
+Equipment_model.prototype.idsDaUnidade = async function (unit) {
+  if (!ObjectId.isValid(String(unit || ""))) return null;
+
+  const col = await this.collection();
+  const docs = await col
+    .find({ unit: new ObjectId(String(unit)) }, { projection: { _id: 1 } })
+    .toArray();
+
+  return docs.map((d) => d._id);
+};
+
+Equipment_model.prototype.manutencoesNoPeriodo = async function ({ de, ate, limite, unit } = {}) {
   const man = await this.manutencoes();
   const filtro = {};
   if (de || ate) {
@@ -443,6 +468,10 @@ Equipment_model.prototype.manutencoesNoPeriodo = async function ({ de, ate, limi
     if (de) filtro.data.$gte = new Date(de);
     if (ate) filtro.data.$lte = new Date(ate);
   }
+
+  // A lente: a manutenção é DE UM APARELHO, e quem tem unidade é o aparelho.
+  const daUnidade = await this.idsDaUnidade(unit);
+  if (daUnidade) filtro.equipment = { $in: daUnidade };
 
   const docs = await man
     .aggregate([
@@ -459,6 +488,10 @@ Equipment_model.prototype.manutencoesNoPeriodo = async function ({ de, ate, limi
     // O aparelho pode ter sido apagado depois; a manutenção some junto, mas
     // entre uma leitura e outra o `$lookup` pode voltar vazio.
     equipmentName: m.eq?.[0]?.name || "",
+    // A UNIDADE do aparelho. *"quando eu pôr todas as unidades, sempre exiba
+    // em qual unidade pertence"* — e quem resolve o nome é a tela, que já tem
+    // a lista de unidades pela lente.
+    unit: m.eq?.[0]?.unit || null,
     tipo: m.tipo,
     data: m.data,
     descricao: m.descricao || "",
@@ -483,7 +516,7 @@ Equipment_model.prototype.manutencoesNoPeriodo = async function ({ de, ate, limi
 //
 // O mês sai já formatado como `AAAA-MM` pelo próprio banco: montar isso em JS
 // exigiria decidir fuso na mão, e `$dateToString` usa o mesmo do resto.
-Equipment_model.prototype.custoNoPeriodo = async function ({ de, ate } = {}) {
+Equipment_model.prototype.custoNoPeriodo = async function ({ de, ate, unit } = {}) {
   const man = await this.manutencoes();
   const filtro = {};
   if (de || ate) {
@@ -491,6 +524,10 @@ Equipment_model.prototype.custoNoPeriodo = async function ({ de, ate } = {}) {
     if (de) filtro.data.$gte = new Date(de);
     if (ate) filtro.data.$lte = new Date(ate);
   }
+
+  // A lente: a manutenção é DE UM APARELHO, e quem tem unidade é o aparelho.
+  const daUnidade = await this.idsDaUnidade(unit);
+  if (daUnidade) filtro.equipment = { $in: daUnidade };
 
   const [linhas] = await man
     .aggregate([

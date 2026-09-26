@@ -15,7 +15,11 @@ const Assessment_model = require("../../model/Assessment_model.js");
 // E um deles não é sobre custo: o `$lookup` sem sub-pipeline traz o documento
 // INTEIRO da pessoa, senha e salt inclusive. O `$project` que descarta isso é a
 // única coisa entre o hash e a tela.
-function fakeModel({ docs = [], total = 0, pessoas = [] } = {}) {
+// `porChamada` devolve uma lista diferente a cada `find` em `users` — a lente
+// da unidade e a busca por nome fazem uma consulta cada, e o caso que cruza as
+// duas precisa que elas respondam coisas diferentes.
+function fakeModel({ docs = [], total = 0, pessoas = [], porChamada = null } = {}) {
+  let chamada = 0;
   const pipelines = [];
   const consultas = [];
 
@@ -26,7 +30,11 @@ function fakeModel({ docs = [], total = 0, pessoas = [] } = {}) {
           return {
             find(consulta, opcoes) {
               consultas.push({ consulta, opcoes });
-              return { async toArray() { return pessoas; } };
+              return {
+                async toArray() {
+                  return porChamada ? porChamada[chamada++] || [] : pessoas;
+                },
+              };
             },
           };
         },
@@ -189,12 +197,15 @@ test("a pessoa sai montada na linha, com o que a tela precisa para calcular", as
   const r = await model.pageAll(TRAINER, {});
 
   // Sexo e nascimento vão junto porque quem calcula gordura e IMC é a TELA.
+  // A UNIDADE também: com a lente em "todas", o cartão diz de qual unidade é
+  // cada coleta — *"quando tiver todos, mostre ali de qual unidade pertence"*.
   assert.deepEqual(r.rows[0].student, {
     _id: p1,
     name: "Bruna",
     sex: "female",
     birthDate: "1990-03-01",
     avatarAt: null,
+    unit: null,
   });
   // Os campos crus da junção não sobram na linha.
   assert.equal(r.rows[0].personName, undefined);
@@ -254,4 +265,92 @@ test("criar SEM data continua sendo hoje — o padrão do insert não mudou", as
   await model.insert(TRAINER, new ObjectId(), { weight: 78 });
 
   assert.ok(docs[0].date instanceof Date);
+});
+
+// ── A LENTE DA UNIDADE (22/09/2026) ──────────────────────────────────────
+//
+// *"treinos também: troquei de unidade e está igual"* — e valia para as
+// coletas pelo mesmo motivo.
+//
+// A coleta não tem unidade: quem tem é a PESSOA dela. A primeira tentativa
+// filtrou no PIPELINE, com um `$lookup` — e a lista saiu filtrada com o
+// `total` da casa inteira, porque o total vem de um `countDocuments` que não
+// junta coleção. Em produção deu 3 avaliações em Paraty E em Niterói, com uma
+// pessoa em cada. Por isso a lente entra na CONSULTA, que é a única coisa que
+// as duas pontas compartilham.
+
+// A consulta que o `countDocuments` recebeu.
+const contada = (consultas) => consultas.find((c) => c.count)?.count;
+
+test("a lente vira um conjunto de pessoas na CONSULTA — a mesma que conta o total", async () => {
+  const daUnidade = [new ObjectId(), new ObjectId()];
+  const { model, consultas } = fakeModel({ pessoas: daUnidade.map((_id) => ({ _id })) });
+
+  await model.pageAll(TRAINER, { unit: String(new ObjectId()) });
+
+  assert.deepEqual(contada(consultas).student.$in.map(String), daUnidade.map(String));
+});
+
+test("a lente NÃO vira um $lookup no pipeline — o total não enxergaria", async () => {
+  // Foi a primeira tentativa, e é o defeito que este caso tranca.
+  const { model, pipelines } = fakeModel({ pessoas: [{ _id: new ObjectId() }] });
+
+  await model.pageAll(TRAINER, { unit: String(new ObjectId()) });
+
+  assert.ok(!JSON.stringify(antesDoCorte(pipelines[0])).includes("pessoa.unit"));
+});
+
+test("unidade inválida não filtra nada", async () => {
+  const { model, consultas } = fakeModel();
+
+  await model.pageAll(TRAINER, { unit: "nao-e-id" });
+
+  assert.equal(contada(consultas).student, undefined);
+});
+
+test("lente E busca por nome se CRUZAM, em vez de uma anular a outra", async () => {
+  // O defeito que isto tranca: `consulta.student` já era um CONJUNTO (a
+  // lente), e o cruzamento antigo comparava com `String(...)` — que num
+  // objeto vira "[object Object]". A busca não casava com ninguém e a tela
+  // ficava vazia sempre que a lente estivesse ligada.
+  const naUnidade = new ObjectId();
+  const foraDela = new ObjectId();
+  const { model, consultas } = fakeModel({
+    porChamada: [[{ _id: naUnidade }], [{ _id: naUnidade }, { _id: foraDela }]],
+  });
+
+  await model.pageAll(TRAINER, { unit: String(new ObjectId()), search: "bruna" });
+
+  assert.deepEqual(contada(consultas).student.$in.map(String), [String(naUnidade)]);
+});
+
+test("a unidade da pessoa vai na linha — é o que o cartão mostra em 'todas'", async () => {
+  // *"quando tiver todos, mostre ali de qual unidade pertence"*.
+  //
+  // Vai o ID, não o nome: a tela já tem a lista de unidades em mãos (é a
+  // mesma da lente, no alto do menu) e resolve o nome sem uma segunda junção
+  // no banco para cada linha.
+  const unidade = new ObjectId();
+  const { model } = fakeModel({
+    total: 1,
+    docs: [{ _id: "a1", student: new ObjectId(), personName: "Bruna", personUnit: unidade }],
+  });
+
+  const r = await model.pageAll(TRAINER, {});
+
+  assert.equal(String(r.rows[0].student.unit), String(unidade));
+});
+
+test("quem não tem unidade sai com `null`, e não com o campo faltando", async () => {
+  // A tela distingue "sem unidade" de "não sei": o primeiro não desenha selo
+  // nenhum, e um campo ausente viraria `undefined` no meio de um `find`.
+  const { model } = fakeModel({
+    total: 1,
+    docs: [{ _id: "a1", student: new ObjectId(), personName: "Bruna" }],
+  });
+
+  const r = await model.pageAll(TRAINER, {});
+
+  assert.equal(r.rows[0].student.unit, null);
+  assert.ok("unit" in r.rows[0].student);
 });

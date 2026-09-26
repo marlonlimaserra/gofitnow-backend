@@ -7,6 +7,7 @@ const rateLimit = require("../lib/rateLimit.js");
 const slots = require("../lib/slots.js");
 const tempo = require("../lib/tempo.js");
 const fotoDoWhatsapp = require("../lib/fotoDoWhatsapp.js");
+const notificacoes = require("../lib/notificacoes.js");
 const depoisLib = require("../lib/depois.js");
 
 module.exports = function (app) {
@@ -592,7 +593,11 @@ module.exports = function (app) {
       });
 
       // ── O E-MAIL ──────────────────────────────────────────────────────
-      if (!prof.email) return;
+      //
+      // O push já passou pela preferência dentro do `avisar`; o e-mail pergunta
+      // aqui, pela MESMA chave. É o que faz "desligar marcações" desligar o
+      // assunto, e não só um dos dois canais por onde ele chega.
+      if (!prof.email || !notificacoes.querReceber(prof, "booking")) return;
 
       const casa = await app.api.tenant.dataOfInstance();
       const mail = bookingReceived({

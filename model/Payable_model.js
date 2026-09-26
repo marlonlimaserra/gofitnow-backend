@@ -4,6 +4,8 @@ const { parseDataUri } = require("../lib/imageDataUri.js");
 const statusDeCobranca = require("../lib/statusDeCobranca.js");
 const categorias = require("../lib/categoriasDeConta.js");
 const tempo = require("../lib/tempo.js");
+const { porPagina: tetoPorPagina } = require("../lib/tetoDaLista.js");
+const { recorteDeIds } = require("../lib/recorteDeIds.js");
 
 // CONTAS A PAGAR — a luz, o telefone, o aluguel, a folha.
 //
@@ -322,6 +324,10 @@ Payable_model.prototype.listar = async function ({
   direcao,
   pagina,
   limite,
+  // As contas marcadas na tela, para a planilha e a folha delas. E o teto
+  // maior da exportação — ver `lib/tetoDaLista.js`.
+  ids,
+  exportando,
 } = {}) {
   const col = await this.collection();
 
@@ -332,7 +338,21 @@ Payable_model.prototype.listar = async function ({
     if (ate) janela.dueDate.$lte = fimDoDia(ate, fuso);
   }
 
+  // ── VENCE HOJE NÃO É VENCIDA ──────────────────────────────────────────
+  //
+  // *"se vence hoje, não está atrasado"* (24/09/2026), com o print de uma conta
+  // de 24/09 marcada "Atrasada" — e "0 dia" escrito ao lado dela.
+  //
+  // O erro era comparar com o INSTANTE: `dueDate` é meia-noite UTC do dia do
+  // calendário (ver `dia()` acima — vencimento não é um instante), e qualquer
+  // hora de hoje já é maior que a meia-noite de hoje. A conta nascia vencida no
+  // primeiro segundo do próprio dia de vencimento.
+  //
+  // A comparação certa é de CALENDÁRIO: vencida é a que venceu ANTES de hoje. E
+  // "hoje" é o dia no fuso da CASA — o servidor roda em UTC, e às 21h de
+  // Brasília ele já virou amanhã.
   const agora = new Date();
+  const hoje = dia(tempo.paredeDe(agora, fuso).data) || agora;
   const DIA_MS = 24 * 60 * 60 * 1000;
 
   const derivados = {
@@ -351,11 +371,14 @@ Payable_model.prototype.listar = async function ({
       atrasada: {
         $and: [
           { $eq: [{ $ifNull: ["$status", "open"] }, "open"] },
-          { $lt: ["$dueDate", agora] },
+          { $lt: ["$dueDate", hoje] },
         ],
       },
+      // Do mesmo marco: uma conta que vence hoje tem ZERO dia de atraso, e uma
+      // que venceu ontem tem um — e não "zero e pouco", que era o que a divisão
+      // pelo instante dava.
       diasDeAtraso: {
-        $max: [0, { $floor: { $divide: [{ $subtract: [agora, "$dueDate"] }, DIA_MS] } }],
+        $max: [0, { $floor: { $divide: [{ $subtract: [hoje, "$dueDate"] }, DIA_MS] } }],
       },
       // O POSTO da urgência, para ordenar por situação: o que venceu primeiro,
       // depois o que ainda vai vencer, e por último o que já morreu.
@@ -364,7 +387,7 @@ Payable_model.prototype.listar = async function ({
           branches: [
             { case: { $eq: ["$status", "canceled"] }, then: 3 },
             { case: { $eq: ["$status", "paid"] }, then: 2 },
-            { case: { $lt: ["$dueDate", agora] }, then: 0 },
+            { case: { $lt: ["$dueDate", hoje] }, then: 0 },
           ],
           default: 1,
         },
@@ -373,6 +396,11 @@ Payable_model.prototype.listar = async function ({
   };
 
   const recorte = [];
+
+  // OS MARCADOS. Primeiro, porque é o corte mais estreito que existe — e
+  // "nenhum id válido" é nenhuma linha, nunca a lista inteira.
+  const escolhidos = recorteDeIds(ids);
+  if (escolhidos) recorte.push({ $match: { _id: { $in: escolhidos } } });
 
   const pedidos = statusDeCobranca.pedidos(status);
   if (pedidos.size) {
@@ -405,7 +433,11 @@ Payable_model.prototype.listar = async function ({
   const campo = ORDEM[ordem] || "dueDate";
   const sentido = direcao === "asc" ? 1 : -1;
 
-  const limitePorPagina = Math.min(Math.max(Number(limite) || LIMITE_PADRAO, 1), LIMITE_MAXIMO);
+  const limitePorPagina = tetoPorPagina(limite, {
+    padrao: LIMITE_PADRAO,
+    maximo: LIMITE_MAXIMO,
+    exportando,
+  });
   const paginaPedida = Math.max(Number(pagina) || 1, 1);
 
   const projecao = {

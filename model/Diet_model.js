@@ -248,6 +248,29 @@ Diet_model.prototype.consultaDe = async function (trainerId, filtros = {}) {
     consulta.student = new ObjectId(String(filtros.studentId));
   }
 
+  // ── A LENTE DA UNIDADE ──────────────────────────────────────────────────
+  //
+  // *"treinos também: troquei de unidade e está igual"* — e vale para os
+  // planos alimentares pelo mesmo motivo. O plano não tem unidade: quem tem é
+  // a PESSOA dele.
+  //
+  // Aqui a tradução é para IDS DE PESSOA, e não um `$lookup` como no treino:
+  // esta consulta serve a lista E as contagens das abas, e as contagens são
+  // `countDocuments`, que não junta coleção. Um caminho só é o que garante que
+  // a aba e a lista concordem — duas regras separadas divergiriam no primeiro
+  // ajuste, e a aba passaria a contar a casa inteira.
+  //
+  // Sem teto, ao contrário da busca por nome: lá o teto existe porque "a" não
+  // é uma busca; aqui a unidade inteira é exatamente o que foi pedido.
+  if (ObjectId.isValid(String(filtros.unit || ""))) {
+    const users = await this.app.api.user.collection();
+    const daUnidade = await users
+      .find({ unit: new ObjectId(String(filtros.unit)) }, { projection: { _id: 1 } })
+      .toArray();
+
+    consulta.student = { $in: daUnidade.map((p) => p._id) };
+  }
+
   // A busca é pelo nome da PESSOA e pelo nome do PLANO — as duas coisas que
   // alguém digita procurando um plano. Só por pessoa deixaria "Low carb" sem
   // resposta, e é assim que o profissional chama o que ele montou.
@@ -295,6 +318,11 @@ Diet_model.prototype.pageAll = async function (trainerId, filtros = {}) {
       $addFields: {
         personName: { $ifNull: [{ $arrayElemAt: ["$pessoa.name", 0] }, ""] },
         personAvatarAt: { $arrayElemAt: ["$pessoa.avatarAt", 0] },
+        // A UNIDADE da pessoa — o ID, não o nome: a tela já tem a lista de
+        // unidades (é a mesma da lente) e resolve o nome sem uma segunda
+        // junção aqui. *"quando tiver todos, mostre ali de qual unidade
+        // pertence"*.
+        personUnit: { $arrayElemAt: ["$pessoa.unit", 0] },
       },
     },
   ];
@@ -328,7 +356,7 @@ Diet_model.prototype.pageAll = async function (trainerId, filtros = {}) {
 
   return {
     total,
-    rows: docs.map(({ personName, personAvatarAt, ...doc }) => {
+    rows: docs.map(({ personName, personAvatarAt, personUnit, ...doc }) => {
       // `comTotais` é quem sabe somar respeitando as substituições. Chamado aqui
       // sobre doze documentos, e o resultado sai SEM as refeições.
       const { meals, ...resto } = comTotais(doc);
@@ -339,6 +367,7 @@ Diet_model.prototype.pageAll = async function (trainerId, filtros = {}) {
           _id: doc.student,
           name: personName || "",
           avatarAt: personAvatarAt || null,
+          unit: personUnit || null,
         },
       };
     }),

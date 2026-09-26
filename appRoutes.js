@@ -76,5 +76,8 @@ routes.Brand = require("./controllers/Brand.js");
 routes.Internal = require("./controllers/Internal.js");
 // A porta MCP: onde um modelo opera o sistema por ferramenta, e não pela tela.
 routes.Mcp = require("./controllers/Mcp.js");
+// Levar a lista embora: planilha e papel, para qualquer cliente. Duas rotas
+// para todas as listas — ver `lib/listasExportaveis.js`.
+routes.Exportar = require("./controllers/Exportar.js");
 
 module.exports = routes;

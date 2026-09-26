@@ -262,6 +262,26 @@ Assessment_model.prototype.pageAll = async function (trainerId, filtros = {}) {
     consulta.student = new ObjectId(filtros.studentId);
   }
 
+  // ── A LENTE DA UNIDADE ──────────────────────────────────────────────────
+  //
+  // A coleta não tem unidade: quem tem é a PESSOA dela. A tradução é para IDS
+  // DE PESSOA, e não um `$lookup`, porque o `total` logo abaixo é um
+  // `countDocuments` — que não junta coleção. Filtrar só no pipeline daria
+  // uma lista de uma unidade com o total da casa inteira, que foi exatamente
+  // o que aconteceu na primeira tentativa: 3 avaliações em Paraty E em
+  // Niterói, com uma pessoa em cada.
+  //
+  // Sem teto, ao contrário da busca por nome: lá o teto existe porque "a" não
+  // é uma busca; aqui a unidade inteira é o que foi pedido.
+  if (ObjectId.isValid(String(filtros.unit || ""))) {
+    const users = await this.app.api.user.collection();
+    const daUnidade = await users
+      .find({ unit: new ObjectId(String(filtros.unit)) }, { projection: { _id: 1 } })
+      .toArray();
+
+    consulta.student = { $in: daUnidade.map((p) => p._id) };
+  }
+
   const termo = String(filtros.search || "").trim();
   if (termo) {
     const escapado = termo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -275,10 +295,22 @@ Assessment_model.prototype.pageAll = async function (trainerId, filtros = {}) {
 
     if (!pessoas.length) return { rows: [], total: 0 };
 
+    // ── CRUZAR COM O QUE JÁ FILTRAVA ──────────────────────────────────
+    //
+    // `consulta.student` pode já ser UMA pessoa (veio `personId`) ou UM
+    // CONJUNTO delas (veio a lente da unidade). A versão anterior só sabia da
+    // primeira forma: com a lente ligada, `String({ $in: [...] })` virava
+    // "[object Object]" e a busca não casava com ninguém.
     const ids = pessoas.map((p) => p._id);
-    consulta.student = consulta.student
-      ? { $in: ids.filter((id) => String(id) === String(consulta.student)) }
-      : { $in: ids };
+    const jaFiltrava = consulta.student;
+
+    const permitido = (id) => {
+      if (!jaFiltrava) return true;
+      if (jaFiltrava.$in) return jaFiltrava.$in.some((x) => String(x) === String(id));
+      return String(jaFiltrava) === String(id);
+    };
+
+    consulta.student = { $in: ids.filter(permitido) };
   }
 
   const total = await col.countDocuments(consulta);
@@ -302,6 +334,11 @@ Assessment_model.prototype.pageAll = async function (trainerId, filtros = {}) {
         personSex: { $ifNull: [{ $arrayElemAt: ["$pessoa.sex", 0] }, ""] },
         personBirthDate: { $ifNull: [{ $arrayElemAt: ["$pessoa.birthDate", 0] }, ""] },
         personAvatarAt: { $arrayElemAt: ["$pessoa.avatarAt", 0] },
+        // A UNIDADE da pessoa — o ID, não o nome: a tela já tem a lista de
+        // unidades (é a mesma da lente) e resolve o nome sem uma segunda
+        // junção aqui. *"quando tiver todos, mostre ali de qual unidade
+        // pertence"*.
+        personUnit: { $arrayElemAt: ["$pessoa.unit", 0] },
       },
     },
   ];
@@ -366,16 +403,19 @@ Assessment_model.prototype.pageAll = async function (trainerId, filtros = {}) {
 
   return {
     total,
-    rows: docs.map(({ personName, personSex, personBirthDate, personAvatarAt, ...row }) => ({
-      ...row,
-      student: {
-        _id: row.student,
-        name: personName || "",
-        sex: personSex || "",
-        birthDate: personBirthDate || "",
-        avatarAt: personAvatarAt || null,
-      },
-    })),
+    rows: docs.map(
+      ({ personName, personSex, personBirthDate, personAvatarAt, personUnit, ...row }) => ({
+        ...row,
+        student: {
+          _id: row.student,
+          name: personName || "",
+          sex: personSex || "",
+          birthDate: personBirthDate || "",
+          avatarAt: personAvatarAt || null,
+          unit: personUnit || null,
+        },
+      })
+    ),
   };
 };
 

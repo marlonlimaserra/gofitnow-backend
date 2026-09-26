@@ -260,17 +260,37 @@ test("a lista de todas as coletas exige a permissão de VER avaliação", async 
 test("os filtros da tela chegam inteiros ao model", async () => {
   const { app, pedidos } = montaLista();
   await call(app, "get", "/assessments", {
-    query: { search: "bruna", personId: "p1", sort: "weight", dir: "asc", page: "3", limit: "20" },
+    query: {
+      search: "bruna",
+      personId: "p1",
+      sort: "weight",
+      dir: "asc",
+      page: "3",
+      limit: "20",
+      // A LENTE DA UNIDADE entrou em 22/09/2026, junto com treinos e planos.
+      unit: "u9",
+    },
   });
 
   assert.deepEqual(pedidos[1], {
     search: "bruna",
     studentId: "p1",
+    unit: "u9",
     sort: "weight",
     dir: "asc",
     page: "3",
     limit: "20",
   });
+});
+
+test("sem lente, o model recebe `unit` vazio — e não filtra por nada", async () => {
+  // O model só filtra com um id VÁLIDO (`ObjectId.isValid`), então `undefined`
+  // atravessa sem efeito. O caso existe para que trocar isso por um valor
+  // qualquer — um "" que o Mongo compararia — exija uma decisão.
+  const { app, pedidos } = montaLista();
+  await call(app, "get", "/assessments");
+
+  assert.equal(pedidos[1].unit, undefined);
 });
 
 test("a resposta leva os ângulos configurados junto — a coluna de fotos precisa deles", async () => {

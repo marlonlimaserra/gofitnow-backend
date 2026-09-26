@@ -76,7 +76,12 @@ module.exports = function (app) {
     // Os passados vêm por pedido explícito. A tela abre nos que ainda vão
     // acontecer, que é o que alguém quer ver — a lista do que já passou cresce
     // para sempre e empurraria o próximo aulão para o fim.
-    const lista = await app.api.aulao.list({ passados: req.query.passados === "1" });
+    const lista = await app.api.aulao.list({
+      passados: req.query.passados === "1",
+      // A LENTE — a mesma das outras listas. O aulão TEM unidade: ele
+      // acontece num lugar, é evento e não item de catálogo.
+      unit: req.query.unit,
+    });
 
     // A contagem de inscritos de cada um, numa consulta só. Uma por aulão
     // seriam N idas ao banco para desenhar uma lista.
@@ -183,6 +188,130 @@ module.exports = function (app) {
     );
 
     res.send({ aulao: paraTela(a, pessoas.length, req), inscritos: pessoas });
+  });
+
+  // ── A LISTA PARA LEVAR EMBORA: planilha e papel ─────────────────────────
+  //
+  // *"faltou o exportar xlsx e imprimir lista"* no app (23/09/2026).
+  //
+  // No painel as duas já existiam do lado do navegador: a planilha é montada lá
+  // (mesmo `exceljs`) e o papel é uma rota de TELA que o Ctrl+P resolve. No
+  // celular não há Ctrl+P, nem impressora ligada, nem pasta de downloads — o
+  // app precisa de um ARQUIVO para entregar à folha de compartilhar.
+  //
+  // Estas duas rotas servem os BYTES, e é a mesma decisão (e o mesmo desenho)
+  // da folha de ponto: quem exporta do tablet e quem exporta do computador
+  // mandam o mesmo arquivo para quem recebe.
+  //
+  // `schedule.view` nas duas: quem pode ver a lista na tela pode levá-la. Ela
+  // carrega NOME e TELEFONE, então não há rota pública aqui — é a mesma decisão
+  // que a folha do navegador tomou em 17/09.
+  async function listaParaLevar(req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "schedule.view");
+    if (user === false) return null;
+
+    const a = await app.api.aulao.byId(req.params.id);
+    if (!a) {
+      res.status(404).send({ msg: req.t("errors.aulaoNotFound") });
+      return null;
+    }
+
+    const inscritos = await app.api.aulao.inscritos(a._id);
+    const dinheiro = a.priceCents > 0 ? await app.api.finance.cobrancasDeAulao(a._id) : {};
+
+    const pessoas = await Promise.all(
+      inscritos.map(async (i) => {
+        const p = await app.api.user.data(i.person);
+        return {
+          name: p?.name || "—",
+          email: p?.email || "",
+          phone: p?.phone || "",
+          desde: i.createdAt,
+          presente: typeof i.presente === "boolean" ? i.presente : null,
+          cobranca: dinheiro[String(i.person)] || null,
+        };
+      })
+    );
+
+    return { aulao: a, inscritos: pessoas, lang: user.lang || req.language };
+  }
+
+  // O nome do arquivo viaja por WhatsApp, e-mail e pen drive — e cada um
+  // reescreve o que não entende. Sem acento e sem espaço, como o da folha de
+  // ponto, para o arquivo que sai do tablet e o que sai do computador se
+  // chamarem igual.
+  function nomeDoArquivo(nome, extensao) {
+    const limpo = String(nome || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40)
+      .replace(/-+$/, "");
+
+    return ["inscritos", limpo].filter(Boolean).join("-") + "." + extensao;
+  }
+
+  app.get("/aulaoes/:id/inscritos.xlsx", async function (req, res) {
+    const dados = await listaParaLevar(req, res);
+    if (!dados) return;
+
+    const { planilhaDeInscritos } = require("../lib/documentoInscritos.js");
+    const bytes = await planilhaDeInscritos(dados);
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${nomeDoArquivo(dados.aulao.name, "xlsx")}"`
+    );
+    res.send(Buffer.from(bytes));
+  });
+
+  // ── O PAPEL SAI COMO HTML, e quem vira PDF é o APARELHO ──────────────
+  //
+  // A primeira versão desta rota devolvia o PDF pronto, pelo Chromium do
+  // servidor. Não funciona nesta máquina, e é bom estar escrito por quê: o
+  // Chromium dela é um SNAP (`/snap/bin/chromium`), e snap recusa ser lançado
+  // de dentro de um serviço do systemd — *"is not a snap cgroup"*. Roda no
+  // terminal, morre sob o pm2. (O ambiente de desenvolvimento aponta para ele
+  // e tem o mesmo problema.)
+  //
+  // Então o caminho é o que o app JÁ usa para toda avaliação, dieta e receita:
+  // o servidor manda o DOCUMENTO em HTML e o `expo-print` do aparelho imprime
+  // ou salva em PDF. Sai melhor de qualquer jeito — a folha de compartilhar do
+  // iOS abre no mesmo gesto, e o servidor não segura um navegador na memória
+  // de uma máquina de 903 MB.
+  //
+  // O painel não usa esta rota: lá a folha é uma tela (`/imprimir/aulao/:id`) e
+  // o Ctrl+P resolve. O que as duas compartilham são as PALAVRAS, espelhadas
+  // pelo `scripts/traducaoDoSite.mjs`.
+  app.get("/aulaoes/:id/inscritos.html", async function (req, res) {
+    const dados = await listaParaLevar(req, res);
+    if (!dados) return;
+
+    const { documentoInscritos } = require("../lib/documentoInscritos.js");
+    const { logoDaCasa } = require("../lib/logoDaCasa.js");
+
+    const [fuso, casa] = await Promise.all([
+      app.api.tenant.timezoneOfInstance(),
+      app.api.tenant.dataOfInstance(),
+    ]);
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(
+      documentoInscritos({
+        ...dados,
+        fuso,
+        // A logo em `data:` e não por URL: o `expo-print` renderiza sem sessão,
+        // e um `<img>` apontando para rota autenticada sairia em branco no
+        // papel.
+        marca: await logoDaCasa(casa?.theme),
+      })
+    );
   });
 
   app.post("/aulaoes", async function (req, res) {

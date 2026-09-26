@@ -71,13 +71,18 @@ module.exports = function (app) {
       // O padrão são DOZE MESES porque manutenção é esparsa: no mês corrente,
       // que é a janela certa para o estoque, o número mais comum seria zero —
       // e um relatório que quase sempre mostra zero não é consultado.
-      gasto: await app.api.equipment.custoNoPeriodo(janela),
+      // Os relatórios seguem a MESMA lente da lista: sem isto, escolher
+      // Paraty mostrava zero aparelhos com o gasto da casa inteira embaixo.
+      gasto: await app.api.equipment.custoNoPeriodo({ ...janela, unit: req.query.unit }),
       // O relatório responde QUANTO; esta lista responde O QUÊ. Um total de
       // R$ 1.840 não diz que a esteira quebrou três vezes em maio.
       // `manutencoesDoPeriodo`, e não `manutencoes`: a ficha de UM equipamento
       // já usa esse nome para as manutenções DELE. Dois significados para a
       // mesma palavra na mesma API é o começo de um bug de leitura.
-      manutencoesDoPeriodo: await app.api.equipment.manutencoesNoPeriodo(janela),
+      manutencoesDoPeriodo: await app.api.equipment.manutencoesNoPeriodo({
+        ...janela,
+        unit: req.query.unit,
+      }),
       periodo: { de: janela.de, ate: janela.ate },
       // O que já foi digitado antes, para o formulário completar sozinho. Vem
       // junto da lista porque é a mesma tela que abre o formulário — um pedido
@@ -232,6 +237,11 @@ module.exports = function (app) {
       busca: req.query.q,
       categoria: req.query.categoria,
       soFaltando: req.query.faltando === "1",
+      // *"a parte de estoque não respeita a unidade"*. O insumo é da casa e
+      // não tem unidade — mas o MOVIMENTO tem, e a quantidade é gravada com
+      // sinal. Com a lente, o saldo é recalculado somando os movimentos
+      // daquela unidade; sem ela, continua o saldo da casa.
+      unit: req.query.unit,
     });
 
     const moedas = await app.api.tenant.currencyOfInstance();
@@ -243,13 +253,19 @@ module.exports = function (app) {
       // QUANTO ENTROU de dinheiro na janela, por categoria. É a resposta de
       // *"tem gasto com produtos de limpeza"* — e ela vem junto porque é a
       // mesma tela que a pergunta.
-      gasto: await app.api.supply.gastoNoPeriodo(janela),
+      // O INSUMO é do estoque da casa e não tem unidade; o MOVIMENTO tem —
+      // é ele que diz qual unidade consumiu. Por isso o catálogo continua
+      // inteiro e só o gasto e o histórico seguem a lente.
+      gasto: await app.api.supply.gastoNoPeriodo({ ...janela, unit: req.query.unit }),
       // E o que saiu: o extrato de um insumo responde "como este desinfetante
       // chegou a três"; este responde "o que a casa consumiu em maio".
       // `movimentosDoPeriodo`: `movimentos` nesta mesma resposta é o CATÁLOGO
       // dos tipos (entrada, saída, ajuste), que vem de `catalogos(req)` logo
       // abaixo — e o spread dele apagaria esta lista, calado.
-      movimentosDoPeriodo: await app.api.supply.movimentosNoPeriodo(janela),
+      movimentosDoPeriodo: await app.api.supply.movimentosNoPeriodo({
+        ...janela,
+        unit: req.query.unit,
+      }),
       periodo: { de: janela.de, ate: janela.ate },
       currency: moedas.currency,
       ...catalogos(req),
@@ -308,6 +324,7 @@ module.exports = function (app) {
     res.status(201).send({
       insumo: await app.api.supply.data(req.params.id),
       extrato: await app.api.supply.extrato(req.params.id),
+      porUnidade: await app.api.supply.saldosPorUnidade(req.params.id),
     });
   });
 
@@ -318,7 +335,14 @@ module.exports = function (app) {
     const insumo = await app.api.supply.data(req.params.id);
     if (!insumo) return res.status(404).send({ msg: req.t("errors.supplyNotFound") });
 
-    res.send({ insumo, extrato: await app.api.supply.extrato(req.params.id) });
+    res.send({
+      insumo,
+      extrato: await app.api.supply.extrato(req.params.id),
+      // ONDE ESTÁ: quanto deste insumo há em cada unidade. É a resposta para
+      // "de qual unidade ele faz parte" — que não é um campo do insumo, e
+      // sim a soma dos movimentos de cada lugar.
+      porUnidade: await app.api.supply.saldosPorUnidade(req.params.id),
+    });
   });
 
   // ── A JANELA ────────────────────────────────────────────────────────────

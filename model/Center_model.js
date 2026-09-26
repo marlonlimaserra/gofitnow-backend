@@ -422,6 +422,131 @@ Center_model.prototype.limitesEscondidos = async function () {
 // Sem cache de propósito: isto é chamado UMA vez, quando alguém clica em
 // importar. Guardar em memória economizaria uma consulta por ano e daria um
 // catálogo velho no dia em que a lista mudasse.
+// ── PROCURAR UM FORNECEDOR NO CATÁLOGO ────────────────────────────────────
+//
+// *"o certo seria eu clicar em 'novo fornecedor' e, assim que eu digitar o
+// nome, já aparece um search select que busca da central; aí se ele clicar, já
+// puxa os dados da central, copia foto etc."* (24/09/2026).
+//
+// Ele está certo, e o que existia antes era o contrário: um botão que despejava
+// os CENTO E DEZOITO de uma vez. Quem tem quatro contas a pagar recebia um
+// catálogo inteiro para rolar, e a lista de fornecedores da casa deixava de ser
+// dele. E demorava — cada logo é uma gravação.
+//
+// Aqui só volta o que casa com o que a pessoa digitou, sem os bytes de logo: o
+// `temLogo` basta para a tela saber se vale desenhar o espaço dela, e copiar a
+// imagem é trabalho de QUANDO se escolhe uma.
+Center_model.prototype.procurarConhecidos = async function (termo, limite = 8) {
+  const texto = String(termo || "").trim();
+  // Uma letra traria trinta nomes e nenhuma pista. Duas já recortam.
+  if (texto.length < 2) return [];
+
+  try {
+    const db = await this.app.mongodb.centralDb();
+
+    // Sem acento e em minúsculas, contra o `nameSort` que o catálogo já guarda
+    // normalizado — é o que faz "eletropaulo" achar "Eletropaulo" e "ENEL"
+    // achar "Enel".
+    const alvo = texto
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    const docs = await db
+      .collection("known_suppliers")
+      .find(
+        { active: { $ne: false }, nameSort: { $regex: alvo } },
+        {
+          // Os bytes da logo NÃO vêm: são cento e dezoito imagens no catálogo, e
+          // trazer as oito de uma busca por nome seria pagar por elas a cada
+          // tecla digitada.
+          projection: { data: 0 },
+        }
+      )
+      .sort({ nameSort: 1 })
+      .limit(Math.min(Math.max(Number(limite) || 8, 1), 20))
+      .toArray();
+
+    return docs;
+  } catch (erro) {
+    // Uma queda do painel não pode virar uma queda do produto: sem sugestão,
+    // quem está cadastrando digita o nome e segue.
+    console.error("[central] procurar fornecedor:", erro.message);
+    return [];
+  }
+};
+
+// QUAIS DESTES TÊM LOGO — uma consulta para os oito da busca.
+//
+// Sem isto, a tela só poderia adivinhar: pedir a imagem de todos e aceitar o
+// 404 de quem não tem. Oito requisições que falham a cada digitação, e o log do
+// navegador em vermelho por um desenho que não existe.
+//
+// Só os `_id`, sem os bytes: a pergunta é "existe?", e trazer a imagem para
+// respondê-la seria pagar por ela duas vezes.
+Center_model.prototype.idsComLogo = async function (ids) {
+  const { ObjectId } = require("mongodb");
+
+  const alvos = (ids || [])
+    .filter((x) => ObjectId.isValid(String(x)))
+    .map((x) => new ObjectId(String(x)));
+
+  if (!alvos.length) return new Set();
+
+  try {
+    const db = await this.app.mongodb.centralDb();
+    const docs = await db
+      .collection("known_supplier_images")
+      .find({ _id: { $in: alvos } }, { projection: { _id: 1 } })
+      .toArray();
+
+    return new Set(docs.map((d) => String(d._id)));
+  } catch (erro) {
+    // Sem a resposta, a sugestão sai sem logo — que é feio e funciona.
+    console.error("[central] quais têm logo:", erro.message);
+    return new Set();
+  }
+};
+
+// UMA logo do catálogo, pelo id — para a SUGESTÃO mostrar a marca.
+//
+// *"tire esse ícone de I.A, coloque a foto da empresa"* (24/09/2026). E ele tem
+// razão: uma estrelinha ao lado de "Vivo" não diz nada; a logo da Vivo diz tudo
+// o que a linha precisa dizer.
+//
+// Separada de `logosDeConhecidos` porque as perguntas são outras: aquela traz
+// VÁRIAS para copiar, esta traz UMA para mostrar, e quem a serve é uma rota
+// pública com cache — a mesma foto pedida por toda casa que digitar "vivo".
+Center_model.prototype.logoDeConhecido = async function (id) {
+  const { ObjectId } = require("mongodb");
+  if (!ObjectId.isValid(String(id || ""))) return null;
+
+  try {
+    const db = await this.app.mongodb.centralDb();
+    return await db
+      .collection("known_supplier_images")
+      .findOne({ _id: new ObjectId(String(id)) });
+  } catch (erro) {
+    console.error("[central] logo do catálogo:", erro.message);
+    return null;
+  }
+};
+
+// UM do catálogo, pelo id — o que a criação copia.
+Center_model.prototype.conhecido = async function (id) {
+  const { ObjectId } = require("mongodb");
+  if (!ObjectId.isValid(String(id || ""))) return null;
+
+  try {
+    const db = await this.app.mongodb.centralDb();
+    return await db.collection("known_suppliers").findOne({ _id: new ObjectId(String(id)) });
+  } catch (erro) {
+    console.error("[central] fornecedor do catálogo:", erro.message);
+    return null;
+  }
+};
+
 Center_model.prototype.fornecedoresConhecidos = async function () {
   try {
     const db = await this.app.mongodb.centralDb();
@@ -450,7 +575,21 @@ Center_model.prototype.fornecedoresConhecidos = async function () {
 // tratar e um modo de falha a mais. É a mesma razão que pôs `known_suppliers`
 // aqui em vez de numa rota.
 Center_model.prototype.logosDeConhecidos = async function (ids) {
-  const alvos = (ids || []).filter(Boolean);
+  const { ObjectId } = require("mongodb");
+
+  // ── O ID PODE CHEGAR COMO TEXTO ────────────────────────────────────────
+  //
+  // A importação em lote passava os `_id` crus (ObjectId) e funcionava; a
+  // criação de UM, do catálogo, passou `String(id)` — e o `$in` com texto não
+  // casa com um `_id` que é ObjectId. O efeito não é um erro: é a logo vindo
+  // VAZIA, calada, num fornecedor que parece cadastrado direito.
+  //
+  // Normalizar aqui, e não em quem chama, é o que impede o próximo chamador de
+  // repetir a mesma pegadinha.
+  const alvos = (ids || [])
+    .filter(Boolean)
+    .map((x) => (ObjectId.isValid(String(x)) ? new ObjectId(String(x)) : x));
+
   if (!alvos.length) return {};
 
   try {

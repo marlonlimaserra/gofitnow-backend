@@ -40,7 +40,7 @@ const COLETA = {
   photos: { front: "2026-08-26T10:00:00.000Z" },
 };
 
-function monta() {
+function monta(pessoa = PESSOA) {
   const enviados = [];
 
   const app = fakeApp({
@@ -52,7 +52,7 @@ function monta() {
       assessmentPhoto: {
         data: async () => ({ mime: "image/jpeg", data: Buffer.from("BYTESDAFOTO") }),
       },
-      user: { dataStudent: async () => PESSOA },
+      user: { dataStudent: async () => pessoa },
       tenant: {
         assessmentPhotoSides: async () => [{ key: "front", label: "" }],
         timezoneOfInstance: async () => "America/Sao_Paulo",
@@ -123,6 +123,42 @@ describe("o corpo e o anexo recebem versões diferentes", () => {
 
     assert.ok(usados.length > 0, "o corpo não referenciou nenhum cid");
     for (const u of usados) assert.ok(declarados.includes(u), `o corpo usa ${u}, que ninguém declarou`);
+  });
+});
+
+describe("a preferência de quem recebe", () => {
+  test("quem desligou os documentos não recebe — e quem mandou fica sabendo", async () => {
+    // *"vários e-mails que vamos enviar vai verificar essas notificações"*.
+    // Devolver 200 sem mandar seria pior que não ter a preferência: quem
+    // clicou ficaria esperando uma resposta a um e-mail que nunca saiu.
+    const { app, enviados } = monta({
+      ...PESSOA,
+      preferences: { notify: { documento: false } },
+    });
+
+    const r = await call(app, "post", "/assessments/a2/email");
+
+    assert.strictEqual(r.status, 409);
+    assert.strictEqual(r.body.code, "notification_off");
+    assert.strictEqual(enviados.length, 0);
+  });
+
+  test("desligar OUTRO assunto não cala o documento", async () => {
+    const { app, enviados } = monta({
+      ...PESSOA,
+      preferences: { notify: { workout: false } },
+    });
+
+    await call(app, "post", "/assessments/a2/email");
+
+    assert.strictEqual(enviados.length, 1);
+  });
+
+  test("quem nunca escolheu recebe", async () => {
+    const { app, enviados } = monta();
+    await call(app, "post", "/assessments/a2/email");
+
+    assert.strictEqual(enviados.length, 1);
   });
 });
 

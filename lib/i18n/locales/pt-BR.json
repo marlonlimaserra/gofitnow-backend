@@ -157,6 +157,8 @@
     "noSubscription": "Você ainda não tem uma assinatura para gerenciar.",
     "notFound": "Não encontrado.",
     "notInPlan": "Seu plano não inclui {{o}}. Fale com quem cuida da sua conta para liberar.",
+    "notificationOff": "Essa pessoa desligou os avisos de documento por e-mail.",
+    "notificationOffPerson": "Essa pessoa desligou esse tipo de aviso nas preferências dela.",
     "optionNotFound": "Opção não encontrada.",
     "ourDomain": "Esse endereço é nosso. Para um endereço em {{base}}, use a opção de subdomínio.",
     "ownAccountAccess": "Essa conta é da própria pessoa — só ela pode mudar o acesso dela.",

@@ -244,10 +244,6 @@ Recurrence_model.prototype.todas = async function ({
     .filter((x) => statusDeRecorrencia.IDS.includes(x));
   if (pedidos.length) recorte.push({ $match: { estado: { $in: pedidos } } });
 
-  if (ObjectId.isValid(unit)) {
-    recorte.push({ $match: { studentUnit: new ObjectId(String(unit)) } });
-  }
-
   const termo = String(busca || "").trim();
   if (termo) {
     const esc = termo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -285,10 +281,19 @@ Recurrence_model.prototype.todas = async function ({
     },
   };
 
+  // ── A LENTE DA UNIDADE ──────────────────────────────────────────────────
+  //
+  // Antes do `$facet`, e não no recorte: o resumo desta aba é "qual é a minha
+  // receita recorrente", e com a lente em Niterói ela tem de ser a de
+  // Niterói. No recorte, o cartão somava a casa inteira ao lado de uma lista
+  // de uma unidade — ver o comentário mais longo em `Finance_model`.
+  const lenteDaUnidade = ObjectId.isValid(unit) ? new ObjectId(String(unit)) : null;
+
   const [saida] = await col
     .aggregate([
       juntarPessoa,
       derivados,
+      ...(lenteDaUnidade ? [{ $match: { studentUnit: lenteDaUnidade } }] : []),
       {
         $facet: {
           // O RESUMO é o que está ATIVO: quanto a casa espera receber por

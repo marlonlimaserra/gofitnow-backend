@@ -227,9 +227,31 @@ GroupClass_model.prototype.list = async function () {
   return col.find({}).sort({ order: 1, createdAt: 1 }).toArray();
 };
 
-GroupClass_model.prototype.listActive = async function () {
+// ── A LENTE DA UNIDADE ────────────────────────────────────────────────────
+//
+// *"aulas coletivas não respeita unidade"*.
+//
+// Aqui o campo é `units`, no PLURAL, e isso muda a regra: a aula de bike das
+// 08:00 pode acontecer nas duas unidades — é uma grade, não um evento. Por
+// isso a comparação é "a unidade escolhida está na lista dela".
+//
+// E lista VAZIA quer dizer TODAS: é o mesmo contrato que o formulário já
+// mostra ("em qual unidade esta aula acontece — vazio vale para todas"), e é
+// o estado de toda aula cadastrada antes de existirem duas unidades. Excluí-
+// las do recorte faria a grade sumir inteira na primeira troca de lente.
+GroupClass_model.prototype.listActive = async function (unit) {
   const col = await this.collection();
-  return col.find({ active: true }).sort({ order: 1, createdAt: 1 }).toArray();
+
+  const filtro = { active: true };
+  if (ObjectId.isValid(String(unit || ""))) {
+    filtro.$or = [
+      { units: new ObjectId(String(unit)) },
+      { units: { $in: [null, []] } },
+      { units: { $exists: false } },
+    ];
+  }
+
+  return col.find(filtro).sort({ order: 1, createdAt: 1 }).toArray();
 };
 
 GroupClass_model.prototype.data = async function (id) {

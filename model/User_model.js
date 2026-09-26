@@ -4,6 +4,7 @@ const { ObjectId } = require("mongodb");
 const permissionCatalog = require("../lib/permissions.js");
 const instanceContext = require("../lib/instance.js");
 const tempo = require("../lib/tempo.js");
+const { porPagina } = require("../lib/tetoDaLista.js");
 
 // The `users` collection — every person in the system.
 //
@@ -662,6 +663,30 @@ User_model.prototype.pageStudents = async function (trainerId, filtros = {}) {
 
   const etapas = [{ $match: { _id: { $in: ids } } }];
 
+  // ── SÓ OS ESCOLHIDOS ────────────────────────────────────────────────────
+  //
+  // *"então veja no web TUDO que fizemos de checkbox e faça no app também"*
+  // (23/09/2026). Exportar o que está MARCADO precisa de um recorte por id, e
+  // ele entra aqui — dentro do mesmo pipeline — em vez de virar uma consulta
+  // à parte.
+  //
+  // O motivo é o vínculo: a lista já nasce restrita a quem é aluno DESTE
+  // profissional (`ids`, logo acima). Uma consulta separada por ids buscaria
+  // no banco inteiro, e bastaria alguém mandar um id de outra pessoa para ele
+  // sair na planilha. Aqui os dois `$match` se somam: o que veio marcado E que
+  // seja aluno dele.
+  if (Array.isArray(filtros.ids) || typeof filtros.ids === "string") {
+    const escolhidos = (Array.isArray(filtros.ids) ? filtros.ids : String(filtros.ids).split(","))
+      .map((x) => String(x).trim())
+      .filter((x) => ObjectId.isValid(x))
+      .map((x) => new ObjectId(x));
+
+    // Nenhum id VÁLIDO quer dizer nenhuma linha, e não "todas": mandar uma
+    // lista de marcados que o servidor não entende e receber a base inteira
+    // seria o pior resultado possível.
+    etapas.push({ $match: { _id: { $in: escolhidos } } });
+  }
+
   const termo = String(filtros.search || "").trim();
   if (termo) {
     const escapado = termo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -861,7 +886,9 @@ User_model.prototype.pageStudents = async function (trainerId, filtros = {}) {
   // nome podem trocar de lugar entre uma página e outra e uma delas some.
   const ordem = { __vazio: 1, [campo]: direcao, _id: 1 };
 
-  const limite = Math.min(Math.max(Number(filtros.limit) || 15, 1), 200);
+  // `exportando` só chega de dentro do servidor (o registro de listas), nunca
+  // da query — ver `lib/tetoDaLista.js`.
+  const limite = porPagina(filtros.limit, { padrao: 15, maximo: 200, exportando: filtros.exportando });
   const pagina = Math.max(Number(filtros.page) || 1, 1);
 
   etapas.push({

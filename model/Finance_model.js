@@ -5,6 +5,8 @@ const statusDeCobranca = require("../lib/statusDeCobranca.js");
 const statusDePagamento = require("../lib/statusDePagamento.js");
 const instanceContext = require("../lib/instance.js");
 const { parseDataUri } = require("../lib/imageDataUri.js");
+const { porPagina } = require("../lib/tetoDaLista.js");
+const { recorteDeIds } = require("../lib/recorteDeIds.js");
 
 // O financeiro de cada pessoa.
 //
@@ -430,6 +432,15 @@ Finance_model.prototype.carteira = async function ({
   // Existe para a FOLHA IMPRESSA das cobranças marcadas — ela abre por link,
   // sem a tela atrás, e precisa buscar de novo exatamente aquelas linhas.
   ids,
+  // ── AS COBRANÇAS DE UMA PESSOA SÓ ───────────────────────────────────────
+  //
+  // O extrato da ficha. Recortar DEPOIS da busca (filtrando as linhas que
+  // voltaram) daria certo na conta pequena e erraria calado na grande: o teto
+  // da exportação é de cinco mil, e a pessoa de número cinco mil e um sairia
+  // com o extrato vazio.
+  personId,
+  // Só de dentro do servidor — ver `lib/tetoDaLista.js`.
+  exportando,
 } = {}) {
   const charges = await this.charges();
 
@@ -585,12 +596,20 @@ Finance_model.prototype.carteira = async function ({
   // Os ids escolhidos entram ANTES dos outros recortes: é o corte mais estreito
   // que existe, e pô-lo primeiro poupa ao banco aplicar regex de busca em
   // milhares de linhas para depois jogar fora todas menos cinco.
-  const escolhidas = (Array.isArray(ids) ? ids : String(ids || "").split(","))
-    .map((x) => String(x || "").trim())
-    .filter((x) => ObjectId.isValid(x))
-    .map((x) => new ObjectId(x));
+  //
+  // `recorteDeIds` decide o que é "sem recorte": parâmetro AUSENTE traz tudo,
+  // parâmetro PRESENTE traz só o que casa — ainda que nada case. Aqui estava
+  // `if (escolhidas.length)`, e com ele um `?ids=` de ids que o servidor não
+  // reconhece devolvia a CARTEIRA INTEIRA na folha de quem pediu cinco linhas.
+  const escolhidas = recorteDeIds(ids);
+  if (escolhidas) recorte.push({ $match: { _id: { $in: escolhidas } } });
 
-  if (escolhidas.length) recorte.push({ $match: { _id: { $in: escolhidas } } });
+  // Pelo mesmo caminho dos ids marcados, e pelo mesmo motivo: um `personId`
+  // que o servidor não entende tem de dar ZERO linha, e não a casa inteira.
+  // Com `if (valido)`, um id malformado vindo da rota fazia o extrato de uma
+  // pessoa sair com o dinheiro de todo mundo — e a folha parece certa.
+  const donos = recorteDeIds(personId);
+  if (donos) recorte.push({ $match: { student: { $in: donos } } });
 
   const pedidos = statusDeCobranca.pedidos(status);
   if (pedidos.size) {
@@ -623,7 +642,11 @@ Finance_model.prototype.carteira = async function ({
   const campo = ORDEM_DA_CARTEIRA[ordem] || "dueDate";
   const sentido = direcao === "asc" ? 1 : -1;
 
-  const limitePorPagina = Math.min(Math.max(Number(limite) || LIMITE_PADRAO, 1), LIMITE_MAXIMO);
+  const limitePorPagina = porPagina(limite, {
+    padrao: LIMITE_PADRAO,
+    maximo: LIMITE_MAXIMO,
+    exportando,
+  });
   const paginaPedida = Math.max(Number(pagina) || 1, 1);
 
   const projecao = {
@@ -793,6 +816,10 @@ Finance_model.prototype.recebimentos = async function ({
   pagina,
   limite,
   unit,
+  // Os recebimentos marcados na tela, para a planilha e a folha deles.
+  ids,
+  personId,
+  exportando,
 } = {}) {
   const col = await this.payments();
   const instancia = instanceContext.current();
@@ -866,6 +893,18 @@ Finance_model.prototype.recebimentos = async function ({
 
   const recorte = [];
 
+  // OS MARCADOS na tela. Primeiro, porque é o corte mais estreito que existe.
+  const escolhidos = recorteDeIds(ids);
+  if (escolhidos) recorte.push({ $match: { _id: { $in: escolhidos } } });
+
+  // O caixa de UMA pessoa — o extrato da ficha.
+  // Pelo mesmo caminho dos ids marcados, e pelo mesmo motivo: um `personId`
+  // que o servidor não entende tem de dar ZERO linha, e não a casa inteira.
+  // Com `if (valido)`, um id malformado vindo da rota fazia o extrato de uma
+  // pessoa sair com o dinheiro de todo mundo — e a folha parece certa.
+  const donos = recorteDeIds(personId);
+  if (donos) recorte.push({ $match: { student: { $in: donos } } });
+
   // OS ESTADOS pedidos: pago, pendente, reembolsado, cancelado. Vazio é todos.
   //
   // Eles moram no RECORTE e não no `$match` de cima, junto do resumo: os
@@ -873,13 +912,6 @@ Finance_model.prototype.recebimentos = async function ({
   // pode fazer o "recebido" do mês virar zero.
   const porEstado = statusDePagamento.filtroPedido(status);
   if (porEstado) recorte.push({ $match: porEstado });
-
-  // A LENTE DA UNIDADE, a mesma da carteira: ela é da PESSOA, e não do
-  // pagamento — dinheiro não acontece num lugar, quem atende num lugar é quem
-  // pagou.
-  if (ObjectId.isValid(unit)) {
-    recorte.push({ $match: { studentUnit: new ObjectId(String(unit)) } });
-  }
 
   const termo = String(busca || "").trim();
   if (termo) {
@@ -897,7 +929,11 @@ Finance_model.prototype.recebimentos = async function ({
   const campo = ORDEM_DOS_RECEBIMENTOS[ordem] || "date";
   const sentido = direcao === "asc" ? 1 : -1;
 
-  const limitePorPagina = Math.min(Math.max(Number(limite) || LIMITE_PADRAO, 1), LIMITE_MAXIMO);
+  const limitePorPagina = porPagina(limite, {
+    padrao: LIMITE_PADRAO,
+    maximo: LIMITE_MAXIMO,
+    exportando,
+  });
   const paginaPedida = Math.max(Number(pagina) || 1, 1);
 
   const projecao = {
@@ -924,12 +960,33 @@ Finance_model.prototype.recebimentos = async function ({
     },
   };
 
+  // ── A LENTE DA UNIDADE ──────────────────────────────────────────────────
+  //
+  // *"os KPI parece que não respeita unidade: eu troco ali, a planilha muda
+  // mas os KPI não"*.
+  //
+  // Ela estava no RECORTE, junto da busca e do estado — e ali o `$facet` já
+  // calculou o resumo. Os cartões diziam sete lançamentos com uma linha na
+  // lista embaixo.
+  //
+  // Agrupar a lente com busca e estado foi o meu erro, e eles não são a mesma
+  // coisa. Busca e estado ESTREITAM a lista dentro do mesmo contexto: marcar
+  // "pendente" para conferir não pode zerar o recebido do mês. A lente TROCA
+  // o contexto — ela mora no alto do app e diz "agora estou olhando Niterói".
+  // Todo número da tela tem de segui-la.
+  //
+  // Por isso ela entra aqui, antes do `$facet`, exatamente como na carteira:
+  // números que não batem com a lista do lado são piores que números
+  // ausentes, porque ninguém desconfia de um total.
+  const lenteDaUnidade = ObjectId.isValid(unit) ? new ObjectId(String(unit)) : null;
+
   const [saida] = await col
     .aggregate([
       { $match: janela },
       juntarPessoa,
       juntarCobranca,
       derivados,
+      ...(lenteDaUnidade ? [{ $match: { studentUnit: lenteDaUnidade } }] : []),
       {
         $facet: {
           // ── OS CARTÕES DO TOPO ──────────────────────────────────────
@@ -952,9 +1009,13 @@ Finance_model.prototype.recebimentos = async function ({
           // O que o mantém honesto é a cor: ele nasce cinza, e não verde. As
           // contas do caixa continuam sendo `recebido` — e só ele.
           //
-          // O resumo ignora a busca, a lente e o estado pedido, como o da
-          // carteira: os cartões falam da JANELA, e marcar "pendente" para
-          // conferir uma lista não pode fazer o recebido do mês virar zero.
+          // O resumo ignora a BUSCA e o ESTADO pedido, como o da carteira:
+          // os cartões falam da janela, e marcar "pendente" para conferir uma
+          // lista não pode fazer o recebido do mês virar zero.
+          //
+          // A LENTE não está nesta lista: ela já entrou antes do `$facet` —
+          // ver o comentário lá em cima sobre por que ela não é da mesma
+          // família que a busca e o estado.
           //
           // `$ifNull` porque lançamento antigo não tem o campo, e ausente
           // sempre significou pago — ver lib/statusDePagamento.js.
@@ -1345,15 +1406,35 @@ Finance_model.prototype.cobrancasDeAulao = async function (aulaoId) {
   const somas = await pagamentos
     .aggregate([
       { $match: { charge: { $in: cobrancas.map((c) => c._id) }, ...statusDePagamento.filtroDeEntrada() } },
-      { $group: { _id: "$charge", total: { $sum: "$amount" } } },
+      {
+        $group: {
+          _id: "$charge",
+          total: { $sum: "$amount" },
+          // ── COM QUE FORMA ENTROU ────────────────────────────────────────
+          //
+          // *"quando clicar em 'pagar' abre um menuzinho pra escolher o meio de
+          // pagamento, e aí aparece ali pago (cartão)"* (23/09/2026). Para a
+          // etiqueta dizer "Pago · Pix", a lista precisa saber a forma — e ela
+          // vivia só nos pagamentos, que esta consulta somava e descartava.
+          //
+          // `$addToSet` e não `$last`: uma cobrança pode ter sido quitada em
+          // duas vezes, metade em dinheiro e metade no cartão. Mostrar a última
+          // seria dizer "pago no cartão" sobre algo que entrou pelos dois. Com
+          // o conjunto, quem desenha decide — e só nomeia a forma quando há UMA.
+          formas: { $addToSet: { $ifNull: ["$method", "other"] } },
+        },
+      },
     ])
     .toArray();
 
   const pagoPor = Object.fromEntries(somas.map((x) => [String(x._id), x.total]));
+  const formasPor = Object.fromEntries(somas.map((x) => [String(x._id), x.formas || []]));
 
   const porPessoa = {};
   for (const c of cobrancas) {
     const pago = pagoPor[String(c._id)] || 0;
+    const formas = formasPor[String(c._id)] || [];
+
     porPessoa[String(c.student)] = {
       id: String(c._id),
       amount: c.amount || 0,
@@ -1361,6 +1442,9 @@ Finance_model.prototype.cobrancasDeAulao = async function (aulaoId) {
       falta: Math.max(0, (c.amount || 0) - pago),
       status: c.status,
       currency: c.currency || null,
+      // A forma, só quando é UMA. Com duas, a tela diz "pago" e cala a forma —
+      // ver o comentário do `$addToSet` acima.
+      forma: formas.length === 1 ? formas[0] : null,
     };
   }
 

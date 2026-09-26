@@ -14,7 +14,7 @@ const StructureController = require("../../controllers/Structure.js");
 // invisíveis na tela e erradas só num dia do mês, que é o pior jeito de um
 // relatório estar errado.
 function monta({ permissoes = ["structure.view", "structure.manage"] } = {}) {
-  const pedidas = { equipamento: [], insumo: [] };
+  const pedidas = { equipamento: [], insumo: [], manutencoes: [], movimentos: [] };
 
   const app = fakeApp({
     helpers: {
@@ -36,7 +36,10 @@ function monta({ permissoes = ["structure.view", "structure.manage"] } = {}) {
           pedidas.equipamento.push(j);
           return { total: 0, quantas: 0, porMes: [], porTipo: [], porEquipamento: [] };
         },
-        async manutencoesNoPeriodo() { return []; },
+        async manutencoesNoPeriodo(j) {
+          pedidas.manutencoes.push(j);
+          return [];
+        },
         async sugestoes() { return { marcas: [], modelos: [], locais: [], notas: [] }; },
       },
       supply: {
@@ -45,7 +48,10 @@ function monta({ permissoes = ["structure.view", "structure.manage"] } = {}) {
           pedidas.insumo.push(j);
           return { total: 0, porCategoria: [] };
         },
-        async movimentosNoPeriodo() { return []; },
+        async movimentosNoPeriodo(j) {
+          pedidas.movimentos.push(j);
+          return [];
+        },
       },
     },
   });
@@ -85,7 +91,9 @@ test("`tudo=1` é a janela VAZIA — e não uma data antiga qualquer", async () 
 
   await call(app, "get", "/equipments", { query: { tudo: "1", de: "2026-05-01" } });
 
-  assert.deepEqual(pedidas.equipamento[0], {});
+  // `unit` entrou em 22/09/2026 e viaja sempre — sem lente, vazio. O que
+  // este caso guarda é a JANELA: nenhuma data inventada.
+  assert.deepEqual(pedidas.equipamento[0], { unit: undefined });
 });
 
 test("sem período, o equipamento olha doze meses para trás", async () => {
@@ -128,4 +136,34 @@ test("uma data impossível não derruba a lista — cai no padrão", async () =>
   await call(app, "get", "/equipments", { query: { de: "trinta de maio" } });
 
   assert.ok(pedidas.equipamento[0].de instanceof Date);
+});
+
+
+// ── A LENTE DA UNIDADE NOS RELATÓRIOS (22/09/2026) ───────────────────────
+//
+// *"estrutura também não respeita unidades"*.
+//
+// A LISTA de aparelhos já filtrava; o GASTO e o HISTÓRICO da mesma tela, não.
+// A lente em Paraty mostrava zero aparelhos com o gasto de manutenção da casa
+// inteira logo abaixo — dois números na mesma tela respondendo perguntas
+// diferentes, que é pior que não ter o número.
+
+test("a lente chega no gasto e no histórico de manutenção, não só na lista", async () => {
+  const { app, pedidas } = monta();
+
+  await call(app, "get", "/equipments", { query: { unit: "u9" } });
+
+  assert.equal(pedidas.equipamento[0].unit, "u9", "o gasto ficou sem a lente");
+  assert.equal(pedidas.manutencoes?.[0]?.unit, "u9", "o histórico ficou sem a lente");
+});
+
+test("no estoque, a lente pega o gasto e os movimentos — o catálogo não", async () => {
+  // O INSUMO é do estoque da casa e não tem unidade; o MOVIMENTO tem — é ele
+  // que diz qual unidade consumiu o galão.
+  const { app, pedidas } = monta();
+
+  await call(app, "get", "/supplies", { query: { unit: "u9" } });
+
+  assert.equal(pedidas.insumo?.[0]?.unit, "u9", "o gasto de insumo ficou sem a lente");
+  assert.equal(pedidas.movimentos?.[0]?.unit, "u9", "o histórico ficou sem a lente");
 });

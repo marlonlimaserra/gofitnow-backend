@@ -1,6 +1,8 @@
 const { ObjectId } = require("mongodb");
 const cep = require("../lib/cep.js");
 const vinculos = require("../lib/vinculosDeTrabalho.js");
+const { porPagina: tetoPorPagina } = require("../lib/tetoDaLista.js");
+const { recorteDeIds } = require("../lib/recorteDeIds.js");
 
 // A EQUIPE DA CASA — quem trabalha aqui.
 //
@@ -288,6 +290,11 @@ function etapasDoAfastamento() {
 // afastamento que cubra hoje. É uma consulta a mais por página — e é a resposta
 // da pergunta que se faz olhando a lista de manhã: "quem eu tenho hoje?".
 Employee_model.prototype.listar = async function ({
+  // Os MARCADOS na tela. Ver `recorteDeIds` — nenhum id válido é nenhuma
+  // linha, e não a equipe inteira.
+  ids,
+  // Só de dentro do servidor, para a planilha não sair cortada em 200.
+  exportando,
   busca,
   situacao,
   bond,
@@ -301,6 +308,9 @@ Employee_model.prototype.listar = async function ({
   const col = await this.collection();
 
   const recorte = [];
+
+  const escolhidos = recorteDeIds(ids);
+  if (escolhidos) recorte.push({ $match: { _id: { $in: escolhidos } } });
 
   const termo = normalizar(busca);
   if (termo) {
@@ -339,7 +349,11 @@ Employee_model.prototype.listar = async function ({
   // cargo" podem repetir uma linha e esconder outra.
   const sort = campo === "nameSort" ? { nameSort: sinal } : { [campo]: sinal, nameSort: 1 };
 
-  const porPagina = Math.min(Math.max(Number(limite) || LIMITE_PADRAO, 1), LIMITE_MAXIMO);
+  const porPagina = tetoPorPagina(limite, {
+    padrao: LIMITE_PADRAO,
+    maximo: LIMITE_MAXIMO,
+    exportando,
+  });
   const pular = Math.max((Number(pagina) || 1) - 1, 0) * porPagina;
 
   const base = [...recorte, ...afastamento, ...porSituacao];
@@ -426,6 +440,17 @@ function projecao() {
       salaryKind: 1,
       weeklyHours: 1,
       phone: 1,
+      // O WHATSAPP é campo próprio, separado do telefone: muita casa tem um
+      // fixo para recado e um celular para conversar. Ele vem na lista porque
+      // é de lá que se fala com a pessoa — *"coloca o whatsapp aqui
+      // também"*. Contato não é dado sensível como PIS ou conta bancária, que
+      // continuam fora daqui.
+      whatsapp: 1,
+      // O e-mail entra pelo mesmo motivo do telefone: é contato, e a planilha
+      // da equipe sem ele obriga a abrir ficha por ficha para montar uma
+      // lista de envio. CPF, PIS e conta bancária continuam FORA — esses são
+      // o tipo de dado que não se despeja na rede para desenhar uma tabela.
+      email: 1,
       situacao: 1,
       afastadoAte: 1,
       active: 1,

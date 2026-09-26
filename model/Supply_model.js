@@ -85,7 +85,84 @@ function normalizar(t) {
   return String(t || "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
-Supply_model.prototype.listar = async function ({ busca, categoria, soFaltando } = {}) {
+// ── O ESTOQUE DE UMA UNIDADE ──────────────────────────────────────────────
+//
+// *"a parte de estoque não respeita a unidade"*.
+//
+// Eu tinha deixado o catálogo de fora da lente de propósito, e escrevi o
+// porquê: o INSUMO é da casa e não tem unidade. Isso continua verdade — o que
+// eu errei foi a conclusão. Quem tem unidade é o MOVIMENTO, e a quantidade
+// dele é gravada com sinal justamente para que somar a coluna dê o saldo. Ou
+// seja: o saldo de Niterói é calculável, e a pergunta "quanto de desinfetante
+// tem em Niterói" tem resposta.
+//
+// O que NÃO dá para fazer é filtrar o catálogo e mostrar o saldo da casa
+// ao lado: seria um número de duas unidades com o nome de uma. Por isso aqui
+// o saldo é RECALCULADO, e não filtrado.
+//
+// Só entram os insumos que TIVERAM movimento na unidade. Um item nunca usado
+// em Niterói não é "zero em Niterói", é um item que não é de lá — e listar o
+// catálogo inteiro zerado faria toda unidade parecer vazia.
+Supply_model.prototype.saldosDaUnidade = async function (unit) {
+  if (!ObjectId.isValid(String(unit || ""))) return null;
+
+  const mov = await this.movimentos();
+  const linhas = await mov
+    .aggregate([
+      { $match: { unit: new ObjectId(String(unit)) } },
+      {
+        $group: {
+          _id: "$supply",
+          saldo: { $sum: "$quantidade" },
+          ultimoEm: { $max: "$em" },
+        },
+      },
+    ])
+    .toArray();
+
+  return new Map(linhas.map((l) => [String(l._id), l]));
+};
+
+// ── ONDE ESTÁ ESTE INSUMO ─────────────────────────────────────────────────
+//
+// *"ok, e para editar de qual unidade faz parte?"* — olhando o formulário do
+// insumo.
+//
+// A resposta é que NÃO SE EDITA, e isso é desenho e não esquecimento: o
+// insumo é o item do catálogo (nome, categoria, medida, mínimo) e vale para a
+// casa inteira. Quem tem unidade é o MOVIMENTO — é ele que diz de onde saiu o
+// galão.
+//
+// Se o insumo tivesse unidade, "Desinfetante" precisaria existir duas vezes,
+// uma por unidade, com nome, categoria e mínimo mantidos em dobro — e mudar a
+// medida em uma e esquecer a outra seria questão de tempo.
+//
+// O que faltava não era o campo: era a RESPOSTA. Esta função a dá — quanto
+// deste insumo há em cada unidade, somando os movimentos de cada uma.
+Supply_model.prototype.saldosPorUnidade = async function (id) {
+  if (!ObjectId.isValid(String(id || ""))) return [];
+
+  const mov = await this.movimentos();
+
+  return mov
+    .aggregate([
+      { $match: { supply: new ObjectId(String(id)) } },
+      { $group: { _id: "$unit", saldo: { $sum: "$quantidade" }, ultimoEm: { $max: "$em" } } },
+      { $sort: { saldo: -1 } },
+    ])
+    .toArray()
+    .then((linhas) =>
+      linhas.map((l) => ({
+        // `null` é legítimo e aparece: é o que entrou "para a casa toda", e
+        // é onde está todo o histórico anterior a esta tela existir.
+        unit: l._id ? String(l._id) : null,
+        saldo: l.saldo || 0,
+        ultimoEm: l.ultimoEm || null,
+      }))
+    );
+};
+
+Supply_model.prototype.listar = async function ({ busca, categoria, soFaltando, unit } = {}) {
   const col = await this.collection();
   const filtro = {};
 
@@ -96,26 +173,46 @@ Supply_model.prototype.listar = async function ({ busca, categoria, soFaltando }
   }
   if (categoria) filtro.categoria = String(categoria);
 
-  const linhas = await col
-    .aggregate([
-      { $match: filtro },
-      {
-        $addFields: {
-          // `faltando` é saldo no ou abaixo do mínimo, com mínimo definido.
-          // Sem mínimo não existe "faltando": zero de uma coisa que ninguém
-          // repõe não é um alerta, é o estado normal.
-          faltando: {
-            $and: [{ $gt: ["$minimo", 0] }, { $lte: [{ $ifNull: ["$saldo", 0] }, "$minimo"] }],
-          },
-        },
-      },
-      ...(soFaltando ? [{ $match: { faltando: true } }] : []),
-      // O que está faltando primeiro: é por isso que alguém abriu a tela.
-      { $sort: { faltando: -1, nameSort: 1 } },
-    ])
-    .toArray();
+  // A LENTE: só os insumos que tiveram movimento naquela unidade.
+  const porUnidade = await this.saldosDaUnidade(unit);
+  if (porUnidade) filtro._id = { $in: [...porUnidade.keys()].map((id) => new ObjectId(id)) };
 
-  return linhas.map(paraTela);
+  const linhas = await col.aggregate([{ $match: filtro }]).toArray();
+
+  // ── SALDO E "FALTANDO" SAEM DO MESMO LUGAR ─────────────────────────────
+  //
+  // Isto morava no pipeline e passou para cá quando a lente entrou. O motivo
+  // não é preferência: com a lente, o saldo é a SOMA DOS MOVIMENTOS daquela
+  // unidade, e o `$lte` do pipeline continuaria comparando o saldo da casa
+  // com o mínimo. Seriam duas regras de "abaixo do mínimo" — a da tela e a do
+  // alerta — e elas divergiriam no primeiro ajuste.
+  //
+  // A lista é de dezenas de itens (o catálogo de uma academia), então
+  // calcular aqui não custa nada e cabe numa leitura só.
+  const calculadas = linhas.map((s) => {
+    const daUnidade = porUnidade?.get(String(s._id));
+
+    const saldo = porUnidade ? daUnidade?.saldo || 0 : s.saldo || 0;
+    const ultimoEm = porUnidade ? daUnidade?.ultimoEm || null : s.ultimoEm || null;
+
+    // `faltando` é saldo no ou abaixo do mínimo, com mínimo definido. Sem
+    // mínimo não existe "faltando": zero de uma coisa que ninguém repõe não é
+    // um alerta, é o estado normal.
+    const faltando = (s.minimo || 0) > 0 && saldo <= s.minimo;
+
+    return { ...s, saldo, ultimoEm, faltando };
+  });
+
+  const visiveis = soFaltando ? calculadas.filter((s) => s.faltando) : calculadas;
+
+  // O que está faltando primeiro: é por isso que alguém abriu a tela.
+  visiveis.sort(
+    (a, b) =>
+      Number(b.faltando) - Number(a.faltando) ||
+      String(a.nameSort || "").localeCompare(String(b.nameSort || ""))
+  );
+
+  return visiveis.map(paraTela);
 };
 
 function paraTela(s) {
@@ -272,7 +369,7 @@ Supply_model.prototype.extrato = async function (id, { limite } = {}) {
 // O extrato de UM insumo responde "como este desinfetante chegou a três"; este
 // responde "o que a casa consumiu em maio". São a mesma tabela lida por eixos
 // diferentes — por insumo e por data —, e a segunda é a que fecha o mês.
-Supply_model.prototype.movimentosNoPeriodo = async function ({ de, ate, limite } = {}) {
+Supply_model.prototype.movimentosNoPeriodo = async function ({ de, ate, limite, unit } = {}) {
   const mov = await this.movimentos();
   const filtro = {};
   if (de || ate) {
@@ -280,6 +377,17 @@ Supply_model.prototype.movimentosNoPeriodo = async function ({ de, ate, limite }
     if (de) filtro.em.$gte = new Date(de);
     if (ate) filtro.em.$lte = new Date(ate);
   }
+
+  // ── A LENTE DA UNIDADE ────────────────────────────────────────────────
+  //
+  // *"estrutura também não respeita unidades"*. O INSUMO é do estoque da casa
+  // e não tem unidade; o MOVIMENTO tem — é ele que diz qual unidade consumiu
+  // o galão. Então o histórico e o gasto filtram, e o catálogo não.
+  //
+  // Sem isto, a lente em Paraty mostrava a lista de aparelhos de Paraty com o
+  // gasto de limpeza da casa inteira embaixo — dois números na mesma tela
+  // respondendo a perguntas diferentes.
+  if (ObjectId.isValid(String(unit || ""))) filtro.unit = new ObjectId(String(unit));
 
   const docs = await mov
     .aggregate([
@@ -300,6 +408,10 @@ Supply_model.prototype.movimentosNoPeriodo = async function ({ de, ate, limite }
     saldoDepois: m.saldoDepois,
     custo: m.custo || 0,
     motivo: m.motivo || "",
+    // Quem CONSUMIU. Diferente da manutenção, o movimento tem unidade
+    // PRÓPRIA — ele nasce com ela. *"quando eu pôr todas as unidades, sempre
+    // exiba em qual unidade pertence"*.
+    unit: m.unit || null,
     porNome: m.porNome || "",
     em: m.em,
   }));
@@ -307,7 +419,7 @@ Supply_model.prototype.movimentosNoPeriodo = async function ({ de, ate, limite }
 
 // Quanto ENTROU de dinheiro em insumo numa janela — "quanto gastei com limpeza
 // este mês". Só entradas: saída é consumo, não compra.
-Supply_model.prototype.gastoNoPeriodo = async function ({ de, ate } = {}) {
+Supply_model.prototype.gastoNoPeriodo = async function ({ de, ate, unit } = {}) {
   const mov = await this.movimentos();
   const filtro = { tipo: "entrada" };
   if (de || ate) {
@@ -315,6 +427,9 @@ Supply_model.prototype.gastoNoPeriodo = async function ({ de, ate } = {}) {
     if (de) filtro.em.$gte = new Date(de);
     if (ate) filtro.em.$lte = new Date(ate);
   }
+
+  // A mesma lente do histórico — ver o comentário acima.
+  if (ObjectId.isValid(String(unit || ""))) filtro.unit = new ObjectId(String(unit));
 
   const linhas = await mov
     .aggregate([

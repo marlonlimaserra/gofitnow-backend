@@ -5,6 +5,7 @@ const tempoReal = require("../lib/tempoReal.js");
 const rateLimit = require("../lib/rateLimit.js");
 const { anamnesisInvite } = require("../lib/emailTemplates.js");
 const travaDeEnvio = require("../lib/travaDeEnvio.js");
+const notificacoes = require("../lib/notificacoes.js");
 const { BASE_DOMAIN } = require("../lib/domain.js");
 
 module.exports = function (app) {
@@ -174,6 +175,15 @@ module.exports = function (app) {
 
     if (!student.email) {
       return res.status(400).send({ msg: req.t("errors.personWithoutEmail"), code: "no_email" });
+    }
+
+    // Quem desligou o convite de anamnese não recebe — e quem clicou fica
+    // sabendo, em vez de ficar esperando uma resposta que nunca foi pedida. O
+    // link continua existindo: copiar e mandar pelo WhatsApp é outra rota.
+    if (!notificacoes.querReceber(student, "anamnese")) {
+      return res
+        .status(409)
+        .send({ msg: req.t("errors.notificationOffPerson"), code: "notification_off" });
     }
 
     let doc = await app.api.anamnesisLink.doStudent(trainer._id, student._id);

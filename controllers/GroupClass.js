@@ -59,7 +59,9 @@ module.exports = function (app) {
     const fuso = await app.api.tenant.timezoneOfInstance();
     const agora = new Date();
 
-    const aulas = await app.api.groupClass.listActive();
+    // A LENTE. `units` é plural: a mesma aula pode valer em duas unidades, e
+    // lista vazia vale para todas — ver o modelo.
+    const aulas = await app.api.groupClass.listActive(req.query.unit);
     const comEstado = aulas
       .map((a) => ({ aula: a, estado: app.api.groupClass.estadoAgora(a, agora, fuso) }))
       .filter((x) => x.estado.hoje);

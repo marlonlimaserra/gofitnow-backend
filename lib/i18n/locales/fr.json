@@ -157,6 +157,8 @@
     "noSubscription": "Vous n'avez pas encore d'abonnement à gérer.",
     "notFound": "Introuvable.",
     "notInPlan": "Votre forfait n'inclut pas {{o}}. Contactez la personne qui gère votre compte.",
+    "notificationOff": "Cette personne a désactivé les e-mails de documents.",
+    "notificationOffPerson": "Cette personne a désactivé ce type de notification dans ses préférences.",
     "optionNotFound": "Option introuvable.",
     "ourDomain": "Cette adresse est la nôtre. Pour une adresse en {{base}}, utilisez l’option de sous-domaine.",
     "ownAccountAccess": "Ce compte appartient à la personne elle-même — elle seule peut changer son accès.",

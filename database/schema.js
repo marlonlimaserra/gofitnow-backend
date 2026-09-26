@@ -678,7 +678,50 @@ async function ensureUmBanco(db) {
 
   // Os FORNECEDORES: lista curta, lida inteira e sempre em ordem alfabética —
   // é assim que se acha um nome numa caixa de busca.
-  await db.collection("suppliers").createIndex({ instance: 1, name: 1 }, { name: "by_name" });
+  // ── `nameSort`: O NOME SEM ACENTO E EM MINÚSCULAS ────────────────────
+  //
+  // A aba de fornecedores busca e ordena por ele (24/09/2026). Eu escrevi a
+  // busca contra este campo antes de ele existir, e o resultado não foi um
+  // erro: era `q=enel` devolvendo zero, calado, com a Enel bem ali na tela. Um
+  // campo que não existe não casa com nada, e o `$regex` não reclama disso.
+  //
+  // Retroativo e idempotente: só toca em quem ainda não tem. Uma passada, e o
+  // código só precisa conhecer o campo — nada de `$or` com `name` espalhado.
+  //
+  // `$toLower` e `$replaceAll` dos acentos que o português usa: o Mongo não tem
+  // normalização Unicode, e cinco `replaceAll` resolvem o alfabeto daqui. Quem
+  // escreve pelo modelo usa `normalize("NFD")`, que é mais completo — e as duas
+  // formas concordam em tudo que aparece num nome de fornecedor brasileiro.
+  await db.collection("suppliers").updateMany({ nameSort: { $exists: false } }, [
+    {
+      $set: {
+        nameSort: {
+          $reduce: {
+            input: [
+              ["á", "a"], ["à", "a"], ["ã", "a"], ["â", "a"], ["ä", "a"],
+              ["é", "e"], ["ê", "e"], ["è", "e"],
+              ["í", "i"], ["ì", "i"], ["î", "i"],
+              ["ó", "o"], ["õ", "o"], ["ô", "o"], ["ò", "o"],
+              ["ú", "u"], ["ü", "u"], ["ù", "u"],
+              ["ç", "c"],
+            ],
+            initialValue: { $toLower: { $ifNull: ["$name", ""] } },
+            in: {
+              $replaceAll: {
+                input: "$$value",
+                find: { $arrayElemAt: ["$$this", 0] },
+                replacement: { $arrayElemAt: ["$$this", 1] },
+              },
+            },
+          },
+        },
+      },
+    },
+  ]);
+
+  // O índice acompanha a busca: por `nameSort`, e não por `name`.
+  await dropIndexIfPresent(db, "suppliers", "by_name");
+  await db.collection("suppliers").createIndex({ instance: 1, nameSort: 1 }, { name: "by_name_sort" });
   // A foto é sempre buscada pelo fornecedor dono: é assim que a faxina acha o
   // que ninguém referencia mais.
   await db

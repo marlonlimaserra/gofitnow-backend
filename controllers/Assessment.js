@@ -73,6 +73,8 @@ module.exports = function (app) {
     const { rows, total } = await app.api.assessment.pageAll(trainer._id, {
       search: req.query.search,
       studentId: req.query.personId,
+      // A LENTE DA UNIDADE — a mesma de pessoas, funcionários e treinos.
+      unit: req.query.unit,
       sort: req.query.sort,
       dir: req.query.dir,
       page: req.query.page,

@@ -130,6 +130,18 @@ function limpar(obj) {
 
     priceCents: centavos(obj.price ?? obj.priceCents),
 
+    // ── EM QUAL UNIDADE ─────────────────────────────────────────────────
+    //
+    // *"aulões também, sem respeitar unidade"*. Aqui, ao contrário do insumo,
+    // o campo É do aulão: ele acontece num lugar e numa data — é um evento,
+    // não um item de catálogo. Dois aulões da mesma casa em unidades
+    // diferentes já são dois registros hoje.
+    //
+    // `null` é legítimo e vale "da casa toda": o aulão na praia não pertence
+    // a nenhuma das salas, e é o caso do próprio exemplo que deu origem a
+    // este produto.
+    unit: ObjectId.isValid(String(obj.unit || "")) ? new ObjectId(String(obj.unit)) : null,
+
     // Publicado ou rascunho. Nasce RASCUNHO: um aulão sem foto e sem endereço
     // publicado por acidente é divulgação errada, e divulgação não se desfaz.
     published: obj.published === true || Number(obj.published) === 1,
@@ -231,11 +243,16 @@ Aulao_model.prototype.bySlug = async function (slug) {
 
 // A lista para a tela de dentro: os que ainda vão acontecer primeiro, e os
 // passados depois — é a ordem em que se pensa numa agenda de eventos.
-Aulao_model.prototype.list = async function ({ passados = false } = {}) {
+Aulao_model.prototype.list = async function ({ passados = false, unit } = {}) {
   const col = await this.collection();
   const agora = new Date();
 
   const filtro = passados ? { startsAt: { $lt: agora } } : { startsAt: { $gte: agora } };
+
+  // A LENTE. Um aulão sem unidade ("da casa toda") NÃO entra no recorte de
+  // uma unidade — ele aparece em "Todas", que é onde de fato está. É a mesma
+  // leitura da lista de pessoas.
+  if (ObjectId.isValid(String(unit || ""))) filtro.unit = new ObjectId(String(unit));
   return col.find(filtro).sort({ startsAt: passados ? -1 : 1 }).toArray();
 };
 

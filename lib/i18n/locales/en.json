@@ -157,6 +157,8 @@
     "noSubscription": "You do not have a subscription to manage yet.",
     "notFound": "Not found.",
     "notInPlan": "Your plan does not include {{o}}. Talk to whoever manages your account.",
+    "notificationOff": "This person turned off document e-mails.",
+    "notificationOffPerson": "This person turned off this kind of notification in their preferences.",
     "optionNotFound": "Option not found.",
     "ourDomain": "That address is ours. For an address on {{base}}, use the subdomain option.",
     "ownAccountAccess": "This account belongs to the person themselves — only they can change their access.",

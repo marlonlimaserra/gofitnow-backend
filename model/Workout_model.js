@@ -3,6 +3,8 @@ const tetos = require("../lib/tetosEstruturais.js");
 // A ordem da semana mora em lib/weekdays.js: é a MESMA para treino e para plano
 // alimentar, e duas cópias seriam duas verdades sobre qual dia vem primeiro.
 const { WEEKDAYS, weekdaysOf } = require("../lib/weekdays.js");
+const { porPagina } = require("../lib/tetoDaLista.js");
+const { recorteDeIds } = require("../lib/recorteDeIds.js");
 
 // Os treinos, com os exercícios dentro.
 //
@@ -267,6 +269,12 @@ Workout_model.prototype.pageAll = async function (trainerId, filtros = {}) {
 
   const etapas = [{ $match: { trainer: new ObjectId(trainerId) } }];
 
+  // OS MARCADOS na tela, para exportar só eles. Depois do `trainer`, e no
+  // mesmo pipeline: os dois `$match` se somam, então um id de treino de
+  // outro profissional mandado à mão não sai na planilha.
+  const escolhidos = recorteDeIds(filtros.ids);
+  if (escolhidos) etapas.push({ $match: { _id: { $in: escolhidos } } });
+
   if (filtros.studentId && ObjectId.isValid(filtros.studentId)) {
     etapas.push({ $match: { student: new ObjectId(filtros.studentId) } });
   }
@@ -279,7 +287,7 @@ Workout_model.prototype.pageAll = async function (trainerId, filtros = {}) {
 
   const campo = ORDEM_TREINOS[filtros.sort] || "createdAt";
   const direcao = filtros.dir === "asc" ? 1 : -1;
-  const limite = Math.min(Math.max(Number(filtros.limit) || 15, 1), 200);
+  const limite = porPagina(filtros.limit, { padrao: 15, maximo: 200, exportando: filtros.exportando });
   const pagina = Math.max(Number(filtros.page) || 1, 1);
 
   const daAba = filtroDeStatus(filtros.status, hoje);
@@ -302,7 +310,16 @@ Workout_model.prototype.pageAll = async function (trainerId, filtros = {}) {
     // `pessoa` — inclusive senha e salt —, e por isso o campo é DESCARTADO no
     // $project do fim. Tirar aquele `pessoa: 0` vaza hash de senha para a tela.
     { $lookup: { from: "users", localField: "student", foreignField: "_id", as: "pessoa" } },
-    { $addFields: { personName: { $ifNull: [{ $arrayElemAt: ["$pessoa.name", 0] }, ""] } } },
+    {
+      $addFields: {
+        personName: { $ifNull: [{ $arrayElemAt: ["$pessoa.name", 0] }, ""] },
+        // A UNIDADE da pessoa — o ID, não o nome: a tela já tem a lista de
+        // unidades (é a mesma da lente) e resolve o nome sem uma segunda
+        // junção aqui. *"quando tiver todos, mostre ali de qual unidade
+        // pertence"*.
+        personUnit: { $arrayElemAt: ["$pessoa.unit", 0] },
+      },
+    },
   ];
 
   etapas.push({
@@ -335,11 +352,33 @@ Workout_model.prototype.pageAll = async function (trainerId, filtros = {}) {
     },
   });
 
-  // Ordenar pelo nome da pessoa é o único caso em que a junção precisa vir
-  // antes: não dá para escolher as quinze primeiras por um campo que ainda não
-  // existe. Custa 22ms em vez de 6ms — e continua sendo um terço dos 65ms.
+  // ── QUANDO A JUNÇÃO PRECISA VIR ANTES ────────────────────────────────────
+  //
+  // Dois casos, e os dois pelo mesmo motivo: não dá para escolher as quinze
+  // primeiras por um campo que ainda não existe.
+  //
+  // 1. ORDENAR pelo nome da pessoa. Custa 22ms em vez de 6ms — e continua
+  //    sendo um terço dos 65ms de antes.
+  //
+  // 2. A LENTE DA UNIDADE. *"treinos também: troquei de unidade e está
+  //    igual"*. O treino não tem unidade: quem tem é a PESSOA dele, então
+  //    filtrar por unidade obriga a ter a pessoa em mãos — e antes das
+  //    contagens das abas, senão elas contariam a casa inteira enquanto a
+  //    lista mostra uma unidade.
+  //
+  // Quem não filtra e não ordena por pessoa não paga nada disto: o caminho
+  // rápido continua exatamente como era.
   const ordenaPorPessoa = campo === "personName";
-  if (ordenaPorPessoa) etapas.push(...juntarPessoa);
+  const porUnidade = ObjectId.isValid(filtros.unit) ? new ObjectId(filtros.unit) : null;
+  const pessoaCedo = ordenaPorPessoa || Boolean(porUnidade);
+
+  if (pessoaCedo) etapas.push(...juntarPessoa);
+
+  // `pessoa` é o array do $lookup; casar `pessoa.unit` casa o elemento dele.
+  // Quem não tem unidade atribuída não entra em unidade nenhuma — e continua
+  // alcançável em "Todas as unidades", que é onde ele de fato está. É a mesma
+  // leitura da lista de pessoas.
+  if (porUnidade) etapas.push({ $match: { "pessoa.unit": porUnidade } });
 
   // As CONTAGENS das abas saem da mesma passagem, e antes do filtro de aba: a
   // aba "Passados" precisa saber quantos atuais existem para escrever o número
@@ -354,7 +393,7 @@ Workout_model.prototype.pageAll = async function (trainerId, filtros = {}) {
         { $skip: (pagina - 1) * limite },
         { $limit: limite },
         // Daqui para baixo são QUINZE documentos, não a coleção inteira.
-        ...(ordenaPorPessoa ? [] : juntarPessoa),
+        ...(pessoaCedo ? [] : juntarPessoa),
         {
           $addFields: {
             setCount: {

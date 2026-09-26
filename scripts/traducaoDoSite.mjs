@@ -35,7 +35,30 @@ const DESTINO = path.join(AQUI, "..", "lib", "i18n", "documentos");
 // "Assinatura do funcionário", "Falta justificada". O papel do app nasce aqui e
 // o do painel é React — as duas metades falando as MESMAS palavras é o que este
 // espelho garante.
-const PARTES = ["avaliacoes", "comum", "dietas", "financeiro", "funcionarios"];
+//
+// `aulaoes` entrou em 23/09/2026, com a LISTA DE INSCRITOS: "Assinatura",
+// "Pagou", "Ninguém neste recorte". Mesmo motivo — o app pede o papel ao
+// servidor, o painel desenha o dele em React, e os dois dizem igual.
+// `estrutura` e `treinos` entraram em 23/09/2026, com as LISTAS QUE SE LEVAM
+// EMBORA (`lib/listasExportaveis.js`): a planilha de equipamentos precisa de
+// "Em manutenção", a de treinos precisa de "Atual" e "Séries". Antes disso o
+// servidor não escrevia nenhuma dessas palavras — quem as escrevia era o
+// painel, em React, e era exatamente esse o problema que o registro resolve.
+// `contas` entrou em 24/09/2026, com a lista de FORNECEDORES: *"bote search,
+// paginação, ordenação de coluna, checkbox para exportar xlsx e pdf"*. A
+// planilha precisa dizer "Categoria padrão" e "Contas a pagar" com as mesmas
+// palavras da tela.
+const PARTES = [
+  "aulaoes",
+  "contas",
+  "avaliacoes",
+  "comum",
+  "dietas",
+  "estrutura",
+  "financeiro",
+  "funcionarios",
+  "treinos",
+];
 const IDIOMAS = ["pt-BR", "en", "es", "fr"];
 
 if (!fs.existsSync(SITE)) {

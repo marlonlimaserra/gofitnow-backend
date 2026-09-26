@@ -14,7 +14,7 @@ const Anamnesis_model = require("../../model/Anamnesis_model.js");
 const PESSOA = "64b2c0f7e1a2b3c4d5e6f701";
 const PROF = "64b2c0f7e1a2b3c4d5e6f7a8";
 
-function monta({ permissao = "anamnesis.manage", existente = null, link = null, email = "" } = {}) {
+function monta({ permissao = "anamnesis.manage", existente = null, link = null, email = "", preferences = undefined } = {}) {
   const feito = { salvos: [], links: 0, mails: [] };
   let doc = existente;
   let oLink = link;
@@ -24,7 +24,7 @@ function monta({ permissao = "anamnesis.manage", existente = null, link = null, 
     api: {
       user: {
         async dataStudent() {
-          return { _id: PESSOA, name: "Marlon Lima", email };
+          return { _id: PESSOA, name: "Marlon Lima", email, preferences };
         },
         async data() {
           return { _id: PESSOA, name: "Marlon Lima", email };
@@ -374,4 +374,21 @@ test("enviar por e-mail sem link ativo CRIA um — quem clicou quer que chegue",
   assert.equal(r.status, 200);
   assert.equal(feito.links, 1, "não criou o link que faltava");
   assert.deepEqual(feito.mails, ["marlon@exemplo.com"]);
+});
+
+test("quem desligou o convite de anamnese não recebe — e a tela diz isso", async () => {
+  // *"vários e-mails que vamos enviar vai verificar essas notificações"*. O
+  // link continua existindo: copiar e mandar pelo WhatsApp é outra rota.
+  const { app, feito } = monta({
+    email: "marlon@exemplo.com",
+    preferences: { notify: { anamnese: false } },
+  });
+
+  const r = await call(app, "post", `/people/${PESSOA}/anamnesis/link/email`, {
+    params: { personId: PESSOA },
+  });
+
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, "notification_off");
+  assert.deepEqual(feito.mails, []);
 });

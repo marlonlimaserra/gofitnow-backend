@@ -37,6 +37,8 @@ module.exports = function (app) {
       search: req.query.search,
       status: req.query.status,
       studentId: req.query.personId,
+      // A LENTE DA UNIDADE — a mesma de pessoas, funcionários e treinos.
+      unit: req.query.unit,
       sort: req.query.sort,
       dir: req.query.dir,
       page: req.query.page,

@@ -1,4 +1,6 @@
 const { ObjectId } = require("mongodb");
+const { porPagina: tetoPorPagina } = require("../lib/tetoDaLista.js");
+const { recorteDeIds } = require("../lib/recorteDeIds.js");
 const categorias = require("../lib/categoriasDeConta.js");
 
 // OS FORNECEDORES — quem recebe o dinheiro que sai.
@@ -107,9 +109,19 @@ function link(v) {
   }
 }
 
+// ── `nameSort`: O NOME SEM ACENTO E EM MINÚSCULAS ─────────────────────────
+//
+// É por ele que a busca acha e a lista ordena — "ENEL", "Enel" e "enel" são o
+// mesmo fornecedor, e "aguas" tem de achar "Águas".
+//
+// Eu escrevi a busca da aba contra este campo ANTES de ele existir (24/09/2026).
+// O resultado não foi um erro: era `q=enel` devolvendo zero, calado, num
+// fornecedor que está bem ali na tela. Um campo que não existe não casa com
+// nada — e o `$regex` não reclama disso.
 function limpar(obj) {
   const saida = {};
   for (const [campo, tratar] of Object.entries(CAMPOS)) saida[campo] = tratar(obj[campo]);
+  if (saida.name !== undefined) saida.nameSort = chave(saida.name);
   return saida;
 }
 
@@ -118,6 +130,9 @@ function limparParcial(obj) {
   for (const [campo, tratar] of Object.entries(CAMPOS)) {
     if (obj[campo] !== undefined) saida[campo] = tratar(obj[campo]);
   }
+  // Renomear um fornecedor sem reescrever `nameSort` deixaria a busca achando
+  // pelo nome ANTIGO — e a lista ordenada pelo antigo também.
+  if (saida.name !== undefined) saida.nameSort = chave(saida.name);
   return saida;
 }
 
@@ -130,6 +145,105 @@ Supplier_model.prototype.list = async function () {
 
 Supplier_model.prototype.listActive = async function () {
   return (await this.list()).filter((f) => f.active !== false);
+};
+
+// ── A PÁGINA DA ABA DE FORNECEDORES ───────────────────────────────────────
+//
+// *"bote search, paginação, ordenação de coluna, checkbox para exportar xlsx e
+// pdf"* (24/09/2026).
+//
+// Busca, ordem e corte no BANCO, e não na tela. É a mesma lição das outras
+// listas: ordenar as quinze linhas que chegaram dá a ordem DAS QUINZE, e buscar
+// dentro delas acha "Enel" entre as carregadas e diz que não existe mais
+// nenhuma.
+//
+// O SELETOR do formulário continua chamando `list()` — ele precisa de todos os
+// nomes de uma vez, sem página, e é ele que abre a cada lançamento de conta.
+const ORDEM_DOS_FORNECEDORES = {
+  nome: "nameSort",
+  categoria: "categoria",
+  descricao: "defaultDescription",
+  contas: "contas",
+};
+
+Supplier_model.prototype.pagina = async function ({
+  busca,
+  ordem,
+  direcao,
+  pagina,
+  limite,
+  ids,
+  exportando,
+} = {}) {
+  const col = await this.collection();
+
+  const etapas = [];
+
+  const escolhidos = recorteDeIds(ids);
+  if (escolhidos) etapas.push({ $match: { _id: { $in: escolhidos } } });
+
+  const termo = String(busca || "").trim();
+  if (termo) {
+    const esc = termo
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    etapas.push({
+      $match: {
+        $or: [
+          { nameSort: { $regex: esc } },
+          // A DESCRIÇÃO PADRÃO entra na busca: quem procura "luz" está
+          // procurando a Enel, e é assim que o nome dela é lembrado.
+          { defaultDescription: { $regex: esc, $options: "i" } },
+          { document: { $regex: esc, $options: "i" } },
+        ],
+      },
+    });
+  }
+
+  // QUANTAS CONTAS cada um tem — junto, porque é coluna ORDENÁVEL. Contar
+  // depois do corte daria o número certo e uma ordenação errada: a página
+  // seria escolhida antes de saber por qual valor ordenar.
+  etapas.push({
+    $lookup: {
+      from: "payables",
+      localField: "_id",
+      foreignField: "supplier",
+      as: "__contas",
+    },
+  });
+  etapas.push({ $addFields: { contas: { $size: "$__contas" } } });
+
+  const campo = ORDEM_DOS_FORNECEDORES[ordem] || "nameSort";
+  const sentido = String(direcao) === "desc" ? -1 : 1;
+  // O nome desempata: sem um critério estável, dois fornecedores da mesma
+  // categoria podem trocar de lugar entre uma página e outra — e aí um some e
+  // o outro aparece duas vezes.
+  const sort = campo === "nameSort" ? { nameSort: sentido } : { [campo]: sentido, nameSort: 1 };
+
+  const porPagina = tetoPorPagina(limite, { padrao: 15, maximo: 200, exportando });
+  const pular = Math.max((Number(pagina) || 1) - 1, 0) * porPagina;
+
+  const [saida] = await col
+    .aggregate([
+      ...etapas,
+      {
+        $facet: {
+          rows: [{ $sort: sort }, { $skip: pular }, { $limit: porPagina }, { $project: { __contas: 0 } }],
+          total: [{ $count: "n" }],
+        },
+      },
+    ])
+    .toArray();
+
+  return {
+    rows: saida?.rows || [],
+    total: saida?.total?.[0]?.n || 0,
+    pagina: Math.floor(pular / porPagina) + 1,
+    porPagina,
+  };
 };
 
 // ── IMPORTAR OS DO VAFIT ──────────────────────────────────────────────────

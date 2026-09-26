@@ -53,6 +53,15 @@ const OUTRO_CATALOGO = new Set([
   // funcionário"), espelhados do site pelo `scripts/traducaoDoSite.mjs`.
   "lib/documentoPonto.js",
   "lib/planilhaDoPonto.js",
+  // A lista de inscritos de um aulão, em papel e em planilha (23/09/2026). Os
+  // rótulos são os da TELA de aulões ("Assinatura", "Pagou"), espelhados do
+  // site — e o app pede as duas ao servidor porque no celular não há Ctrl+P
+  // nem pasta de downloads.
+  "lib/documentoInscritos.js",
+  // O registro das listas que se levam embora (23/09/2026): os rótulos são os
+  // das TELAS ("Acesso", "Situação", "Unidade"), espelhados do site. Uma
+  // definição para todos os clientes — ver o cabeçalho de lá.
+  "lib/listasExportaveis.js",
   "lib/rotulosDeDocumento.js",
 ]);
 

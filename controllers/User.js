@@ -1,4 +1,5 @@
 const userModel = require("../model/User_model.js");
+const notificacoes = require("../lib/notificacoes.js");
 
 module.exports = function (app) {
   // The signed-in user's own profile — works for both types. For a student it
@@ -46,6 +47,46 @@ module.exports = function (app) {
 
     const atual = await app.api.user.data(user._id);
     res.send({ preferences: atual.preferences || {} });
+  });
+
+  // ── OS AVISOS QUE ELA QUER RECEBER ──────────────────────────────────────
+  //
+  // *"nas preferências do usuário ele pode [escolher] quais notificações ele
+  // quer ou não receber; por padrão vem tudo ativado"*.
+  //
+  // Rota PRÓPRIA, e não mais um saco no `/me/preferences`: aquilo é gosto de
+  // tela — qual coluna, qual ordem — e grava o que mandarem. Isto decide se um
+  // e-mail sai, então o corpo passa por uma peneira de chaves conhecidas
+  // (`notificacoes.limpar`) antes de virar documento.
+  app.get("/me/notifications", async function (req, res) {
+    const user = await app.helpers.ReqProtected.verify(req, res);
+    if (user === false) return;
+
+    res.send({ rows: notificacoes.paraTela(user) });
+  });
+
+  app.put("/me/notifications", async function (req, res) {
+    const user = await app.helpers.ReqProtected.verify(req, res);
+    if (user === false) return;
+
+    const pedido = notificacoes.limpar(req.body || {});
+    if (!Object.keys(pedido).length) {
+      res.status(400).send({ msg: req.t("errors.invalidPreferences") });
+      return;
+    }
+
+    // Mesclado com o que já estava: a tela pode mandar um interruptor só, e
+    // `savePreferences` grava `preferences.notify` inteiro — sem a mistura
+    // aqui, ligar "treino" apagaria a escolha feita em todos os outros.
+    const antes = user.preferences?.notify || {};
+    const ok = await app.api.user.savePreferences(user._id, { notify: { ...antes, ...pedido } });
+    if (!ok) {
+      res.status(400).send({ msg: req.t("errors.invalidPreferences") });
+      return;
+    }
+
+    const atual = await app.api.user.data(user._id);
+    res.send({ rows: notificacoes.paraTela(atual) });
   });
 
   app.put("/me", async function (req, res) {

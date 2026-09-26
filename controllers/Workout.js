@@ -120,6 +120,9 @@ module.exports = function (app) {
     const { rows, total, counts } = await app.api.workout.pageAll(trainer._id, {
       search: req.query.search,
       studentId: req.query.personId,
+      // A LENTE DA UNIDADE — a mesma de pessoas e funcionários. O treino não
+      // tem unidade; quem tem é a pessoa dele.
+      unit: req.query.unit,
       status: req.query.status,
       sort: req.query.sort,
       dir: req.query.dir,
@@ -128,9 +131,9 @@ module.exports = function (app) {
     });
 
     res.send({
-      rows: rows.map(({ personName, ...w }) => ({
+      rows: rows.map(({ personName, personUnit, ...w }) => ({
         ...w,
-        student: { _id: w.student, name: personName || null },
+        student: { _id: w.student, name: personName || null, unit: personUnit || null },
       })),
       total,
       counts,
