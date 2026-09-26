@@ -6,6 +6,7 @@ const { documentoPonto } = require("../lib/documentoPonto.js");
 const { planilhaDoPonto, nomeDaPlanilha } = require("../lib/planilhaDoPonto.js");
 const vinculos = require("../lib/vinculosDeTrabalho.js");
 const tiposDeOcorrencia = require("../lib/tiposDeOcorrencia.js");
+const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 
 // FUNCIONÁRIOS — a equipe da casa.
 //
@@ -72,7 +73,7 @@ module.exports = function (app) {
       busca: req.query.q,
       situacao: req.query.situacao,
       bond: req.query.bond,
-      unit: req.query.unit,
+      ...lenteDeUnidade.recorte(user, req.query.unit),
       semUnidade: req.query.semUnidade === "1",
       ordem: req.query.sort,
       direcao: req.query.dir,

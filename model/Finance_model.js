@@ -7,6 +7,7 @@ const instanceContext = require("../lib/instance.js");
 const { parseDataUri } = require("../lib/imageDataUri.js");
 const { porPagina } = require("../lib/tetoDaLista.js");
 const { recorteDeIds } = require("../lib/recorteDeIds.js");
+const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 
 // O financeiro de cada pessoa.
 //
@@ -423,6 +424,8 @@ Finance_model.prototype.carteira = async function ({
   limite,
   // A unidade escolhida no alto da tela. Vazia é "todas".
   unit,
+  // A cerca de unidades de quem pergunta (26/09/2026).
+  units,
   // ── AS COBRANÇAS ESCOLHIDAS À MÃO ───────────────────────────────────────
   //
   // Uma lista de ids. Quando ela vem, é ELA que manda: a janela, o estado e a
@@ -683,6 +686,14 @@ Finance_model.prototype.carteira = async function ({
   // na URL não pode esvaziar o financeiro de ninguém.
   const lente = ObjectId.isValid(unit) ? new ObjectId(unit) : null;
 
+  // A CERCA de quem só alcança algumas unidades (26/09/2026): ela vale quando
+  // não há lente escolhida, e corta pela unidade da PESSOA da cobrança —
+  // mesmo campo da lente. Ver `lib/lenteDeUnidade.js`.
+  const cerca = lente ? null : lenteDeUnidade.filtroDeUnidades(units);
+  const etapaDaCerca = cerca
+    ? [{ $match: { $or: [{ studentUnit: cerca.$or[0].unit }, { studentUnit: null }] } }]
+    : [];
+
   const [saida] = await charges
     .aggregate(
       [
@@ -699,7 +710,7 @@ Finance_model.prototype.carteira = async function ({
         //
         // Números que não batem com a lista que está do lado são piores que
         // números ausentes: ninguém desconfia de um total.
-        ...(lente ? [{ $match: { studentUnit: lente } }] : []),
+        ...(lente ? [{ $match: { studentUnit: lente } }] : etapaDaCerca),
         contas,
         atraso,
         posto,
@@ -816,6 +827,8 @@ Finance_model.prototype.recebimentos = async function ({
   pagina,
   limite,
   unit,
+  // A cerca de unidades de quem pergunta (26/09/2026).
+  units,
   // Os recebimentos marcados na tela, para a planilha e a folha deles.
   ids,
   personId,
@@ -980,13 +993,19 @@ Finance_model.prototype.recebimentos = async function ({
   // ausentes, porque ninguém desconfia de um total.
   const lenteDaUnidade = ObjectId.isValid(unit) ? new ObjectId(String(unit)) : null;
 
+  // A mesma cerca da carteira.
+  const cercaDaUnidade = lenteDaUnidade ? null : lenteDeUnidade.filtroDeUnidades(units);
+  const etapaDaCercaAqui = cercaDaUnidade
+    ? [{ $match: { $or: [{ studentUnit: cercaDaUnidade.$or[0].unit }, { studentUnit: null }] } }]
+    : [];
+
   const [saida] = await col
     .aggregate([
       { $match: janela },
       juntarPessoa,
       juntarCobranca,
       derivados,
-      ...(lenteDaUnidade ? [{ $match: { studentUnit: lenteDaUnidade } }] : []),
+      ...(lenteDaUnidade ? [{ $match: { studentUnit: lenteDaUnidade } }] : etapaDaCercaAqui),
       {
         $facet: {
           // ── OS CARTÕES DO TOPO ──────────────────────────────────────

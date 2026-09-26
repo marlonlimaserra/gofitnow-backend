@@ -1,5 +1,6 @@
 const limiteDoPlano = require("../lib/limiteDoPlano.js");
 const { avisarSemEsperar } = require("../lib/avisar.js");
+const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 
 module.exports = function (app) {
   // Treinos — só profissional. Tudo é escopado ao profissional:
@@ -122,7 +123,7 @@ module.exports = function (app) {
       studentId: req.query.personId,
       // A LENTE DA UNIDADE — a mesma de pessoas e funcionários. O treino não
       // tem unidade; quem tem é a pessoa dele.
-      unit: req.query.unit,
+      ...lenteDeUnidade.recorte(trainer, req.query.unit),
       status: req.query.status,
       sort: req.query.sort,
       dir: req.query.dir,

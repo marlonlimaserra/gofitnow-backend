@@ -3,6 +3,7 @@ const cat = require("../lib/catalogosDeEstrutura.js");
 const arquivos = require("../lib/arquivos.js");
 const instanceContext = require("../lib/instance.js");
 const dominio = require("../lib/domain.js");
+const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 
 // A ESTRUTURA DA CASA — equipamentos e estoque.
 //
@@ -50,7 +51,7 @@ module.exports = function (app) {
       busca: req.query.q,
       categoria: req.query.categoria,
       estado: req.query.estado,
-      unit: req.query.unit,
+      ...lenteDeUnidade.recorte(user, req.query.unit),
       semUnidade: req.query.semUnidade === "1",
     });
 
@@ -73,7 +74,12 @@ module.exports = function (app) {
       // e um relatório que quase sempre mostra zero não é consultado.
       // Os relatórios seguem a MESMA lente da lista: sem isto, escolher
       // Paraty mostrava zero aparelhos com o gasto da casa inteira embaixo.
-      gasto: await app.api.equipment.custoNoPeriodo({ ...janela, unit: req.query.unit }),
+      // O total OBEDECE À MESMA CERCA da lista: número que não bate com a lista
+      // ao lado é pior que número nenhum.
+      gasto: await app.api.equipment.custoNoPeriodo({
+        ...janela,
+        ...lenteDeUnidade.recorte(user, req.query.unit),
+      }),
       // O relatório responde QUANTO; esta lista responde O QUÊ. Um total de
       // R$ 1.840 não diz que a esteira quebrou três vezes em maio.
       // `manutencoesDoPeriodo`, e não `manutencoes`: a ficha de UM equipamento
@@ -81,7 +87,7 @@ module.exports = function (app) {
       // mesma palavra na mesma API é o começo de um bug de leitura.
       manutencoesDoPeriodo: await app.api.equipment.manutencoesNoPeriodo({
         ...janela,
-        unit: req.query.unit,
+        ...lenteDeUnidade.recorte(user, req.query.unit),
       }),
       periodo: { de: janela.de, ate: janela.ate },
       // O que já foi digitado antes, para o formulário completar sozinho. Vem
@@ -241,7 +247,7 @@ module.exports = function (app) {
       // não tem unidade — mas o MOVIMENTO tem, e a quantidade é gravada com
       // sinal. Com a lente, o saldo é recalculado somando os movimentos
       // daquela unidade; sem ela, continua o saldo da casa.
-      unit: req.query.unit,
+      ...lenteDeUnidade.recorte(user, req.query.unit),
     });
 
     const moedas = await app.api.tenant.currencyOfInstance();
@@ -256,7 +262,10 @@ module.exports = function (app) {
       // O INSUMO é do estoque da casa e não tem unidade; o MOVIMENTO tem —
       // é ele que diz qual unidade consumiu. Por isso o catálogo continua
       // inteiro e só o gasto e o histórico seguem a lente.
-      gasto: await app.api.supply.gastoNoPeriodo({ ...janela, unit: req.query.unit }),
+      gasto: await app.api.supply.gastoNoPeriodo({
+        ...janela,
+        ...lenteDeUnidade.recorte(user, req.query.unit),
+      }),
       // E o que saiu: o extrato de um insumo responde "como este desinfetante
       // chegou a três"; este responde "o que a casa consumiu em maio".
       // `movimentosDoPeriodo`: `movimentos` nesta mesma resposta é o CATÁLOGO
@@ -264,7 +273,7 @@ module.exports = function (app) {
       // abaixo — e o spread dele apagaria esta lista, calado.
       movimentosDoPeriodo: await app.api.supply.movimentosNoPeriodo({
         ...janela,
-        unit: req.query.unit,
+        ...lenteDeUnidade.recorte(user, req.query.unit),
       }),
       periodo: { de: janela.de, ate: janela.ate },
       currency: moedas.currency,

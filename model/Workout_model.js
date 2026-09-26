@@ -5,6 +5,7 @@ const tetos = require("../lib/tetosEstruturais.js");
 const { WEEKDAYS, weekdaysOf } = require("../lib/weekdays.js");
 const { porPagina } = require("../lib/tetoDaLista.js");
 const { recorteDeIds } = require("../lib/recorteDeIds.js");
+const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 
 // Os treinos, com os exercícios dentro.
 //
@@ -370,7 +371,11 @@ Workout_model.prototype.pageAll = async function (trainerId, filtros = {}) {
   // rápido continua exatamente como era.
   const ordenaPorPessoa = campo === "personName";
   const porUnidade = ObjectId.isValid(filtros.unit) ? new ObjectId(filtros.unit) : null;
-  const pessoaCedo = ordenaPorPessoa || Boolean(porUnidade);
+  // A CERCA de quem só alcança algumas unidades (26/09/2026). Ela força a
+  // junção da pessoa do mesmo jeito que a lente — é por `pessoa.unit` que os
+  // dois cortam.
+  const cerca = lenteDeUnidade.filtroDeUnidades(filtros.units);
+  const pessoaCedo = ordenaPorPessoa || Boolean(porUnidade) || Boolean(cerca);
 
   if (pessoaCedo) etapas.push(...juntarPessoa);
 
@@ -379,6 +384,14 @@ Workout_model.prototype.pageAll = async function (trainerId, filtros = {}) {
   // alcançável em "Todas as unidades", que é onde ele de fato está. É a mesma
   // leitura da lista de pessoas.
   if (porUnidade) etapas.push({ $match: { "pessoa.unit": porUnidade } });
+  else if (cerca) {
+    // O mesmo `$or` da cerca, reescrito no campo da pessoa juntada.
+    etapas.push({
+      $match: {
+        $or: [{ "pessoa.unit": cerca.$or[0].unit }, { "pessoa.unit": null }],
+      },
+    });
+  }
 
   // As CONTAGENS das abas saem da mesma passagem, e antes do filtro de aba: a
   // aba "Passados" precisa saber quantos atuais existem para escrever o número

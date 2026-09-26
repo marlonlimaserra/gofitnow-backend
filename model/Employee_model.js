@@ -3,6 +3,7 @@ const cep = require("../lib/cep.js");
 const vinculos = require("../lib/vinculosDeTrabalho.js");
 const { porPagina: tetoPorPagina } = require("../lib/tetoDaLista.js");
 const { recorteDeIds } = require("../lib/recorteDeIds.js");
+const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 
 // A EQUIPE DA CASA — quem trabalha aqui.
 //
@@ -290,6 +291,7 @@ function etapasDoAfastamento() {
 // afastamento que cubra hoje. É uma consulta a mais por página — e é a resposta
 // da pergunta que se faz olhando a lista de manhã: "quem eu tenho hoje?".
 Employee_model.prototype.listar = async function ({
+  units,
   // Os MARCADOS na tela. Ver `recorteDeIds` — nenhum id válido é nenhuma
   // linha, e não a equipe inteira.
   ids,
@@ -332,6 +334,13 @@ Employee_model.prototype.listar = async function ({
   // contador e o faxineiro que atende as duas unidades não pertencem a nenhuma.
   if (semUnidade) recorte.push({ $match: { unit: null } });
   else if (unit && ObjectId.isValid(unit)) recorte.push({ $match: { unit: new ObjectId(unit) } });
+  // A CERCA: quem só alcança algumas unidades não passa disto, peça o que
+  // pedir (26/09/2026). O que NÃO tem unidade continua aparecendo — é da casa,
+  // não de outra unidade. Ver `lib/lenteDeUnidade.js`.
+  else {
+    const cerca = lenteDeUnidade.filtroDeUnidades(units);
+    if (cerca) recorte.push({ $match: cerca });
+  }
 
   const afastamento = etapasDoAfastamento();
 

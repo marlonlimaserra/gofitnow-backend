@@ -16,6 +16,7 @@ const limiteDoPlano = require("../lib/limiteDoPlano.js");
 const instanceContext = require("../lib/instance.js");
 const arquivos = require("../lib/arquivos.js");
 const dominio = require("../lib/domain.js");
+const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 
 module.exports = function (app) {
   const baseUrl = dominio.apiBaseUrl;
@@ -61,7 +62,12 @@ module.exports = function (app) {
 
     // A LENTE. `units` é plural: a mesma aula pode valer em duas unidades, e
     // lista vazia vale para todas — ver o modelo.
-    const aulas = await app.api.groupClass.listActive(req.query.unit);
+    // A CERCA da unidade (26/09/2026). `listActive` recebe UMA unidade, então
+    // quem é restrito e não escolheu nenhuma recebe a PRIMEIRA das dele — a
+    // grade é sempre de uma unidade de cada vez, e mostrar a casa inteira para
+    // quem só alcança uma seria o furo que esta mudança veio fechar.
+    const cerca = lenteDeUnidade.recorte(user, req.query.unit);
+    const aulas = await app.api.groupClass.listActive(cerca.unit || (cerca.units || [])[0] || "");
     const comEstado = aulas
       .map((a) => ({ aula: a, estado: app.api.groupClass.estadoAgora(a, agora, fuso) }))
       .filter((x) => x.estado.hoje);

@@ -4,6 +4,7 @@ const { registrarRotasDeDocumento } = require("../lib/rotasDeDocumento.js");
 const { logoDaCasa } = require("../lib/logoDaCasa.js");
 const { avisarSemEsperar } = require("../lib/avisar.js");
 const arquivos = require("../lib/arquivos.js");
+const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 
 module.exports = function (app) {
   // Os planos alimentares de uma pessoa.
@@ -38,7 +39,7 @@ module.exports = function (app) {
       status: req.query.status,
       studentId: req.query.personId,
       // A LENTE DA UNIDADE — a mesma de pessoas, funcionários e treinos.
-      unit: req.query.unit,
+      ...lenteDeUnidade.recorte(trainer, req.query.unit),
       sort: req.query.sort,
       dir: req.query.dir,
       page: req.query.page,

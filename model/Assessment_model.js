@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 
 // As avaliações físicas de uma pessoa.
 //
@@ -273,11 +274,17 @@ Assessment_model.prototype.pageAll = async function (trainerId, filtros = {}) {
   //
   // Sem teto, ao contrário da busca por nome: lá o teto existe porque "a" não
   // é uma busca; aqui a unidade inteira é o que foi pedido.
-  if (ObjectId.isValid(String(filtros.unit || ""))) {
+  // ── A LENTE, E A CERCA ────────────────────────────────────────────────
+  //
+  // `unit` é a lente escolhida no topo; `units` é a CERCA de quem só alcança
+  // algumas (26/09/2026). As duas cortam pelas PESSOAS daquela unidade, e por
+  // isso passam pela mesma consulta. Ver `lib/lenteDeUnidade.js`.
+  const cerca = lenteDeUnidade.filtroDeUnidades(filtros.units);
+
+  if (ObjectId.isValid(String(filtros.unit || "")) || cerca) {
     const users = await this.app.api.user.collection();
-    const daUnidade = await users
-      .find({ unit: new ObjectId(String(filtros.unit)) }, { projection: { _id: 1 } })
-      .toArray();
+    const quais = cerca || { unit: new ObjectId(String(filtros.unit)) };
+    const daUnidade = await users.find(quais, { projection: { _id: 1 } }).toArray();
 
     consulta.student = { $in: daUnidade.map((p) => p._id) };
   }

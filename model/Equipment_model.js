@@ -1,5 +1,6 @@
 const { ObjectId } = require("mongodb");
 const cat = require("../lib/catalogosDeEstrutura.js");
+const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 
 // OS EQUIPAMENTOS DA CASA — a esteira, o leg press, o ar-condicionado.
 //
@@ -93,7 +94,7 @@ function normalizar(t) {
 // `precisaDeAtencao` é calculado: está em manutenção, ou a próxima preventiva
 // já venceu. É o único número que a tela precisa mostrar em vermelho, e é a
 // razão de a lista existir.
-Equipment_model.prototype.listar = async function ({ busca, categoria, estado, unit, semUnidade } = {}) {
+Equipment_model.prototype.listar = async function ({ busca, categoria, estado, unit, units, semUnidade } = {}) {
   const col = await this.collection();
   const filtro = {};
 
@@ -111,6 +112,13 @@ Equipment_model.prototype.listar = async function ({ busca, categoria, estado, u
   if (estado) filtro.estado = String(estado);
   if (semUnidade) filtro.unit = null;
   else if (unit && ObjectId.isValid(unit)) filtro.unit = new ObjectId(unit);
+  // A CERCA: quem só alcança algumas unidades não passa disto, peça o que
+  // pedir (26/09/2026). O que NÃO tem unidade continua aparecendo — é da casa,
+  // não de outra unidade. Ver `lib/lenteDeUnidade.js`.
+  else {
+    const cerca = lenteDeUnidade.filtroDeUnidades(units);
+    if (cerca) Object.assign(filtro, cerca);
+  }
 
   const hoje = new Date();
 

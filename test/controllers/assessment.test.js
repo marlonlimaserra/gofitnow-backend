@@ -276,6 +276,10 @@ test("os filtros da tela chegam inteiros ao model", async () => {
     search: "bruna",
     studentId: "p1",
     unit: "u9",
+    // `units` é a CERCA (26/09/2026): a lista de unidades que esta pessoa
+    // alcança, quando ela é restrita. Nula aqui porque o usuário do teste
+    // alcança todas — e porque ele ESCOLHEU uma, que é a lente.
+    units: null,
     sort: "weight",
     dir: "asc",
     page: "3",
@@ -283,14 +287,15 @@ test("os filtros da tela chegam inteiros ao model", async () => {
   });
 });
 
-test("sem lente, o model recebe `unit` vazio — e não filtra por nada", async () => {
-  // O model só filtra com um id VÁLIDO (`ObjectId.isValid`), então `undefined`
-  // atravessa sem efeito. O caso existe para que trocar isso por um valor
-  // qualquer — um "" que o Mongo compararia — exija uma decisão.
+test("sem lente e sem cerca, o model não filtra por unidade nenhuma", async () => {
+  // O model só filtra com um id VÁLIDO (`ObjectId.isValid`) ou com uma cerca
+  // com itens, então `""` e `null` atravessam sem efeito. O caso existe para
+  // que trocar isso por um valor que o Mongo compararia exija uma decisão.
   const { app, pedidos } = montaLista();
   await call(app, "get", "/assessments");
 
-  assert.equal(pedidos[1].unit, undefined);
+  assert.equal(pedidos[1].unit, "");
+  assert.equal(pedidos[1].units, null);
 });
 
 test("a resposta leva os ângulos configurados junto — a coluna de fotos precisa deles", async () => {

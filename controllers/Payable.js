@@ -1,6 +1,7 @@
 const categorias = require("../lib/categoriasDeConta.js");
 const arquivos = require("../lib/arquivos.js");
 const statusDeCobranca = require("../lib/statusDeCobranca.js");
+const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 
 // CONTAS A PAGAR — a luz, o telefone, o aluguel, a folha.
 //
@@ -41,7 +42,7 @@ module.exports = function (app) {
       status: req.query.status,
       categoria: req.query.categoria,
       busca: req.query.q,
-      unit: req.query.unit,
+      ...lenteDeUnidade.recorte(user, req.query.unit),
       // "Da casa toda" é um recorte de verdade, e não a ausência de filtro: o
       // contador e o software não pertencem a unidade nenhuma, e quem fecha o
       // custo de Paraty precisa poder olhar os dois separados.

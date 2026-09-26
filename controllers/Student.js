@@ -2,6 +2,7 @@ const limiteDoPlano = require("../lib/limiteDoPlano.js");
 const acoesDoCatalogo = require("../lib/actions.js");
 const fotoDoWhatsapp = require("../lib/fotoDoWhatsapp.js");
 const depoisLib = require("../lib/depois.js");
+const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 
 // `app.depois` só existe quando o teste o injeta — em produção ele é undefined,
 // e chamá-lo direto estoura DEPOIS do `res.send`, onde o erro não tem para onde
@@ -42,7 +43,7 @@ module.exports = function (app) {
         // A LENTE DA UNIDADE, escolhida no alto da tela. Vazia é "todas", que
         // é o estado de quem atende num lugar só — e de toda conta que nunca
         // cadastrou unidade nenhuma.
-        unit: req.query.unit,
+        ...lenteDeUnidade.recorte(trainer, req.query.unit),
         sort: req.query.sort,
         dir: req.query.dir,
         page: req.query.page,

@@ -6,6 +6,7 @@ const statusDeRecorrencia = require("../lib/statusDeRecorrencia.js");
 const { documentoFinanceiro } = require("../lib/documentoFinanceiro.js");
 const { registrarRotasDeDocumento } = require("../lib/rotasDeDocumento.js");
 const { logoDaCasa } = require("../lib/logoDaCasa.js");
+const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 // O fuso da conta, sem poder derrubar quem o pediu.
 //
 // A janela do mês é melhor COM ele; o relatório é obrigatório SEM ele. É a mesma
@@ -88,7 +89,7 @@ module.exports = function (app) {
       // A LENTE DA UNIDADE, escolhida no alto da tela. Ela vale para os
       // cartões do topo também — números que não batem com a lista do lado
       // são piores que números ausentes.
-      unit: req.query.unit,
+      ...lenteDeUnidade.recorte(user, req.query.unit),
       // As marcadas na tela, para a folha impressa delas.
       ids: req.query.ids,
       ordem: req.query.sort,
@@ -158,7 +159,7 @@ module.exports = function (app) {
       // outros que os da cobrança, e é por isso que a aba tem filtro próprio.
       status: req.query.status,
       busca: req.query.q,
-      unit: req.query.unit,
+      ...lenteDeUnidade.recorte(user, req.query.unit),
       ordem: req.query.sort,
       direcao: req.query.dir,
       pagina: req.query.page,
@@ -199,7 +200,7 @@ module.exports = function (app) {
     const { rows, total, pagina, limite, resumo } = await app.api.recurrence.todas({
       busca: req.query.q,
       status: req.query.status,
-      unit: req.query.unit,
+      ...lenteDeUnidade.recorte(user, req.query.unit),
       pagina: req.query.page,
       limite: req.query.limit,
     });

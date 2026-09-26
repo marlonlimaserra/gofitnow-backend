@@ -6,6 +6,7 @@ const categorias = require("../lib/categoriasDeConta.js");
 const tempo = require("../lib/tempo.js");
 const { porPagina: tetoPorPagina } = require("../lib/tetoDaLista.js");
 const { recorteDeIds } = require("../lib/recorteDeIds.js");
+const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 
 // CONTAS A PAGAR — a luz, o telefone, o aluguel, a folha.
 //
@@ -310,6 +311,7 @@ function fimDoDia(valor, fuso) {
 // a mesma decisão da carteira, e pela mesma razão — *"cada vez que eu troco de
 // aba, os valores ali em cima mudam"*.
 Payable_model.prototype.listar = async function ({
+  units,
   de,
   ate,
   status,
@@ -416,6 +418,13 @@ Payable_model.prototype.listar = async function ({
 
   if (semUnidade) recorte.push({ $match: { unit: null } });
   else if (ObjectId.isValid(unit)) recorte.push({ $match: { unit: new ObjectId(String(unit)) } });
+  // A CERCA: quem só alcança algumas unidades não passa disto, peça o que
+  // pedir (26/09/2026). O que NÃO tem unidade continua aparecendo — é da casa,
+  // não de outra unidade. Ver `lib/lenteDeUnidade.js`.
+  else {
+    const cerca = lenteDeUnidade.filtroDeUnidades(units);
+    if (cerca) recorte.push({ $match: cerca });
+  }
 
   const termo = String(busca || "").trim();
   if (termo) {

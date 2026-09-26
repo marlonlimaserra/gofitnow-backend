@@ -91,9 +91,10 @@ test("`tudo=1` é a janela VAZIA — e não uma data antiga qualquer", async () 
 
   await call(app, "get", "/equipments", { query: { tudo: "1", de: "2026-05-01" } });
 
-  // `unit` entrou em 22/09/2026 e viaja sempre — sem lente, vazio. O que
-  // este caso guarda é a JANELA: nenhuma data inventada.
-  assert.deepEqual(pedidas.equipamento[0], { unit: undefined });
+  // `unit` entrou em 22/09/2026 e viaja sempre — sem lente, vazio. `units` é a
+  // CERCA (26/09/2026), nula para quem alcança todas. O que este caso guarda é
+  // a JANELA: nenhuma data inventada.
+  assert.deepEqual(pedidas.equipamento[0], { unit: "", units: null });
 });
 
 test("sem período, o equipamento olha doze meses para trás", async () => {

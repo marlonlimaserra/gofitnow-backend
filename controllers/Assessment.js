@@ -4,6 +4,7 @@ const { documentoAvaliacao } = require("../lib/documentoAvaliacao.js");
 const { registrarRotasDeDocumento } = require("../lib/rotasDeDocumento.js");
 const { logoDaCasa } = require("../lib/logoDaCasa.js");
 const { avisarSemEsperar } = require("../lib/avisar.js");
+const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 
 // Os bytes de uma foto, venha ela como vier do banco.
 //
@@ -74,7 +75,7 @@ module.exports = function (app) {
       search: req.query.search,
       studentId: req.query.personId,
       // A LENTE DA UNIDADE — a mesma de pessoas, funcionários e treinos.
-      unit: req.query.unit,
+      ...lenteDeUnidade.recorte(trainer, req.query.unit),
       sort: req.query.sort,
       dir: req.query.dir,
       page: req.query.page,

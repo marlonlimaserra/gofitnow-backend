@@ -6,6 +6,7 @@ const dominio = require("../lib/domain.js");
 const limiteDoPlano = require("../lib/limiteDoPlano.js");
 const rateLimit = require("../lib/rateLimit.js");
 const clientIp = require("../lib/clientIp.js");
+const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 
 // OS AULÕES — aula em grupo com data, lugar e vagas.
 //
@@ -80,7 +81,7 @@ module.exports = function (app) {
       passados: req.query.passados === "1",
       // A LENTE — a mesma das outras listas. O aulão TEM unidade: ele
       // acontece num lugar, é evento e não item de catálogo.
-      unit: req.query.unit,
+      ...lenteDeUnidade.recorte(user, req.query.unit),
     });
 
     // A contagem de inscritos de cada um, numa consulta só. Uma por aulão
