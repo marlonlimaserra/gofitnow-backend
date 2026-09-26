@@ -60,7 +60,22 @@ app.insertUserActionHistory = function (req, user, action, data) {
 
 // ── Middleware ───────────────────────────────────────────────────────────
 app.use(bodyParser.urlencoded({ extended: true, limit: "10mb" }));
-app.use(bodyParser.json({ limit: "10mb" }));
+// ── O CORPO CRU, guardado no caminho ──────────────────────────────────────
+//
+// O webhook da Meta assina os BYTES que ela mandou. O JSON já parseado e
+// reserializado não é byte a byte o original — chave fora de ordem, espaço a
+// mais, e a assinatura não bate mais. Então o parser guarda o cru de passagem.
+//
+// Só para o webhook: guardar o corpo de TODA requisição dobraria a memória de
+// cada upload de 10 MB, e nenhuma outra rota precisa disso.
+app.use(
+  bodyParser.json({
+    limit: "10mb",
+    verify: (req, res, buf) => {
+      if ((req.path || "").startsWith("/public/webhook/")) req.rawBody = buf;
+    },
+  })
+);
 app.use(cookieParser());
 
 app.use((req, res, next) => {

@@ -159,7 +159,16 @@ module.exports = function (app) {
   app.post("/internal/logs/retention", async function (req, res) {
     if (!autorizado(req, res)) return;
 
-    const dias = await retencaoDeLogs.lerDoCentral(await app.mongodb.centralDb());
+    const central = await app.mongodb.centralDb();
+    const dias = await retencaoDeLogs.lerDoCentral(central);
+
+    // O BRUTO DA META vive no banco CENTRAL, e não nos dos clientes: quando o
+    // evento chega ainda não se sabe de quem é. Então ele se ajusta aqui, uma
+    // vez, fora do laço dos bancos.
+    const diasDosEventos = await retencaoDeLogs.lerEventosDoCentral(central);
+    await ensureSchema.garantirPodaDosEventosDaMeta(central, diasDosEventos).catch((erro) => {
+      console.error("[internal] não consegui ajustar a poda dos eventos:", erro.message);
+    });
 
     // TODOS os bancos registrados: a poda é do sistema. Um banco dedicado que
     // ficasse de fora guardaria o dobro do tempo sem ninguém saber.
@@ -182,7 +191,7 @@ module.exports = function (app) {
     // O que este processo guardava sobre o número já não vale.
     app.api.center.esquecerRetencao();
 
-    res.send({ ok: falhas.length === 0, dias, bancos, falhas });
+    res.send({ ok: falhas.length === 0, dias, diasDosEventos, bancos, falhas });
   });
 
   // ── O PAINEL RESPONDEU UM CHAMADO ───────────────────────────────────────

@@ -418,6 +418,64 @@ Center_model.prototype.retencaoDeLogs = async function () {
   return dias;
 };
 
+// ── O WEBHOOK DA META ─────────────────────────────────────────────────────
+//
+// Duas leituras da central e uma escrita. As chaves moram lá pelo mesmo motivo
+// das do Google e da Stripe: são do PRODUTO, não de um cliente — a Meta chama
+// um endereço só, para todas as contas conectadas.
+//
+// Sem cache, ao contrário da retenção: a conferência acontece uma vez na vida
+// (quando se salva o webhook no console) e a assinatura, a cada evento. Guardar
+// um segredo em memória para economizar uma consulta num caminho raro é o tipo
+// de economia que se paga quando alguém troca a chave e o servidor continua com
+// a velha.
+Center_model.prototype.tokenDoWebhookDaMeta = async function () {
+  try {
+    const db = await this.app.mongodb.centralDb();
+    const doc = await db.collection("settings").findOne({ key: "meta.webhookToken" });
+    return String(doc?.value || "");
+  } catch (erro) {
+    // Central fora do ar: a conferência falha e a Meta tenta de novo. Errar
+    // para o lado de recusar é o certo — o contrário aceitaria qualquer token.
+    return "";
+  }
+};
+
+Center_model.prototype.segredoDoAppDaMeta = async function () {
+  try {
+    const db = await this.app.mongodb.centralDb();
+    const doc = await db.collection("settings").findOne({ key: "meta.appSecret" });
+    return String(doc?.value || "");
+  } catch (erro) {
+    return "";
+  }
+};
+
+// O evento, guardado CRU no banco central.
+//
+// Central e não banco de cliente: quando o evento chega, ainda não se sabe de
+// quem ele é — quem responde isso é a tabela de contas conectadas, que vem com
+// a integração. Guardar no lugar errado agora seria ter de mover depois.
+//
+// TTL de 30 dias (ver `database/schema.js`): é registro de passagem, não
+// histórico. O que virar dado do cliente sai daqui e vira dado do cliente.
+Center_model.prototype.guardarEventoDaMeta = async function ({ assinatura, confere, corpo }) {
+  const db = await this.app.mongodb.centralDb();
+
+  await db.collection("meta_webhook_eventos").insertOne({
+    objeto: corpo?.object || null,
+    // As entradas trazem o id da conta (Instagram, Página) — é por elas que a
+    // integração vai achar o dono.
+    entradas: Array.isArray(corpo?.entry) ? corpo.entry : [],
+    assinatura,
+    // `null` quando não havia segredo configurado para conferir; `false` é
+    // tentativa com assinatura errada, e isso se quer ver.
+    assinaturaConfere: confere,
+    corpo,
+    createdAt: new Date(),
+  });
+};
+
 // O painel acabou de trocar o número: esquece o que estava guardado, para a
 // mudança valer na resposta seguinte e não em até um minuto.
 Center_model.prototype.esquecerRetencao = function () {

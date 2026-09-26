@@ -21,7 +21,10 @@ const retencaoDeLogs = require("../lib/retencaoDeLogs.js");
 // `ai_usage` é o consumo de IA por instância — contagem e custo, NUNCA conteúdo
 // de conversa. Este arquivo é o dono dela; o painel só lê. A conversa em si mora
 // no banco do cliente (`ai_sessions`), com o resto do que é dele.
-const CENTRAL = ["exercises", "foods", "ai_usage"];
+// `meta_webhook_eventos` é o que a Meta manda (Instagram, Messenger, Páginas).
+// No central porque, quando o evento chega, ainda não se sabe de qual cliente
+// ele é — quem responde isso é a conta conectada, e ela também mora aqui.
+const CENTRAL = ["exercises", "foods", "ai_usage", "meta_webhook_eventos"];
 
 // Quanto tempo o histórico de ações fica. Decisão do Marlon em 07/09/2026 — ver
 // o comentário longo em `indicesEssenciais`.
@@ -191,6 +194,20 @@ async function ensureCentral(app) {
 
   // A collection `instances` NÃO é criada aqui: ela mora no banco do painel, e
   // o dono do schema dela é o painel. Este backend só a lê.
+
+  // ── OS EVENTOS DA META ────────────────────────────────────────────────
+  //
+  // Registro de passagem, não histórico: 30 dias e some. O que virar dado do
+  // cliente (uma mensagem respondida, um comentário) sai daqui e vira dado do
+  // cliente — e aí segue a retenção dele.
+  //
+  // O índice por data serve às duas coisas: a poda e a leitura ("o que chegou
+  // desta conta hoje?"), que é sempre do mais novo para trás.
+  await garantirPodaDosEventosDaMeta(db, await retencaoDeLogs.lerEventosDoCentral(db));
+
+  await db
+    .collection("meta_webhook_eventos")
+    .createIndex({ objeto: 1, createdAt: -1 }, { name: "por_objeto" });
 
   // exercises — o catálogo compartilhado (`instance: null`) mais o que cada
   // conta criou (`instance: "marlon"`), na mesma collection.
@@ -1379,6 +1396,7 @@ module.exports.CENTRAL = CENTRAL;
 module.exports.POR_INSTANCIA = POR_INSTANCIA;
 module.exports.PODA_HISTORICO_DIAS = PODA_HISTORICO_DIAS;
 module.exports.garantirPodaDoHistorico = garantirPodaDoHistorico;
+module.exports.garantirPodaDosEventosDaMeta = garantirPodaDosEventosDaMeta;
 module.exports.PODA_CONVERSAS_IA_DIAS = PODA_CONVERSAS_IA_DIAS;
 
 // Remove um índice que existe; ignora o que já não está lá.
@@ -1428,6 +1446,48 @@ async function garantirPodaDoHistorico(db, dias) {
   }
 
   return { intocado: true, dias: segundos / 86400 };
+}
+
+// ── A PODA DO BRUTO DA META ──────────────────────────────────────────────
+//
+// Mesma mecânica da poda do histórico (ver acima) e pelo mesmo motivo:
+// `createIndex` não muda o prazo de um TTL vivo, quem muda é `collMod`.
+//
+// Separada dela porque o número é outro e muda sozinho: o bruto da Meta é
+// registro de passagem (30 dias), o histórico é auditoria (180). Uma função só
+// obrigaria os dois a andarem juntos.
+async function garantirPodaDosEventosDaMeta(db, dias) {
+  const segundos = retencaoDeLogs.normalizarEventos(dias) * 86400;
+  const NOME = "poda_eventos";
+
+  // O nome velho tinha o número dentro — `poda_30d` viraria mentira no primeiro
+  // ajuste pela tela. Sai antes: dois TTL na mesma data fariam o menor mandar.
+  await dropIndexIfPresent(db, "meta_webhook_eventos", "poda_30d");
+
+  let atual = null;
+  try {
+    atual = (await db.collection("meta_webhook_eventos").indexes()).find((i) => i.name === NOME) || null;
+  } catch (erro) {
+    atual = null;
+  }
+
+  if (atual && atual.expireAfterSeconds !== segundos) {
+    await db.command({
+      collMod: "meta_webhook_eventos",
+      index: { name: NOME, expireAfterSeconds: segundos },
+    });
+    console.log(`[schema] retenção do bruto da Meta ajustada para ${segundos / 86400} dias`);
+    return { ajustado: true };
+  }
+
+  if (!atual) {
+    await db
+      .collection("meta_webhook_eventos")
+      .createIndex({ createdAt: 1 }, { expireAfterSeconds: segundos, name: NOME });
+    return { criado: true };
+  }
+
+  return { intocado: true };
 }
 
 async function dropIndexIfPresent(db, collection, name) {

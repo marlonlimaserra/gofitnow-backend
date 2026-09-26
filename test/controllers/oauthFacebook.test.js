@@ -74,7 +74,12 @@ test("o redirect_uri é o do FACEBOOK, e não o do Google", () => {
 
   // Um callback compartilhado entre provedores seria recusado por ambos: cada um
   // exige correspondência exata com o que está cadastrado no console dele.
-  assert.equal(uri, "https://backend.gofitnow.fit/auth/facebook/callback");
+  //
+  // O host do Facebook virou `vafit.app` em 26/09/2026, quando o app foi
+  // refeito na conta da VAFIT — o console novo nasceu com o endereço novo. O
+  // do Google continua em `gofitnow.fit` até alguém cadastrar o endereço novo
+  // LÁ; é por isso que cada provedor tem o seu, e não um host do produto.
+  assert.equal(uri, "https://backend.vafit.app/auth/facebook/callback");
   assert.ok(!uri.includes("google"));
 });
 

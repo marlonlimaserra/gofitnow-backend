@@ -94,6 +94,9 @@ test("só as collections combinadas têm TTL", () => {
     // As duas de 07/09/2026.
     "user_action_history",
     "ai_sessions",
+    // Os eventos da Meta (26/09/2026): registro de PASSAGEM, 30 dias. O que
+    // virar dado do cliente sai dali e passa a seguir a retenção dele.
+    "meta_webhook_eventos",
   ]);
 
   const achadas = new Set();

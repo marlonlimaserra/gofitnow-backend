@@ -11,6 +11,7 @@ routes.AdminUser = require("./controllers/AdminUser.js");
 routes.Role = require("./controllers/Role.js");
 routes.PermissionGroup = require("./controllers/PermissionGroup.js");
 routes.Busca = require("./controllers/Busca.js");
+routes.WebhookMeta = require("./controllers/WebhookMeta.js");
 routes.ActionHistory = require("./controllers/ActionHistory.js");
 routes.Student = require("./controllers/Student.js");
 routes.Workout = require("./controllers/Workout.js");

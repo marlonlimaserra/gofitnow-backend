@@ -17,23 +17,38 @@
 // Onde o backend responde. O callback é derivado dele e do provedor, e não escrito
 // à mão em cada lugar: um `/auth/facebok/callback` com typo seria recusado pelo
 // provedor com "URI não corresponde", sem dizer qual dos dois lados errou.
-// ── ESTE HOST NÃO ACOMPANHA A TROCA DE DOMÍNIO, E ISSO É DE PROPÓSITO ─────
+// ── UM HOST POR PROVEDOR, E POR QUE ISSO EXISTE ──────────────────────────
 //
-// Em 16/09/2026 eu centralizei o endereço do backend em `lib/domain.js`, para
-// que ele seguisse o `BASE_DOMAIN` sozinho — e trouxe este arquivo junto. Errado:
-// um teste pegou, e a consequência seria pior que o incômodo que eu queria
-// resolver.
+// O `redirect_uri` tem de casar EXATAMENTE com o que está registrado no console
+// do provedor. Eles recusam qualquer outro — é a defesa do protocolo contra
+// alguém desviar o retorno de um login. Mudar o host aqui não reaponta o
+// console: derruba o login, com um erro do provedor e nada no nosso log.
 //
-// O `redirect_uri` do OAuth tem de casar EXATAMENTE com o que está registrado
-// no console do Google e do Facebook. Eles recusam qualquer outro — é a defesa
-// do protocolo contra alguém desviar o retorno de um login. Mudar o host aqui
-// não reapontaria o console; derrubaria o "entrar com Google" de todos os
-// clientes, com um erro do provedor e nada no nosso log.
+// Por isso a ordem é sempre: **primeiro registrar lá, depois trocar aqui**. E
+// por isso cada provedor tem o SEU host — eles não viram a chave na mesma hora.
 //
-// Então ele fica em `gofitnow.fit` até alguém acrescentar o callback novo nos
-// DOIS consoles. A ordem é essa: primeiro registrar lá, depois trocar aqui —
-// nunca o contrário. O host antigo continua resolvendo para este servidor.
-const BACKEND = process.env.BACKEND_URL || "https://backend.gofitnow.fit";
+// ── Onde cada um está hoje ───────────────────────────────────────────────
+//
+// FACEBOOK: `backend.vafit.app`. O app da Meta foi refeito na conta da VAFIT em
+// 26/09/2026, com o endereço novo desde o primeiro dia. *"caralho, já falei mil
+// vezes, não usamos mais gofitnow"* — e ele tem razão: o que amarrava este
+// arquivo ao domínio velho era o CONSOLE, não os binários instalados. O retorno
+// é montado aqui, no servidor; o app nativo nunca o vê.
+//
+// GOOGLE: também em `backend.vafit.app` desde 26/09/2026. O projeto foi refeito
+// na conta da VAFIT (`vafit-509818`) e nasceu com o endereço novo cadastrado —
+// só então esta linha mudou. A ordem foi essa, e tem de continuar sendo: o
+// console primeiro, o código depois.
+//
+// O mapa abaixo fica: ele é o que permite virar a chave de um provedor sem
+// esperar o outro, e foi exatamente o que aconteceu hoje — o Facebook virou de
+// manhã, o Google à tarde.
+const BACKEND = process.env.BACKEND_URL || "https://backend.vafit.app";
+
+const BACKEND_POR_PROVEDOR = {
+  facebook: process.env.BACKEND_URL_FACEBOOK || BACKEND,
+  google: process.env.BACKEND_URL_GOOGLE || BACKEND,
+};
 
 // O domínio base, para remontar o endereço de volta a partir do NOME da
 // instância. Mesmo padrão de `lib/instance.js`, que também o traz como padrão.
@@ -112,7 +127,10 @@ Oauth_model.prototype.chaves = async function () {
 // não existem, que não poderiam ter sido cadastrados. Então o retorno é sempre
 // aqui, e o subdomínio de origem volta pelo `state`.
 Oauth_model.prototype.callback = function () {
-  return `${BACKEND}/auth/${this.PROVEDOR}/callback`;
+  // O host é do PROVEDOR, não do produto: cada console vira a chave no seu
+  // tempo. Ver o bloco no topo do arquivo.
+  const base = BACKEND_POR_PROVEDOR[this.PROVEDOR] || BACKEND;
+  return `${base}/auth/${this.PROVEDOR}/callback`;
 };
 
 // ── O BILHETE DE IDA E VOLTA ──────────────────────────────────────────────
@@ -262,5 +280,10 @@ Oauth_model.herdar = function (Filho, provedor) {
 
 module.exports = Oauth_model;
 module.exports.BACKEND = BACKEND;
+// O host DE CADA PROVEDOR, para quem precisa montar o callback fora daqui — o
+// `CALLBACK` do Google, que a tela de Chaves e apps mostra para ser colado no
+// console. Um `BACKEND` só faria essa tela mostrar o endereço errado no dia em
+// que um provedor virasse a chave antes do outro.
+module.exports.BACKEND_POR_PROVEDOR = BACKEND_POR_PROVEDOR;
 module.exports.ESQUEMA_APP = ESQUEMA_APP;
 module.exports.VALIDADE_SEGUNDOS = VALIDADE_SEGUNDOS;

@@ -141,4 +141,4 @@ module.exports.TOKEN_URL = TOKEN_URL;
 
 // O callback deste provedor também como constante, para quem precisa afirmar
 // sobre ele sem instanciar o modelo (os testes).
-module.exports.CALLBACK = `${Oauth.BACKEND}/auth/google/callback`;
+module.exports.CALLBACK = `${Oauth.BACKEND_POR_PROVEDOR.google}/auth/google/callback`;
