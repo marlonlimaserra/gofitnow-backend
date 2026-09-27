@@ -154,5 +154,10 @@ models.brandImage = require("./model/BrandImage_model.js");
 // `Oauth_model.js`, de onde os dois herdam.
 models.oauthGoogle = require("./model/OauthGoogle_model.js");
 models.oauthFacebook = require("./model/OauthFacebook_model.js");
+// O Instagram NÃO é um "entrar com": é conectar a conta de quem já está
+// dentro. Herda do mesmo `Oauth_model` porque o bilhete de ida e volta é o
+// mesmo problema — o que muda é tudo depois do código. Ver o cabeçalho dele.
+models.oauthInstagram = require("./model/OauthInstagram_model.js");
+models.contaConectada = require("./model/ContaConectada_model.js");
 
 module.exports = models;

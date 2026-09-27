@@ -12,6 +12,10 @@ routes.Role = require("./controllers/Role.js");
 routes.PermissionGroup = require("./controllers/PermissionGroup.js");
 routes.Busca = require("./controllers/Busca.js");
 routes.WebhookMeta = require("./controllers/WebhookMeta.js");
+// As contas de fora que o cliente ligou ao VAFIT — Instagram hoje, Página e
+// WhatsApp depois. Fica ao lado do webhook porque são as duas pontas da mesma
+// integração: aqui se conecta, lá chega o que ela produz.
+routes.ContasConectadas = require("./controllers/ContasConectadas.js");
 routes.ActionHistory = require("./controllers/ActionHistory.js");
 routes.Student = require("./controllers/Student.js");
 routes.Workout = require("./controllers/Workout.js");

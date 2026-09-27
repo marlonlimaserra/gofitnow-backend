@@ -53,6 +53,10 @@
         "description": "Le catalogue d’aliments",
         "title": "Aliments"
       },
+      "integrations": {
+        "description": "Les comptes Instagram et Facebook reliés au système",
+        "title": "Comptes connectés"
+      },
       "logs": {
         "description": "Le registre de tout ce qui a été fait sur la plateforme",
         "title": "Historique"
@@ -193,6 +197,16 @@
         "view": {
           "hint": "Consulter aliments et catégories.",
           "label": "Voir le catalogue"
+        }
+      },
+      "integrations": {
+        "manage": {
+          "hint": "Relier un nouveau compte et en délier d'autres. Qui a ceci parle au nom du compte de la maison.",
+          "label": "Connecter et déconnecter des comptes"
+        },
+        "view": {
+          "hint": "Ouvrir l'écran et voir quels comptes Instagram et Facebook sont reliés.",
+          "label": "Voir les comptes connectés"
         }
       },
       "logs": {

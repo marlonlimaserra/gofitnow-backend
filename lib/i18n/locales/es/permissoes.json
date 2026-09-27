@@ -53,6 +53,10 @@
         "description": "El catálogo de alimentos",
         "title": "Alimentos"
       },
+      "integrations": {
+        "description": "El Instagram y el Facebook que la casa vinculó al sistema",
+        "title": "Cuentas conectadas"
+      },
       "logs": {
         "description": "El registro de todo lo que se hizo en la plataforma",
         "title": "Historial"
@@ -193,6 +197,16 @@
         "view": {
           "hint": "Consultar alimentos y categorías.",
           "label": "Ver el catálogo"
+        }
+      },
+      "integrations": {
+        "manage": {
+          "hint": "Vincular una cuenta nueva y desvincular las que están ahí. Quien tiene esto pasa a hablar por la cuenta de la casa.",
+          "label": "Conectar y desconectar cuentas"
+        },
+        "view": {
+          "hint": "Abrir la pantalla y ver qué cuentas de Instagram y Facebook están vinculadas.",
+          "label": "Ver las cuentas conectadas"
         }
       },
       "logs": {

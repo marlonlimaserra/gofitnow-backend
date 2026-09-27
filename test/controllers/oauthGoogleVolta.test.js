@@ -5,6 +5,7 @@ const instanceContext = require("../../lib/instance.js");
 const { fakeApp, call } = require("../helpers/harness.js");
 const OauthController = require("../../controllers/Oauth.js");
 const OauthGoogle = require("../../model/OauthGoogle_model.js");
+const dominio = require("../../lib/domain.js");
 
 // A VOLTA DO GOOGLE — onde um descuido vira sessão para a pessoa errada.
 //
@@ -126,7 +127,7 @@ test("sem host guardado, monta o subdomínio pelo NOME da instância", async () 
 
   const r = await volta(app, { code: "cod-1", state: "est-1" });
 
-  assert.equal(r.redirect, "https://marlon.gofitnow.fit/#sessao=sessao-nova");
+  assert.equal(r.redirect, `https://marlon.${dominio.BASE_DOMAIN}/#sessao=sessao-nova`);
 });
 
 test("bilhete sem instância volta para o portal", async () => {
@@ -134,7 +135,7 @@ test("bilhete sem instância volta para o portal", async () => {
 
   const r = await volta(app, { code: "cod-1", state: "est-1" });
 
-  assert.equal(r.redirect, "https://app.gofitnow.fit/#sessao=sessao-nova");
+  assert.equal(r.redirect, `https://app.${dominio.BASE_DOMAIN}/#sessao=sessao-nova`);
 });
 
 // O ponto mais sutil da rota inteira.
@@ -192,7 +193,7 @@ test("bilhete sem destino é tratado como navegador", async () => {
 
   const r = await volta(app, { code: "cod-1", state: "est-1" });
 
-  assert.equal(r.redirect, "https://marlon.gofitnow.fit/#sessao=sessao-nova");
+  assert.equal(r.redirect, `https://marlon.${dominio.BASE_DOMAIN}/#sessao=sessao-nova`);
 });
 
 test("o token é escapado na volta do app", async () => {
@@ -283,7 +284,7 @@ test("volta sem bilhete válido não chega a falar com o Google", async () => {
 
   const r = await volta(app, { code: "cod-1", state: "nao-existe" });
 
-  assert.equal(r.redirect, "https://app.gofitnow.fit/#erroLogin=expirou");
+  assert.equal(r.redirect, `https://app.${dominio.BASE_DOMAIN}/#erroLogin=expirou`);
   // Gastar o bilhete primeiro é o que faz uma volta repetida sair barata: sem
   // isto, cada F5 numa URL velha viraria uma chamada ao Google.
   assert.deepEqual(trocas, []);
@@ -310,7 +311,7 @@ test("quem cancelou na tela do Google volta quieto, sem erro de falha", async ()
 
   // Cancelar não é defeito, e "algo deu errado" para quem desistiu de propósito
   // é uma mensagem que só confunde.
-  assert.equal(r.redirect, "https://marlon.gofitnow.fit/#erroLogin=recusado");
+  assert.equal(r.redirect, `https://marlon.${dominio.BASE_DOMAIN}/#erroLogin=recusado`);
   assert.deepEqual(trocas, []);
 });
 

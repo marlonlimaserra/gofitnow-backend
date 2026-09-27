@@ -51,8 +51,21 @@ const BACKEND_POR_PROVEDOR = {
 };
 
 // O domínio base, para remontar o endereço de volta a partir do NOME da
-// instância. Mesmo padrão de `lib/instance.js`, que também o traz como padrão.
-const BASE = process.env.BASE_DOMAIN || "gofitnow.fit";
+// instância.
+//
+// ── Era uma cópia, e a cópia tinha envelhecido (26/09/2026) ──────────────
+//
+// Aqui estava `process.env.BASE_DOMAIN || "gofitnow.fit"` — uma segunda
+// definição do mesmo conceito, com outro nome de variável de ambiente e outro
+// padrão. `lib/domain.js` virou `vafit.app` em 13/09/2026 e esta linha não
+// soube: quem caísse no padrão voltaria do consentimento para o endereço
+// velho, com a sessão na mão e sem nada no log dizendo por quê.
+//
+// Não apareceu antes porque o caminho comum não passa por aqui: o painel manda
+// `X-Instance-Host`, o host é conferido contra o registro e a volta usa ELE.
+// O padrão só entra quando o host não veio ou não confere — e aí já é o caso
+// em que menos se quer uma segunda surpresa.
+const BASE = require("../lib/domain.js").BASE_DOMAIN;
 
 // O esquema do app nativo, o mesmo de `expo.scheme` no `app.json`. No iOS o
 // `ASWebAuthenticationSession` só devolve o controle ao app quando o navegador
@@ -87,7 +100,12 @@ Oauth_model.prototype.settings = async function () {
 
 Oauth_model.prototype.nomesDasChaves = function () {
   const p = this.PROVEDOR;
-  return [`oauth.${p}.enabled`, `oauth.${p}.clientId`, `oauth.${p}.clientSecret`];
+  const nomes = [`oauth.${p}.enabled`, `oauth.${p}.clientId`, `oauth.${p}.clientSecret`];
+  // A versão da API do provedor, quando ele tem uma que se escolhe. Entra na
+  // MESMA leitura das chaves — uma consulta a mais por clique de login seria
+  // paga para sempre por um valor que muda uma vez por ano.
+  if (this.CHAVE_VERSAO) nomes.push(this.CHAVE_VERSAO);
+  return nomes;
 };
 
 // Devolve `{ ligado, clientId, clientSecret }`. `ligado` é verdadeiro só com o
@@ -103,7 +121,7 @@ Oauth_model.prototype.chaves = async function () {
     // Central fora do ar não pode derrubar a tela de entrada: sem as chaves o
     // botão não aparece e o login por e-mail e senha segue de pé.
     console.error(`[oauth:${this.PROVEDOR}] não consegui ler as chaves:`, erro.message);
-    return { ligado: false, clientId: "", clientSecret: "" };
+    return { ligado: false, clientId: "", clientSecret: "", versao: "" };
   }
 
   const v = Object.fromEntries(docs.map((d) => [d.key, d.value]));
@@ -115,6 +133,9 @@ Oauth_model.prototype.chaves = async function () {
     ligado: Boolean(v[nomeLigado]) && Boolean(clientId) && Boolean(clientSecret),
     clientId,
     clientSecret,
+    // Vazia quer dizer "use o padrão do código". Quem valida o formato é o
+    // provedor que a usa, não aqui: o que é uma versão válida é assunto dele.
+    versao: this.CHAVE_VERSAO ? String(v[this.CHAVE_VERSAO] || "").trim() : "",
   };
 };
 
@@ -182,7 +203,13 @@ Oauth_model.prototype.garantirIndices = async function (col) {
 // qualquer endereço que alguém escreva num cabeçalho.
 //
 // `destino` diz QUEM recebe a volta: o navegador (padrão) ou o app nativo.
-Oauth_model.prototype.criarEstado = async function (instancia, origem, destino) {
+//
+// `extra` é para quem não está entrando, e sim CONECTANDO uma conta de fora
+// (ver `OauthInstagram_model`): ali a pessoa já tem sessão, e o que precisa
+// atravessar a ida e a volta é quem ela é. Campos fechados, nunca o objeto
+// cru de quem chamou — um `provedor` ou um `state` vindo de fora sobrescreveria
+// o que este método acabou de decidir.
+Oauth_model.prototype.criarEstado = async function (instancia, origem, destino, extra) {
   const col = await this.estados();
   await this.garantirIndices(col);
 
@@ -211,6 +238,8 @@ Oauth_model.prototype.criarEstado = async function (instancia, origem, destino) 
     // Lista fechada, e não o que chegou: gravar a string crua deixaria um valor
     // qualquer decidir o formato da volta mais tarde, longe daqui.
     destino: destino === "app" ? "app" : "web",
+    ...(extra?.userId ? { userId: String(extra.userId) } : {}),
+    ...(extra?.volta ? { volta: String(extra.volta) } : {}),
     createdAt: new Date(),
   });
 

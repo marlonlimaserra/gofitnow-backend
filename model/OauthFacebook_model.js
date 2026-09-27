@@ -20,10 +20,31 @@ const Oauth = require("./Oauth_model.js");
 //    lembrar disso no dia em que alguém propuser "criar conta" por aqui: com o
 //    Google seria discutível; com o Facebook, não.
 //
-// A versão da Graph API é a que o app usa no console (Configurações › Avançado),
-// lida de lá e não chutada: a Meta descontinua versão, e uma versão morta
-// responde erro que não diz "sua versão morreu".
+// ── A VERSÃO DA GRAPH API ────────────────────────────────────────────────
+//
+// A Meta lança versão nova a cada poucos meses e APOSENTA as antigas. Uma
+// versão morta não responde "sua versão morreu": ela responde um erro de outra
+// coisa, e quem for procurar o defeito vai olhar as chaves.
+//
+// *"toda hora o Facebook atualiza a API, aí eu mudando lá já reflete pra todo
+// mundo"* (26/09/2026). Por isso ela vem da CENTRAL, e vale para todos os
+// clientes de uma vez — trocar é uma tela, não um deploy.
+//
+// A chave é `oauth.facebook.apiVersion`, e NÃO a do app de integração
+// (`meta.graphVersion`): são dois apps no console da Meta, cada um com a sua
+// versão em Configurações do app › Avançado. Um valor só obrigaria a subir os
+// dois no mesmo dia — e o que quebra numa versão nova raramente quebra nos
+// dois ao mesmo tempo.
+//
+// A constante abaixo continua sendo o PADRÃO, para dois casos reais: a central
+// sem o campo preenchido, e a central fora do ar. Sem ela, um campo em branco
+// montaria `https://graph.facebook.com//me` e o erro falaria de rota.
 const VERSAO = "v26.0";
+
+// Só `v` seguido de número.número. A versão entra no CAMINHO da URL, então um
+// valor com barra ou `..` digitado por engano apontaria a chamada para outro
+// endereço da Meta. Formato torto cai no padrão em vez de viajar.
+const FORMATO = /^v\d{1,3}\.\d{1,3}$/;
 
 // Só o e-mail. `public_profile` vem sempre, sem pedir. Nada além disto: cada
 // permissão a mais é uma tela de consentimento mais assustadora e um item a
@@ -36,7 +57,18 @@ function OauthFacebook_model(app) {
 
 Oauth.herdar(OauthFacebook_model, "facebook");
 
-OauthFacebook_model.prototype.urlDeAutorizacao = function (clientId, state) {
+// Lida junto com o par de chaves, na mesma ida ao banco (ver `nomesDasChaves`).
+OauthFacebook_model.prototype.CHAVE_VERSAO = "oauth.facebook.apiVersion";
+
+// A versão que vale para ESTA chamada. Recebe o mesmo `chaves` que todo o resto
+// do fluxo já carrega, então não há leitura extra — e quem chamar sem ele (os
+// testes, e qualquer caminho antigo) continua no padrão.
+OauthFacebook_model.prototype.versao = function (chaves) {
+  const escolhida = String(chaves?.versao || "").trim();
+  return FORMATO.test(escolhida) ? escolhida : VERSAO;
+};
+
+OauthFacebook_model.prototype.urlDeAutorizacao = function (clientId, state, chaves) {
   const p = new URLSearchParams({
     client_id: clientId,
     redirect_uri: this.callback(),
@@ -44,7 +76,7 @@ OauthFacebook_model.prototype.urlDeAutorizacao = function (clientId, state) {
     scope: ESCOPO,
     state,
   });
-  return `https://www.facebook.com/${VERSAO}/dialog/oauth?` + p.toString();
+  return `https://www.facebook.com/${this.versao(chaves)}/dialog/oauth?` + p.toString();
 };
 
 // ── O código vira token ───────────────────────────────────────────────────
@@ -61,7 +93,9 @@ OauthFacebook_model.prototype.trocarCodigo = async function (code, chaves) {
     code: String(code),
   });
 
-  const r = await chamar(`https://graph.facebook.com/${VERSAO}/oauth/access_token?` + p.toString());
+  const r = await chamar(
+    `https://graph.facebook.com/${this.versao(chaves)}/oauth/access_token?` + p.toString()
+  );
 
   if (!r.ok) {
     const texto = await r.text().catch(() => "");
@@ -104,7 +138,7 @@ OauthFacebook_model.prototype.pessoaDoToken = async function (accessToken, chave
     appsecret_proof: this.provaDoSegredo(accessToken, chaves.clientSecret),
   });
 
-  const r = await chamar(`https://graph.facebook.com/${VERSAO}/me?` + p.toString());
+  const r = await chamar(`https://graph.facebook.com/${this.versao(chaves)}/me?` + p.toString());
   if (!r.ok) {
     const texto = await r.text().catch(() => "");
     return { erro: `graph_${r.status}`, detalhe: texto.slice(0, 200) };

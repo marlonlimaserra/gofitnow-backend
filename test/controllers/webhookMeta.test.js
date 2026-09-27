@@ -22,7 +22,7 @@ const controlador = require("../../controllers/WebhookMeta.js");
 //      — e o repetido chega idêntico, sem nada dizendo que é o mesmo.
 const TOKEN = "um-token-de-teste-com-tamanho";
 
-function monta({ token = TOKEN, segredo = "", guardar = [] } = {}) {
+function monta({ token = TOKEN, segredo = "", guardar = [], donos = {} } = {}) {
   const rotas = {};
   const app = {
     get: (caminho, fn) => (rotas["GET " + caminho] = fn),
@@ -37,6 +37,10 @@ function monta({ token = TOKEN, segredo = "", guardar = [] } = {}) {
         },
         async guardarEventoDaMeta(e) {
           guardar.push(e);
+        },
+        // O diretório das contas conectadas: `{ "instagram:17841…": "marlon" }`.
+        async instanciaDaContaDaMeta(tipo, id) {
+          return donos[`${tipo}:${id}`] || "";
         },
       },
     },
@@ -231,6 +235,9 @@ test("um erro ao guardar NÃO derruba a resposta — ela já foi dada", async ()
         async guardarEventoDaMeta() {
           throw new Error("mongo fora");
         },
+        async instanciaDaContaDaMeta() {
+          return "";
+        },
       },
     },
   };
@@ -240,4 +247,93 @@ test("um erro ao guardar NÃO derruba a resposta — ela já foi dada", async ()
   await rotas["POST /public/webhook/meta"]({ headers: {}, body: {} }, r);
 
   assert.equal(r.codigo, 200);
+});
+
+// ── DE QUEM É O EVENTO ────────────────────────────────────────────────────
+//
+// A Meta chama um endereço só para todos os clientes. Errar o dono é entregar
+// a mensagem de um aluno na caixa de outra academia — o pior defeito possível
+// nesta integração, e silencioso.
+
+test("o evento do Instagram encontra o dono pelo id da entrada", async () => {
+  const { rotas, guardar } = monta({ donos: { "instagram:17841400000000001": "marlon" } });
+
+  const r = resposta();
+  await rotas["POST /public/webhook/meta"](
+    { headers: {}, body: { object: "instagram", entry: [{ id: "17841400000000001", time: 1 }] } },
+    r
+  );
+  await new Promise((s) => setImmediate(s));
+
+  assert.deepEqual(guardar[0].donos, [
+    { tipo: "instagram", externalId: "17841400000000001", instancia: "marlon" },
+  ]);
+});
+
+test("o evento de Página vira tipo 'facebook' — o objeto da Meta não é o nosso nome", async () => {
+  const { rotas, guardar } = monta({ donos: { "facebook:1010101": "bruna" } });
+
+  const r = resposta();
+  await rotas["POST /public/webhook/meta"](
+    { headers: {}, body: { object: "page", entry: [{ id: "1010101" }] } },
+    r
+  );
+  await new Promise((s) => setImmediate(s));
+
+  assert.equal(guardar[0].donos[0].tipo, "facebook");
+  assert.equal(guardar[0].donos[0].instancia, "bruna");
+});
+
+test("conta que ninguém conectou é guardada SEM dono, e não descartada", async () => {
+  const { rotas, guardar } = monta({ donos: {} });
+
+  const r = resposta();
+  await rotas["POST /public/webhook/meta"](
+    { headers: {}, body: { object: "instagram", entry: [{ id: "99999" }] } },
+    r
+  );
+  await new Promise((s) => setImmediate(s));
+
+  // A Meta NÃO reenvia o que já entregou: jogar fora o que não se soube
+  // atribuir é perder o dado para sempre.
+  assert.equal(guardar.length, 1);
+  assert.deepEqual(guardar[0].donos, []);
+});
+
+test("um POST com duas contas devolve os dois donos, sem repetir id", async () => {
+  const { rotas, guardar } = monta({
+    donos: { "instagram:111": "marlon", "instagram:222": "bruna" },
+  });
+
+  const r = resposta();
+  await rotas["POST /public/webhook/meta"](
+    {
+      headers: {},
+      body: { object: "instagram", entry: [{ id: "111" }, { id: "222" }, { id: "111" }] },
+    },
+    r
+  );
+  await new Promise((s) => setImmediate(s));
+
+  assert.equal(guardar[0].donos.length, 2);
+  assert.deepEqual(
+    guardar[0].donos.map((d) => d.instancia).sort(),
+    ["bruna", "marlon"]
+  );
+});
+
+test("objeto que não conhecemos não vira busca no diretório", async () => {
+  let perguntou = 0;
+  const { rotas, guardar } = monta({ donos: {} });
+  // Um objeto novo da Meta ("whatsapp_business_account") não pode ser lido
+  // como Instagram: o id ali é de outra coisa, e casaria por acidente.
+  const r = resposta();
+  await rotas["POST /public/webhook/meta"](
+    { headers: {}, body: { object: "whatsapp_business_account", entry: [{ id: "111" }] } },
+    r
+  );
+  await new Promise((s) => setImmediate(s));
+
+  assert.deepEqual(guardar[0].donos, []);
+  assert.equal(perguntou, 0);
 });

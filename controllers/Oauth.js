@@ -81,7 +81,8 @@ function registrar(app, { nome, api }) {
   // o que separa "pediu um banco" de "tem esse banco".
   app.get(`/auth/${nome}/url`, async function (req, res) {
     try {
-      const { ligado, clientId } = await app.api[api].chaves();
+      const chaves = await app.api[api].chaves();
+      const { ligado, clientId } = chaves;
 
       // Desligado não é erro: é a resposta. Um 404 aqui faria a tela de entrada
       // mostrar aviso de falha para quem simplesmente não usa este provedor.
@@ -104,7 +105,7 @@ function registrar(app, { nome, api }) {
         req.query.destino
       );
 
-      res.send({ ligado: true, url: app.api[api].urlDeAutorizacao(clientId, state) });
+      res.send({ ligado: true, url: app.api[api].urlDeAutorizacao(clientId, state, chaves) });
     } catch (erro) {
       // A tela de entrada não pode cair por causa disto. Sem link, o botão não
       // aparece e o login por e-mail e senha continua de pé.

@@ -451,6 +451,80 @@ Center_model.prototype.segredoDoAppDaMeta = async function () {
   }
 };
 
+// ── O DIRETÓRIO DAS CONTAS CONECTADAS ────────────────────────────────────
+//
+// A Meta chama UM endereço para todas as contas de todos os clientes. Quem
+// descobre o dono de cada evento é o id que vem dentro dele — e essa pergunta
+// atravessa clientes por natureza.
+//
+// Por isso ela mora aqui, na central, e não na collection do cliente: um
+// modelo de cliente que lê os outros é exatamente o que `lib/escopo.js` existe
+// para impedir, e o que `test/lib/dbRouting.test.js` guarda. O mesmo desenho
+// de `instanceForHost`, pelo mesmo motivo.
+//
+// O TOKEN não vem para cá. Ele é do cliente, mora no banco dele
+// (`connected_accounts`) e só o sistema dele o usa. Aqui há três campos: que
+// tipo de conta, qual o id dela lá fora, e de quem ela é.
+Center_model.prototype.contasDaMeta = async function () {
+  const db = await this.app.mongodb.centralDb();
+  return db.collection("meta_contas");
+};
+
+// Conectar a MESMA conta num segundo cliente MOVE o dono: o último a conectar
+// passa a receber os eventos.
+//
+// Recusar seria mais seguro no papel e pior na prática — quem trocou de conta
+// no VAFIT, ou saiu de uma instância de teste, ficaria trancado do lado de
+// fora sem nenhum caminho para se destravar sozinho. Como conectar exige
+// autorizar no Instagram, quem faz isso é sempre o dono da conta.
+Center_model.prototype.registrarContaDaMeta = async function ({ tipo, externalId, instancia }) {
+  if (!tipo || !externalId || !instancia) return { ok: false };
+  const col = await this.contasDaMeta();
+
+  const chave = { tipo: String(tipo), externalId: String(externalId) };
+  const antes = await col.findOne(chave);
+  if (antes && antes.instancia !== String(instancia)) {
+    console.log(
+      `[meta] a conta ${tipo}/${externalId} mudou de ${antes.instancia} para ${instancia}`
+    );
+  }
+
+  await col.updateOne(
+    chave,
+    { $set: { ...chave, instancia: String(instancia), atualizadoEm: new Date() } },
+    { upsert: true }
+  );
+
+  return { ok: true, mudouDe: antes && antes.instancia !== String(instancia) ? antes.instancia : null };
+};
+
+// Desconectar. O filtro inclui a instância: sem ele, um cliente apagaria o
+// registro de uma conta que hoje é de outro — e o outro pararia de receber
+// evento sem nada mudar do lado dele.
+Center_model.prototype.esquecerContaDaMeta = async function ({ tipo, externalId, instancia }) {
+  const col = await this.contasDaMeta();
+  const r = await col.deleteOne({
+    tipo: String(tipo),
+    externalId: String(externalId),
+    instancia: String(instancia),
+  });
+  return { ok: r.deletedCount > 0 };
+};
+
+Center_model.prototype.instanciaDaContaDaMeta = async function (tipo, externalId) {
+  if (!tipo || !externalId) return "";
+  try {
+    const col = await this.contasDaMeta();
+    const doc = await col.findOne({ tipo: String(tipo), externalId: String(externalId) });
+    return doc?.instancia || "";
+  } catch (erro) {
+    // Central fora do ar: o evento segue sendo guardado cru, sem dono. É o que
+    // já acontecia antes de existir diretório, e é recuperável — o bruto fica.
+    console.error("[meta] não consegui achar o dono da conta:", erro.message);
+    return "";
+  }
+};
+
 // O evento, guardado CRU no banco central.
 //
 // Central e não banco de cliente: quando o evento chega, ainda não se sabe de
@@ -459,14 +533,22 @@ Center_model.prototype.segredoDoAppDaMeta = async function () {
 //
 // TTL de 30 dias (ver `database/schema.js`): é registro de passagem, não
 // histórico. O que virar dado do cliente sai daqui e vira dado do cliente.
-Center_model.prototype.guardarEventoDaMeta = async function ({ assinatura, confere, corpo }) {
+Center_model.prototype.guardarEventoDaMeta = async function ({ assinatura, confere, corpo, donos }) {
   const db = await this.app.mongodb.centralDb();
 
   await db.collection("meta_webhook_eventos").insertOne({
     objeto: corpo?.object || null,
     // As entradas trazem o id da conta (Instagram, Página) — é por elas que a
-    // integração vai achar o dono.
+    // integração acha o dono.
     entradas: Array.isArray(corpo?.entry) ? corpo.entry : [],
+    // De quem é. Resolvido na hora de guardar, e não depois, por um motivo
+    // prático: o vínculo pode mudar (a conta ser desligada, reconectada
+    // noutro cliente), e um evento de ontem pertence a quem era dono ontem.
+    //
+    // Lista porque um mesmo POST pode trazer entradas de contas diferentes —
+    // a Meta agrupa. Vazia quer dizer "chegou de uma conta que ninguém
+    // conectou": guardado assim mesmo, porque a Meta não reenvia.
+    donos: Array.isArray(donos) ? donos : [],
     assinatura,
     // `null` quando não havia segredo configurado para conferir; `false` é
     // tentativa com assinatura errada, e isso se quer ver.

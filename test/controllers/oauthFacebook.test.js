@@ -75,10 +75,10 @@ test("o redirect_uri é o do FACEBOOK, e não o do Google", () => {
   // Um callback compartilhado entre provedores seria recusado por ambos: cada um
   // exige correspondência exata com o que está cadastrado no console dele.
   //
-  // O host do Facebook virou `vafit.app` em 26/09/2026, quando o app foi
-  // refeito na conta da VAFIT — o console novo nasceu com o endereço novo. O
-  // do Google continua em `gofitnow.fit` até alguém cadastrar o endereço novo
-  // LÁ; é por isso que cada provedor tem o seu, e não um host do produto.
+  // Os DOIS hosts viraram `vafit.app` em 26/09/2026, quando os apps foram
+  // refeitos na conta da VAFIT — cada console nasceu com o endereço novo, o
+  // Facebook de manhã e o Google à tarde. O mapa por provedor fica: é ele que
+  // permitiu virar um sem esperar o outro, que foi exatamente o que houve.
   assert.equal(uri, "https://backend.vafit.app/auth/facebook/callback");
   assert.ok(!uri.includes("google"));
 });
@@ -99,11 +99,75 @@ test("as chaves lidas são as do facebook, não as do google", async () => {
 
   assert.equal(c.ligado, true);
   assert.equal(c.clientId, "123456");
+  // A versão da Graph entra na MESMA leitura das chaves — é de propósito: uma
+  // consulta a mais por clique de login seria paga para sempre por um valor
+  // que muda uma vez por ano.
   assert.deepEqual(m.nomesDasChaves(), [
     "oauth.facebook.enabled",
     "oauth.facebook.clientId",
     "oauth.facebook.clientSecret",
+    "oauth.facebook.apiVersion",
   ]);
+});
+
+// ── A VERSÃO DA GRAPH VEM DA CENTRAL ──────────────────────────────────────
+//
+// *"toda hora o Facebook atualiza a API, aí eu mudando lá já reflete pra todo
+// mundo"*. O que isto guarda é que a troca não precise de deploy — e que um
+// valor torto no banco não mande a chamada para outro endereço da Meta.
+
+test("a versão digitada na central é a que vai para a URL", async () => {
+  const { m } = modelo({
+    docs: [
+      { key: "oauth.facebook.enabled", value: true },
+      { key: "oauth.facebook.clientId", value: "123456" },
+      { key: "oauth.facebook.clientSecret", value: "seg-redo" },
+      { key: "oauth.facebook.apiVersion", value: "v31.0" },
+    ],
+  });
+
+  const chaves = await m.chaves();
+  const u = new URL(m.urlDeAutorizacao(chaves.clientId, "est-1", chaves));
+
+  assert.equal(u.pathname, "/v31.0/dialog/oauth");
+});
+
+test("central em branco, ou fora do ar, cai no padrão do código", async () => {
+  const { m } = modelo({
+    docs: [
+      { key: "oauth.facebook.enabled", value: true },
+      { key: "oauth.facebook.clientId", value: "123456" },
+      { key: "oauth.facebook.clientSecret", value: "seg-redo" },
+    ],
+  });
+
+  const chaves = await m.chaves();
+  assert.equal(chaves.versao, "");
+  assert.equal(m.versao(chaves), OauthFacebook.VERSAO);
+  // Sem argumento nenhum também: é como os caminhos antigos chamam.
+  assert.equal(m.versao(), OauthFacebook.VERSAO);
+});
+
+test("versão com formato torto NÃO viaja — a URL é caminho, não texto", () => {
+  const { m } = modelo();
+
+  for (const torta of ["../v1.0", "v26.0/me", "26.0", "v26", "https://evil", " "]) {
+    assert.equal(m.versao({ versao: torta }), OauthFacebook.VERSAO, torta);
+  }
+});
+
+test("a versão da central vale também na troca do código e na ida à Graph", async () => {
+  const { m, chamadas } = modelo({
+    respostas: [
+      { corpo: { access_token: "tok-fb" } },
+      { corpo: { id: "9", name: "Bruna", email: "bruna@exemplo.com" } },
+    ],
+  });
+
+  await m.pessoaDoCodigo("cod-1", { ...CHAVES, versao: "v31.0" });
+
+  assert.ok(chamadas[0].startsWith("https://graph.facebook.com/v31.0/oauth/access_token"), chamadas[0]);
+  assert.ok(chamadas[1].startsWith("https://graph.facebook.com/v31.0/me"), chamadas[1]);
 });
 
 // ── A VOLTA ───────────────────────────────────────────────────────────────
@@ -184,4 +248,26 @@ test("a Graph recusando devolve erro, e não um e-mail vazio", async () => {
 
   assert.equal(pessoa.erro, "graph_401");
   assert.equal(pessoa.email, undefined);
+});
+
+// ── O ENDEREÇO DE VOLTA ───────────────────────────────────────────────────
+//
+// O domínio base era uma CÓPIA dentro deste modelo, e a cópia ficou em
+// `gofitnow.fit` depois que `lib/domain.js` virou `vafit.app`. Este teste
+// existe para a próxima troca de marca não deixar um sobrevivente.
+
+test("sem host confirmado, a volta cai no domínio base DE HOJE", () => {
+  const { m } = modelo();
+  const dominio = require("../../lib/domain.js");
+
+  assert.equal(m.enderecoDeVolta({ instancia: "marlon" }), `https://marlon.${dominio.BASE_DOMAIN}`);
+  assert.equal(m.enderecoDeVolta(null), `https://app.${dominio.BASE_DOMAIN}`);
+});
+
+test("o host confirmado vence o domínio base — quem tem domínio próprio volta para ele", () => {
+  const { m } = modelo();
+  assert.equal(
+    m.enderecoDeVolta({ instancia: "marlon", origem: "treinos.marlon.com.br" }),
+    "https://treinos.marlon.com.br"
+  );
 });

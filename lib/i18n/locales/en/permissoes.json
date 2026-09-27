@@ -53,6 +53,10 @@
         "description": "The food catalogue",
         "title": "Foods"
       },
+      "integrations": {
+        "description": "The Instagram and Facebook accounts linked to the system",
+        "title": "Connected accounts"
+      },
       "logs": {
         "description": "The record of everything done on the platform",
         "title": "History"
@@ -193,6 +197,16 @@
         "view": {
           "hint": "Browse foods and categories.",
           "label": "View the catalogue"
+        }
+      },
+      "integrations": {
+        "manage": {
+          "hint": "Link a new account and unlink the ones there. Whoever has this can speak on the account's behalf.",
+          "label": "Connect and disconnect accounts"
+        },
+        "view": {
+          "hint": "Open the screen and see which Instagram and Facebook accounts are linked.",
+          "label": "View connected accounts"
         }
       },
       "logs": {

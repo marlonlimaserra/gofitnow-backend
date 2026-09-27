@@ -24,7 +24,12 @@ const retencaoDeLogs = require("../lib/retencaoDeLogs.js");
 // `meta_webhook_eventos` é o que a Meta manda (Instagram, Messenger, Páginas).
 // No central porque, quando o evento chega, ainda não se sabe de qual cliente
 // ele é — quem responde isso é a conta conectada, e ela também mora aqui.
-const CENTRAL = ["exercises", "foods", "ai_usage", "meta_webhook_eventos"];
+// `meta_contas` é o DIRETÓRIO: de qual cliente é cada conta de Instagram (e,
+// depois, cada Página e cada número). Três campos e nenhum token — o token é
+// do cliente e mora no banco dele (`connected_accounts`). Ele está no central
+// porque a pergunta que ele responde atravessa clientes: a Meta chama um
+// endereço só, para todo mundo.
+const CENTRAL = ["exercises", "foods", "ai_usage", "meta_webhook_eventos", "meta_contas"];
 
 // Quanto tempo o histórico de ações fica. Decisão do Marlon em 07/09/2026 — ver
 // o comentário longo em `indicesEssenciais`.
@@ -44,6 +49,10 @@ const POR_INSTANCIA = [
   "users",
   // Os GRUPOS de permissão (26/09/2026): o que SOMA ao tipo de usuário.
   "permission_groups",
+  // As CONTAS DE FORA que o cliente ligou ao VAFIT — o Instagram dele hoje, a
+  // Página e o WhatsApp depois. Do cliente porque o TOKEN é dele: é a conta
+  // dele, autorizada por ele, e só o sistema dele deve falar por ela.
+  "connected_accounts",
   "user_tokens",
   "workouts",
   "diets",
@@ -208,6 +217,20 @@ async function ensureCentral(app) {
   await db
     .collection("meta_webhook_eventos")
     .createIndex({ objeto: 1, createdAt: -1 }, { name: "por_objeto" });
+
+  // ── O DIRETÓRIO DAS CONTAS CONECTADAS ─────────────────────────────────
+  //
+  // ÚNICO por `{tipo, externalId}`: é a chave pela qual o webhook pergunta de
+  // quem é o evento, e duas linhas para a mesma conta dariam duas respostas —
+  // com a escolha caindo em qualquer uma. Conectar a mesma conta de novo
+  // atualiza esta linha em vez de criar outra (ver `registrarContaDaMeta`).
+  await db
+    .collection("meta_contas")
+    .createIndex({ tipo: 1, externalId: 1 }, { unique: true, name: "conta_unica" });
+
+  // E a volta: quais contas são de um cliente. É o que permite limpar tudo
+  // quando um cliente é apagado, sem varrer a collection inteira.
+  await db.collection("meta_contas").createIndex({ instancia: 1 }, { name: "por_instancia" });
 
   // exercises — o catálogo compartilhado (`instance: null`) mais o que cada
   // conta criou (`instance: "marlon"`), na mesma collection.
@@ -476,6 +499,16 @@ async function indicesEssenciais(db, dias = retencaoDeLogs.PADRAO) {
   await db
     .collection("users")
     .createIndex({ instance: 1, groups: 1 }, { name: "by_groups", sparse: true });
+
+  // ── AS CONTAS DE FORA (26/09/2026) ────────────────────────────────────
+  //
+  // Uma conta do Instagram aparece UMA vez por cliente: reconectar (porque o
+  // token de 60 dias venceu) substitui a linha em vez de empilhar outra. Sem
+  // isto, a tela mostraria a mesma conta três vezes e o sistema usaria o token
+  // mais velho — que é justamente o que não serve.
+  await db
+    .collection("connected_accounts")
+    .createIndex({ instance: 1, tipo: 1, externalId: 1 }, { unique: true, name: "conta_unica" });
 
   await db.collection("user_action_history").createIndex({ instance: 1, createdAt: -1 }, { name: "by_date" });
   await db

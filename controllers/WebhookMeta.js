@@ -74,6 +74,7 @@ module.exports = function (app) {
         assinatura,
         confere: await confereAssinatura(app, req, assinatura),
         corpo,
+        donos: await donosDoEvento(app, corpo),
       });
     } catch (erro) {
       // Nunca estoura para fora: a resposta já foi dada, e um erro aqui só
@@ -82,6 +83,36 @@ module.exports = function (app) {
     }
   });
 };
+
+// ── DE QUEM É ESTE EVENTO ────────────────────────────────────────────────
+//
+// A Meta chama um endereço só, para todas as contas de todos os clientes. O
+// que diz o dono é o `id` de cada entrada: para `object: "instagram"` ele é o
+// id da conta do Instagram; para `page`, o id da Página.
+//
+// A resposta vem do DIRETÓRIO na central (`meta_contas`), escrito quando
+// alguém conecta. Ver `Center_model.instanciaDaContaDaMeta`.
+//
+// Nada aqui estoura: um evento de conta desconhecida continua sendo guardado,
+// sem dono. A Meta não reenvia o que já entregou, e o bruto perdido não volta.
+const TIPO_POR_OBJETO = { instagram: "instagram", page: "facebook" };
+
+async function donosDoEvento(app, corpo) {
+  const tipo = TIPO_POR_OBJETO[String(corpo?.object || "")];
+  if (!tipo || !Array.isArray(corpo?.entry)) return [];
+
+  const ids = [...new Set(corpo.entry.map((e) => String(e?.id || "")).filter(Boolean))];
+
+  const achados = await Promise.all(
+    ids.map(async (id) => ({
+      tipo,
+      externalId: id,
+      instancia: await app.api.center.instanciaDaContaDaMeta(tipo, id),
+    }))
+  );
+
+  return achados.filter((a) => a.instancia);
+}
 
 // A ASSINATURA, quando há segredo para conferi-la.
 //
