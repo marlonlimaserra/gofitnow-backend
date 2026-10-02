@@ -1,0 +1,7 @@
+{
+  "errors": {
+    "departmentNoName": "Le département a besoin d'un nom",
+    "departmentNotFound": "Département introuvable",
+    "departmentTaken": "Un département portant ce nom existe déjà"
+  }
+}

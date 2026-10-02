@@ -67,9 +67,40 @@ Modulo_model.prototype.menusEscondidos = async function () {
     this.app.api.center.modulosDoPlano(instanceContext.required()),
   ]);
 
-  // O que esta conta EFETIVAMENTE tem: liberado por ela E incluído no plano.
-  const temNaConta = liberados === null ? modulos.CHAVES : liberados;
-  const efetivos = doPlano === null ? temNaConta : temNaConta.filter((k) => doPlano.includes(k));
+  // ── O QUE ESTA CONTA EFETIVAMENTE TEM ─────────────────────────────────
+  //
+  // O PLANO manda em todos. Sobre ele, os módulos de LANÇAMENTO ainda pedem o
+  // botão da notícia; os outros não pedem nada — ver `pedeLiberacao` no
+  // catálogo, e o porquê da separação lá.
+  //
+  // Os dois "não sei" continuam abrindo: plano `null` (cliente de cortesia,
+  // plano sem o campo) vale como "inclui tudo"; conta `null` (documento não
+  // semeado) vale como "liberou tudo".
+  const semPlano = doPlano === null;
+  const naConta = liberados === null ? modulos.CHAVES : liberados;
+
+  const efetivos = modulos.CHAVES.filter((k) => {
+    const pede = modulos.pedeLiberacao(k);
+
+    // ── "SEM PLANO" NÃO QUER DIZER O MESMO PARA OS DOIS TIPOS ──────────
+    //
+    // Quem responde é o CATÁLOGO, módulo a módulo (`semPlano`), e não uma
+    // regra geral. As duas respostas existem e as duas estão certas:
+    //
+    //   Treinos, Dietas, Aulões…  fazem parte do produto → a conta de
+    //   cortesia continua com tudo, e o plano SUBTRAI.
+    //
+    //   Redes sociais             ainda não está pronto → sem plano não
+    //   aparece, que é o ponto de segurar uma tela.
+    //
+    // Uma regra geral erraria metade: "sem plano inclui tudo" vazaria o que
+    // não está pronto; "sem plano não inclui nada" apagaria o sistema
+    // inteiro das cinco contas que hoje não têm plano.
+    const noPlano = semPlano ? modulos.temSemPlano(k) : doPlano.includes(k);
+    if (!noPlano) return false;
+
+    return !pede || naConta.includes(k);
+  });
 
   return modulos.menusEscondidos(efetivos);
 };

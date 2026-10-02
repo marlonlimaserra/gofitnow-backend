@@ -183,3 +183,198 @@ test("o callback do Instagram está isento do portão de instância", () => {
   assert.ok(!isento("/contas-conectadas"));
   assert.ok(!isento("/contas-conectadas/url"));
 });
+
+// ── A PÁGINA DO FACEBOOK ──────────────────────────────────────────────────
+//
+// Outro fluxo por completo: `config_id` no lugar de `scope`, uma LISTA de
+// páginas na volta, e um passo a mais — assinar cada Página no webhook, sem o
+// qual tudo parece certo e nada chega.
+
+const OauthPagina = require("../../model/OauthPagina_model.js");
+const crypto = require("node:crypto");
+
+const CHAVES_PAGINA = {
+  ligado: true,
+  clientId: "2155086338698151",
+  clientSecret: "seg-redo",
+  configId: "1404647227790607",
+  versao: "v26.0",
+};
+
+function modeloPagina({ respostas = [], docs } = {}) {
+  const chamadas = [];
+  const m = new OauthPagina({
+    crypto,
+    uuidv4: () => "est",
+    facebookFetch: async (url, opcoes) => {
+      chamadas.push({ url: String(url), metodo: opcoes?.method || "GET" });
+      const r = respostas.shift();
+      if (!r) throw new Error("sem resposta preparada para " + url);
+      return {
+        ok: r.ok !== false,
+        status: r.status || 200,
+        async json() { return r.corpo; },
+        async text() { return JSON.stringify(r.corpo || {}); },
+      };
+    },
+    mongodb: {
+      async centralDb() {
+        return { collection: () => ({ find: () => ({ async toArray() { return docs || []; } }) }) };
+      },
+    },
+  });
+  return { m, chamadas };
+}
+
+test("a URL da Página leva config_id e NÃO leva scope", () => {
+  const { m } = modeloPagina();
+  const u = new URL(m.urlDeAutorizacao(CHAVES_PAGINA, "est-1"));
+
+  // O Login for Business recusa `scope=` com "precisa de pelo menos um
+  // supported permission" — um erro que fala de permissão, não de configuração.
+  assert.equal(u.searchParams.get("config_id"), "1404647227790607");
+  assert.equal(u.searchParams.get("scope"), null);
+  assert.equal(u.pathname, "/v26.0/dialog/oauth");
+});
+
+test("o retorno é /auth/meta/callback — o nome cadastrado no console", () => {
+  const { m } = modeloPagina();
+  // `/auth/pagina/callback` seria o derivado do provedor, e não está
+  // cadastrado: a Meta recusaria com "URI não corresponde".
+  assert.equal(m.callback(), "https://backend.vafit.app/auth/meta/callback");
+});
+
+test("sem o id da configuração, conectar a Página fica desligado", async () => {
+  const { m } = modeloPagina({
+    docs: [
+      { key: "meta.appId", value: "215" },
+      { key: "meta.appSecret", value: "seg" },
+    ],
+  });
+  const c = await m.chaves();
+  assert.equal(c.ligado, false);
+});
+
+test("a volta NÃO assina nem grava nada — ela só levanta a lista", async () => {
+  const { m, chamadas } = modeloPagina({
+    respostas: [
+      { corpo: { access_token: "token-do-usuario" } },
+      {
+        corpo: {
+          data: [
+            {
+              id: "555",
+              name: "Academia VAFIT",
+              access_token: "token-da-pagina",
+              picture: { data: { url: "https://f/p.jpg" } },
+              instagram_business_account: { id: "17841", username: "vafit" },
+            },
+          ],
+        },
+      },
+    ],
+  });
+
+  const r = await m.contasDoCodigo("ABC", CHAVES_PAGINA);
+
+  assert.equal(r.contas.length, 1);
+  // O token que vem é o DA PÁGINA: o do usuário morre quando a pessoa troca
+  // a senha, e a integração cairia sem relação com o VAFIT.
+  assert.equal(r.contas[0].token, "token-da-pagina");
+  assert.equal(r.contas[0].tipo, "facebook");
+  assert.deepEqual(r.contas[0].instagramVinculado, { id: "17841", usuario: "vafit" });
+  // Sem validade: token de Página derivado de token longo não expira.
+  assert.equal(r.contas[0].expiraEm, null);
+
+  // ── A CORREÇÃO DE 26/09/2026 ──
+  //
+  // *"quando eu adicionei o Facebook, ele adicionou todas as contas, tá
+  // errado, pois tem gente com mais de 200 páginas"*. Autorizar no Facebook
+  // é dizer "pode ver as minhas Páginas", não "ligue todas". Duas chamadas
+  // apenas: trocar o código e listar. Nenhum POST.
+  assert.equal(chamadas.length, 2);
+  assert.ok(!chamadas.some((c) => c.metodo === "POST"));
+  assert.ok(!chamadas.some((c) => c.url.includes("subscribed_apps")));
+});
+
+test("assinar é um passo à parte, com o token DA PÁGINA", async () => {
+  const { m, chamadas } = modeloPagina({ respostas: [{ corpo: { success: true } }] });
+
+  const r = await m.assinarWebhook({ id: "555", access_token: "token-da-pagina" }, CHAVES_PAGINA);
+
+  assert.equal(r.ok, true);
+  assert.equal(chamadas[0].metodo, "POST");
+  assert.ok(chamadas[0].url.includes("/555/subscribed_apps"));
+  assert.ok(chamadas[0].url.includes("access_token=token-da-pagina"));
+  assert.ok(chamadas[0].url.includes("messages"));
+});
+
+test("desmarcar uma Página a DESASSINA — senão a Meta manda evento órfão para sempre", async () => {
+  const { m, chamadas } = modeloPagina({ respostas: [{ corpo: { success: true } }] });
+
+  await m.desassinarWebhook({ externalId: "555", token: "p" }, CHAVES_PAGINA);
+
+  assert.equal(chamadas[0].metodo, "DELETE");
+  assert.ok(chamadas[0].url.includes("/555/subscribed_apps"));
+});
+
+// ── QUEM TEM 200 PÁGINAS ──────────────────────────────────────────────────
+//
+// A Graph entrega 100 por vez. Sem seguir `paging.next`, as outras somem sem
+// aviso nenhum — e o dono só descobre pela Página que nunca aparece na lista.
+
+test("a lista segue a paginação da Graph até o fim", async () => {
+  const cem = (inicio) =>
+    Array.from({ length: 100 }, (_, i) => ({ id: String(inicio + i), name: "P" + (inicio + i) }));
+
+  const { m, chamadas } = modeloPagina({
+    respostas: [
+      { corpo: { access_token: "u" } },
+      { corpo: { data: cem(1), paging: { next: "https://graph.facebook.com/proxima?cursor=2" } } },
+      { corpo: { data: cem(101), paging: { next: "https://graph.facebook.com/proxima?cursor=3" } } },
+      { corpo: { data: [{ id: "999", name: "Última" }] } },
+    ],
+  });
+
+  const r = await m.contasDoCodigo("ABC", CHAVES_PAGINA);
+
+  assert.equal(r.contas.length, 201);
+  assert.equal(r.truncada, false);
+  // `paging.next` é usado COMO VEIO: remontar a URL à mão seria reimplementar
+  // a paginação da Meta, e errar o cursor devolve a mesma página para sempre.
+  assert.equal(chamadas[2].url, "https://graph.facebook.com/proxima?cursor=2");
+});
+
+test("acima do teto a lista volta MARCADA, e não fingindo que é tudo", async () => {
+  const cem = (i) => Array.from({ length: 100 }, (_, k) => ({ id: String(i + k), name: "P" }));
+  const respostas = [{ corpo: { access_token: "u" } }];
+  for (let i = 0; i < 6; i++) {
+    respostas.push({ corpo: { data: cem(i * 100), paging: { next: "https://g/p" + i } } });
+  }
+
+  const { m } = modeloPagina({ respostas });
+  const r = await m.contasDoCodigo("ABC", CHAVES_PAGINA);
+
+  assert.equal(r.contas.length, OauthPagina.TETO_DE_PAGINAS);
+  assert.equal(r.truncada, true);
+});
+
+test("autorizar sem escolher Página nenhuma tem motivo próprio", async () => {
+  const { m } = modeloPagina({
+    respostas: [{ corpo: { access_token: "u" } }, { corpo: { data: [] } }],
+  });
+
+  // "Não consegui" faria a pessoa tentar de novo do mesmo jeito e chegar ao
+  // mesmo lugar. O que falta é ela MARCAR uma Página na tela da Meta.
+  assert.deepEqual(await m.contasDoCodigo("ABC", CHAVES_PAGINA), { erro: "nenhuma_pagina" });
+});
+
+test("a chamada às páginas leva appsecret_proof — token roubado não vale de fora", async () => {
+  const { m, chamadas } = modeloPagina({
+    respostas: [{ corpo: { access_token: "tok" } }, { corpo: { data: [] } }],
+  });
+  await m.contasDoCodigo("ABC", CHAVES_PAGINA);
+
+  const esperado = crypto.createHmac("sha256", "seg-redo").update("tok").digest("hex");
+  assert.ok(chamadas[1].url.includes("appsecret_proof=" + esperado));
+});

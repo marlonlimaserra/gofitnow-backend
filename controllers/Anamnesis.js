@@ -287,7 +287,12 @@ module.exports = function (app) {
       return {
         // Primeiro nome só: o formulário abre com "Olá, Marlon" e não com o nome
         // completo de alguém numa página que qualquer um com o endereço abre.
-        firstName: String(person?.name || "").split(" ")[0] || "",
+        //
+        // O campo GRAVADO vence o recorte na primeira palavra (01/10/2026): quem
+        // se chama "Ana Beatriz" era chamada de "Ana" por uma heurística, e
+        // agora a ficha diz o nome dela. O `split` fica como reserva para as
+        // fichas que ainda não passaram pela migração.
+        firstName: person?.firstName || String(person?.name || "").split(" ")[0] || "",
         // O nome do ESPAÇO como ele aparece na tela de entrada: é o que diz à
         // pessoa que o formulário é da nutricionista dela, e não de um site
         // qualquer que chegou por link.

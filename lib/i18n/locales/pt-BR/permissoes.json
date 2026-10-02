@@ -57,6 +57,10 @@
         "description": "O Instagram e o Facebook que a casa ligou ao sistema",
         "title": "Contas conectadas"
       },
+      "leads": {
+        "description": "Quem procurou a casa e ainda não tem cadastro",
+        "title": "Leads"
+      },
       "logs": {
         "description": "O registro de tudo que foi feito na plataforma",
         "title": "Histórico"
@@ -207,6 +211,16 @@
         "view": {
           "hint": "Abrir a tela e ver quais contas de Instagram e Facebook estão ligadas.",
           "label": "Ver as contas conectadas"
+        }
+      },
+      "leads": {
+        "manage": {
+          "hint": "Cadastrar, editar, mudar de etapa e apagar.",
+          "label": "Gerenciar os leads"
+        },
+        "view": {
+          "hint": "Abrir a lista e acompanhar o funil.",
+          "label": "Ver os leads"
         }
       },
       "logs": {

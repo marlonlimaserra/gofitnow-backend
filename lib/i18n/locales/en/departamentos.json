@@ -1,0 +1,7 @@
+{
+  "errors": {
+    "departmentNoName": "The department needs a name",
+    "departmentNotFound": "Department not found",
+    "departmentTaken": "A department with that name already exists"
+  }
+}

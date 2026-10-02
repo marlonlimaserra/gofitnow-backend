@@ -1,6 +1,7 @@
 const sessaoGuardada = require("../lib/sessaoGuardada.js");
 const telefones = require("../lib/telefone.js");
 const { ObjectId } = require("mongodb");
+const nomeDaPessoa = require("../lib/nomeDaPessoa.js");
 const permissionCatalog = require("../lib/permissions.js");
 const instanceContext = require("../lib/instance.js");
 const tempo = require("../lib/tempo.js");
@@ -1019,8 +1020,22 @@ User_model.prototype.dataStudent = async function (trainerId, id) {
 User_model.prototype.insertStudent = async function (trainerId, obj) {
   const col = await this.collection();
 
+  // ── NOME E SOBRENOME, e `name` derivado dos dois ──────────────────────
+  //
+  // *"acho melhor agente trabalhar com 'nome' e 'sobrenome'"* (01/10/2026).
+  //
+  // `name` continua gravado porque é o que os 440 leitores do sistema usam —
+  // PDF, e-mail, planilha, app, busca. Quem escreve manda as partes; quem lê
+  // continua lendo um campo só. Ver `lib/nomeDaPessoa.js`.
+  //
+  // E aceita as DUAS formas: a importação por planilha e a inscrição pela
+  // página pública seguem mandando o nome inteiro numa linha só.
+  const nome = nomeDaPessoa.paraGravar(obj) || { firstName: "", lastName: "", name: "" };
+
   const doc = {
-    name: String(obj.name).trim(),
+    name: nome.name,
+    firstName: nome.firstName,
+    lastName: nome.lastName,
     email: normalizeEmail(obj.email),
     password: null,
     salt: null,
@@ -1046,6 +1061,13 @@ User_model.prototype.insertStudent = async function (trainerId, obj) {
     weight: obj.weight !== undefined && obj.weight !== "" ? Number(obj.weight) : null,
     height: obj.height !== undefined && obj.height !== "" ? Number(obj.height) : null,
     active: obj.active === undefined ? 1 : Number(obj.active) ? 1 : 0,
+    // AS RESPOSTAS DOS CAMPOS CUSTOMIZADOS, já convertidas e conferidas pelo
+    // controller (`lib/valoresDeCampos.js`). Um objeto por alias, e não uma
+    // coleção à parte: abrir uma ficha continua sendo um `findOne`.
+    //
+    // Os campos NATIVOS não vêm aqui — eles são colunas deste mesmo documento,
+    // logo acima, e é o controller que separa os dois baldes.
+    customFields: obj.customFields && typeof obj.customFields === "object" ? obj.customFields : {},
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -1075,7 +1097,20 @@ User_model.prototype.updateStudent = async function (trainerId, id, obj) {
   const set = { updatedAt: new Date() };
   const unset = {};
 
-  if (obj.name !== undefined) set.name = String(obj.name).trim();
+  // ── AS TRÊS CHAVES ANDAM JUNTAS ───────────────────────────────────────
+  //
+  // Gravar `name` sem reescrever as partes faria a ficha mostrar o nome novo e
+  // o formulário abrir com o antigo.
+  //
+  // E o documento ATUAL é lido antes: um PATCH com só `lastName` — arrumar o
+  // sobrenome, que é a edição mais comum — apagaria o primeiro nome sem ele.
+  if (obj.name !== undefined || obj.firstName !== undefined || obj.lastName !== undefined) {
+    const atual = await col.findOne(
+      { _id: new ObjectId(id) },
+      { projection: { name: 1, firstName: 1, lastName: 1 } }
+    );
+    Object.assign(set, nomeDaPessoa.paraGravar(obj, atual || {}));
+  }
   if (obj.phone !== undefined) set.phone = String(obj.phone).trim();
   if (obj.birthDate !== undefined) set.birthDate = String(obj.birthDate);
   if (obj.sex !== undefined) set.sex = SEXES.includes(String(obj.sex)) ? String(obj.sex) : "";
@@ -1097,6 +1132,17 @@ User_model.prototype.updateStudent = async function (trainerId, id, obj) {
   if (obj.password) {
     set.salt = this.generateSalt();
     set.password = this.hashPassword(obj.password, set.salt);
+  }
+
+  // ── UMA RESPOSTA POR VEZ, POR CAMINHO ─────────────────────────────────
+  //
+  // `{ customFields: {...} }` inteiro SUBSTITUIRIA o objeto, e um formulário
+  // que manda só a gaveta aberta apagaria as respostas das gavetas fechadas.
+  // `customFields.convenio` muda uma chave e deixa as outras onde estão.
+  if (obj.customFields && typeof obj.customFields === "object") {
+    for (const [alias, valor] of Object.entries(obj.customFields)) {
+      set["customFields." + alias] = valor;
+    }
   }
 
   const update = { $set: set };

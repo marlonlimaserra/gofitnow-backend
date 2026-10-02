@@ -1,0 +1,47 @@
+{
+  "customFields": {
+    "group": {
+      "principal": "Principal"
+    },
+    "native": {
+      "goal": "Objetivo",
+      "height": "Altura (cm)",
+      "weight": "Peso (kg)"
+    },
+    "type": {
+      "areaDeTexto": "Área de texto",
+      "cnpj": "CNPJ",
+      "cpf": "CPF",
+      "data": "Fecha",
+      "dataHora": "Fecha y hora",
+      "email": "Correo",
+      "estado": "Estado",
+      "fuso": "Zona horaria",
+      "idioma": "Idioma",
+      "numero": "Número",
+      "pais": "País",
+      "seletor": "Selector",
+      "seletorMultiplo": "Selector múltiple",
+      "simNao": "Sí/No",
+      "telefone": "Teléfono",
+      "texto": "Texto",
+      "url": "URL"
+    }
+  },
+  "errors": {
+    "customFieldAliasReserved": "Ese alias pertenece a un campo del sistema",
+    "customFieldAliasTaken": "Ya existe un campo con ese alias",
+    "customFieldBadAlias": "No pude generar un alias con ese nombre",
+    "customFieldDuplicate": "Ya existe alguien con ese {{campo}}",
+    "customFieldGroupIsDefault": "El grupo principal no se elimina: es donde cae todo campo",
+    "customFieldGroupNoName": "El grupo necesita un nombre",
+    "customFieldGroupNotFound": "Grupo no encontrado",
+    "customFieldGroupTaken": "Ya existe un grupo con ese nombre",
+    "customFieldIsNative": "Ese campo es del sistema: desactívalo en vez de eliminarlo",
+    "customFieldNeedsOptions": "Un selector necesita al menos una opción",
+    "customFieldNoName": "El campo necesita un nombre",
+    "customFieldNotFound": "Campo no encontrado",
+    "customFieldRequired": "Completá: {{campos}}",
+    "customFieldSaveFailed": "No pude guardar el campo"
+  }
+}

@@ -97,6 +97,10 @@ test("só as collections combinadas têm TTL", () => {
     // Os eventos da Meta (26/09/2026): registro de PASSAGEM, 30 dias. O que
     // virar dado do cliente sai dali e passa a seguir a retenção dele.
     "meta_webhook_eventos",
+    // O rascunho entre "autorizou no Facebook" e "escolheu quais Páginas"
+    // (26/09/2026). Ele carrega token de Página, que não expira — um rascunho
+    // abandonado seria segredo vivo guardado para sempre. 30 minutos.
+    "connection_choices",
   ]);
 
   const achadas = new Set();

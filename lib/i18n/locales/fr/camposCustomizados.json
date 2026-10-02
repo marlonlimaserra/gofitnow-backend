@@ -1,0 +1,47 @@
+{
+  "customFields": {
+    "group": {
+      "principal": "Principal"
+    },
+    "native": {
+      "goal": "Objectif",
+      "height": "Taille (cm)",
+      "weight": "Poids (kg)"
+    },
+    "type": {
+      "areaDeTexto": "Zone de texte",
+      "cnpj": "CNPJ",
+      "cpf": "CPF",
+      "data": "Date",
+      "dataHora": "Date et heure",
+      "email": "E-mail",
+      "estado": "Région",
+      "fuso": "Fuseau horaire",
+      "idioma": "Langue",
+      "numero": "Nombre",
+      "pais": "Pays",
+      "seletor": "Sélecteur",
+      "seletorMultiplo": "Sélecteur multiple",
+      "simNao": "Oui/Non",
+      "telefone": "Téléphone",
+      "texto": "Texte",
+      "url": "URL"
+    }
+  },
+  "errors": {
+    "customFieldAliasReserved": "Cet alias appartient à un champ du système",
+    "customFieldAliasTaken": "Un champ avec cet alias existe déjà",
+    "customFieldBadAlias": "Impossible de générer un alias à partir de ce nom",
+    "customFieldDuplicate": "Quelqu'un a déjà ce {{campo}}",
+    "customFieldGroupIsDefault": "Le groupe principal ne se supprime pas : c'est là que tout champ retombe",
+    "customFieldGroupNoName": "Le groupe a besoin d'un nom",
+    "customFieldGroupNotFound": "Groupe introuvable",
+    "customFieldGroupTaken": "Un groupe portant ce nom existe déjà",
+    "customFieldIsNative": "Ce champ est celui du système : désactivez-le au lieu de le supprimer",
+    "customFieldNeedsOptions": "Un sélecteur a besoin d'au moins une option",
+    "customFieldNoName": "Le champ a besoin d'un nom",
+    "customFieldNotFound": "Champ introuvable",
+    "customFieldRequired": "Veuillez renseigner : {{campos}}",
+    "customFieldSaveFailed": "Je n'ai pas pu enregistrer le champ"
+  }
+}

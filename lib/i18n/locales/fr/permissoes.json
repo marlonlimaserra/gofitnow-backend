@@ -57,6 +57,10 @@
         "description": "Les comptes Instagram et Facebook reliés au système",
         "title": "Comptes connectés"
       },
+      "leads": {
+        "description": "Les personnes qui ont pris contact et ne sont pas encore inscrites",
+        "title": "Prospects"
+      },
       "logs": {
         "description": "Le registre de tout ce qui a été fait sur la plateforme",
         "title": "Historique"
@@ -207,6 +211,16 @@
         "view": {
           "hint": "Ouvrir l'écran et voir quels comptes Instagram et Facebook sont reliés.",
           "label": "Voir les comptes connectés"
+        }
+      },
+      "leads": {
+        "manage": {
+          "hint": "Créer, modifier, changer d'étape et supprimer.",
+          "label": "Gérer les prospects"
+        },
+        "view": {
+          "hint": "Ouvrir la liste et suivre le tunnel.",
+          "label": "Voir les prospects"
         }
       },
       "logs": {

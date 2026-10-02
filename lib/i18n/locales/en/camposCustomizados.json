@@ -1,0 +1,47 @@
+{
+  "customFields": {
+    "group": {
+      "principal": "Main"
+    },
+    "native": {
+      "goal": "Goal",
+      "height": "Height (cm)",
+      "weight": "Weight (kg)"
+    },
+    "type": {
+      "areaDeTexto": "Text area",
+      "cnpj": "CNPJ",
+      "cpf": "CPF",
+      "data": "Date",
+      "dataHora": "Date and time",
+      "email": "Email",
+      "estado": "State",
+      "fuso": "Time zone",
+      "idioma": "Language",
+      "numero": "Number",
+      "pais": "Country",
+      "seletor": "Select",
+      "seletorMultiplo": "Multi-select",
+      "simNao": "Yes/No",
+      "telefone": "Phone",
+      "texto": "Text",
+      "url": "URL"
+    }
+  },
+  "errors": {
+    "customFieldAliasReserved": "That alias belongs to a system field",
+    "customFieldAliasTaken": "A field with that alias already exists",
+    "customFieldBadAlias": "Could not build an alias from that name",
+    "customFieldDuplicate": "Someone already has that {{campo}}",
+    "customFieldGroupIsDefault": "The main group cannot be deleted: it is where every field falls back to",
+    "customFieldGroupNoName": "The group needs a name",
+    "customFieldGroupNotFound": "Group not found",
+    "customFieldGroupTaken": "A group with that name already exists",
+    "customFieldIsNative": "That is a system field: disable it instead of deleting",
+    "customFieldNeedsOptions": "A select needs at least one option",
+    "customFieldNoName": "The field needs a name",
+    "customFieldNotFound": "Field not found",
+    "customFieldRequired": "Please fill in: {{campos}}",
+    "customFieldSaveFailed": "Could not save the field"
+  }
+}

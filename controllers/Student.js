@@ -1,4 +1,7 @@
 const limiteDoPlano = require("../lib/limiteDoPlano.js");
+const nomeDaPessoa = require("../lib/nomeDaPessoa.js");
+const { ObjectId } = require("mongodb");
+const valoresDeCampos = require("../lib/valoresDeCampos.js");
 const acoesDoCatalogo = require("../lib/actions.js");
 const fotoDoWhatsapp = require("../lib/fotoDoWhatsapp.js");
 const depoisLib = require("../lib/depois.js");
@@ -8,6 +11,74 @@ const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 // e chamá-lo direto estoura DEPOIS do `res.send`, onde o erro não tem para onde
 // ir. O `|| depoisLib` é o padrão do Portal.js, e existe por isso.
 module.exports = function (app) {
+
+  // ── AS RESPOSTAS DOS CAMPOS CUSTOMIZADOS ────────────────────────────────
+  //
+  // *"dentro do cliente abria algo parecido com isso com os campos dentro"*
+  // (01/10/2026).
+  //
+  // Um lugar só para os dois caminhos — criar e editar —, porque a terceira
+  // cópia seria a que divergisse. Devolve `{ erro }` para o chamador responder,
+  // ou `{ nativos, valores }` para gravar.
+  //
+  // A ENTRADA junta os dois níveis: os campos NATIVOS (objetivo, peso, altura)
+  // chegam no topo do corpo, como sempre chegaram, e os customizados dentro de
+  // `customFields`. Quem separa de volta é `lib/valoresDeCampos.js`.
+  async function respostasDosCampos(req, { parcial = false, exceto } = {}) {
+    // Sem catálogo não há o que tratar — e é o caminho normal de quem nunca
+    // abriu a tela de campos. O `?.` cobre também os dublês de teste que montam
+    // só os modelos que o caso exercita; em produção ele está sempre lá, porque
+    // o boot semeia os nativos (ver `ensureInstanceEssencial`).
+    const campos = (await app.api.customField?.list({ ativos: true })) || [];
+    if (!campos.length) return { nativos: {}, valores: {} };
+
+    const entrada = { ...(req.body || {}), ...((req.body || {}).customFields || {}) };
+    const r = valoresDeCampos.preparar(campos, entrada, { parcial });
+
+    if (r.faltando.length) {
+      return {
+        erro: {
+          status: 400,
+          corpo: {
+            msg: req.t("errors.customFieldRequired", { campos: r.faltando.map((f) => f.name).join(", ") }),
+            code: "custom_field_required",
+            campos: r.faltando.map((f) => f.alias),
+          },
+        },
+      };
+    }
+
+    // ── O IDENTIFICADOR ÚNICO, CONFERIDO NO BANCO ─────────────────────────
+    //
+    // Só aqui dá para perguntar "alguém já respondeu isto?" — e é por isso que
+    // a conferência não mora na lib. O campo NATIVO procura na coluna dele; o
+    // customizado, dentro de `customFields`.
+    const db = await app.mongodb.connectToServer();
+
+    for (const { campo, valor } of r.unicos) {
+      const chave = campo.nativo ? campo.alias : "customFields." + campo.alias;
+      const filtro = { [chave]: valor, type: "student" };
+      if (exceto) filtro._id = { $ne: new ObjectId(String(exceto)) };
+
+      if (await db.collection("users").findOne(filtro, { projection: { _id: 1 } })) {
+        return {
+          erro: {
+            status: 409,
+            corpo: {
+              msg: req.t("errors.customFieldDuplicate", {
+                campo: campo.name || campo.alias,
+              }),
+              code: "custom_field_duplicate",
+              campo: campo.alias,
+            },
+          },
+        };
+      }
+    }
+
+    return { nativos: r.nativos, valores: r.valores };
+  }
+
   // The people a professional follows — professional only.
   //
   // The professional id never comes from the body or the query: it always
@@ -203,7 +274,14 @@ module.exports = function (app) {
 
     const body = req.body || {};
 
-    if (!body.name || String(body.name).trim().length < 2) {
+    // O NOME VEM EM DUAS PARTES desde 01/10/2026, e a conferência é sobre o
+    // RESULTADO, não sobre o campo. Quem manda `name` inteiro — planilha,
+    // página pública, app antigo — continua passando por aqui igual.
+    //
+    // O SOBRENOME NÃO É OBRIGATÓRIO: há quem só tenha um nome, e há a recepção
+    // digitando "Fernanda" às pressas com a pessoa na frente. Exigir o
+    // sobrenome faria inventarem um.
+    if ((nomeDaPessoa.paraGravar(body)?.name || "").length < 2) {
       res.status(400).send({ msg: req.t("errors.requirePersonName") });
       return;
     }
@@ -282,7 +360,14 @@ module.exports = function (app) {
 
     const body = req.body || {};
 
-    if (!body.name || String(body.name).trim().length < 2) {
+    // O NOME VEM EM DUAS PARTES desde 01/10/2026, e a conferência é sobre o
+    // RESULTADO, não sobre o campo. Quem manda `name` inteiro — planilha,
+    // página pública, app antigo — continua passando por aqui igual.
+    //
+    // O SOBRENOME NÃO É OBRIGATÓRIO: há quem só tenha um nome, e há a recepção
+    // digitando "Fernanda" às pressas com a pessoa na frente. Exigir o
+    // sobrenome faria inventarem um.
+    if ((nomeDaPessoa.paraGravar(body)?.name || "").length < 2) {
       res.status(400).send({ msg: req.t("errors.requirePersonName") });
       return;
     }
@@ -385,8 +470,20 @@ module.exports = function (app) {
     // an account with more power than the screen offers.
     const role = await app.api.role.dataByName(app.api.role.clientName);
 
+    // As respostas dos campos customizados, convertidas e conferidas. Antes de
+    // gravar: um obrigatório em branco tem de recusar a ficha inteira, e não
+    // criar a pessoa e reclamar depois.
+    const respostas = await respostasDosCampos(req);
+    if (respostas.erro) return res.status(respostas.erro.status).send(respostas.erro.corpo);
+
     // `email` já aparado. Mandar o do corpo deixaria "  " passar como endereço.
-    const id = await app.api.user.insertStudent(trainer._id, { ...body, email, role: role?._id });
+    const id = await app.api.user.insertStudent(trainer._id, {
+      ...body,
+      ...respostas.nativos,
+      customFields: respostas.valores,
+      email,
+      role: role?._id,
+    });
 
     // A observacao e do profissional, nao da pessoa: fica no vinculo.
     if (body.notes) await app.api.link.setNotes(trainer._id, id, body.notes);
@@ -486,8 +583,22 @@ module.exports = function (app) {
       }
     }
 
+    // As respostas dos campos customizados. `parcial`: num PATCH, alias ausente
+    // quer dizer "não mexa" — e não "apague". Sem isso, salvar a gaveta aberta
+    // limparia as respostas das gavetas fechadas.
+    //
+    // `exceto` tira a própria pessoa da conferência de identificador único:
+    // salvar a ficha sem mexer no campo não pode acusar que ela colide consigo
+    // mesma.
+    const respostas = await respostasDosCampos(req, { parcial: true, exceto: req.params.id });
+    if (respostas.erro) return res.status(respostas.erro.status).send(respostas.erro.corpo);
+
     try {
-      await app.api.user.updateStudent(trainer._id, req.params.id, body);
+      await app.api.user.updateStudent(trainer._id, req.params.id, {
+        ...body,
+        ...respostas.nativos,
+        customFields: respostas.valores,
+      });
     } catch (error) {
       // A checagem acima perde a corrida entre duas requisições simultâneas; quem
       // garante é o índice único. Traduzir o 11000 aqui é a diferença entre "esse

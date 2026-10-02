@@ -1,0 +1,28 @@
+{
+  "errors": {
+    "leadAlreadyConverted": "Ce prospect a déjà été converti.",
+    "leadNoName": "Le prospect a besoin d'un nom",
+    "leadNotFound": "Prospect introuvable"
+  },
+  "leads": {
+    "origin": {
+      "anuncio": "Publicité",
+      "evento": "Événement",
+      "facebook": "Facebook",
+      "indicacao": "Recommandation",
+      "instagram": "Instagram",
+      "outra": "Autre",
+      "porta": "Venu sur place",
+      "site": "Site web",
+      "whatsapp": "WhatsApp"
+    },
+    "stage": {
+      "contato": "En contact",
+      "convertido": "Inscrit",
+      "novo": "Nouveau",
+      "perdido": "Perdu",
+      "proposta": "Proposition envoyée",
+      "visita": "Visite prévue"
+    }
+  }
+}

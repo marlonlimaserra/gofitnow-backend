@@ -70,7 +70,22 @@ const BASE = require("../lib/domain.js").BASE_DOMAIN;
 // O esquema do app nativo, o mesmo de `expo.scheme` no `app.json`. No iOS o
 // `ASWebAuthenticationSession` só devolve o controle ao app quando o navegador
 // tenta abrir exatamente este esquema.
-const ESQUEMA_APP = process.env.APP_SCHEME || "gofitnow";
+//
+// ── `vafit` desde 30/09/2026 ─────────────────────────────────────────────
+//
+// *"não usamos mais gofitnow, já disse, mude para vafit"*. O `app.json` passou
+// a registrar `["vafit", "gofitnow", "shapeup", "shapeapp"]` — nessa ordem, e a
+// ordem importa: no Android só o PRIMEIRO é registrado.
+//
+// Os antigos continuam na lista de propósito. No iOS eles seguem atendendo, e
+// é o que faz um link de redefinir senha já enviado (`gofitnow://redefinir?…`)
+// continuar abrindo. O que muda aqui é só o que a gente EMITE de agora em
+// diante.
+//
+// A troca precisa ser nos dois lados no mesmo dia: o app registra o esquema, o
+// servidor o devolve. Trocar só aqui faz a pessoa aprovar no Google e ficar
+// olhando o navegador, com a sessão presa lá dentro.
+const ESQUEMA_APP = process.env.APP_SCHEME || "vafit";
 
 // Dez minutos para completar o consentimento. Mais que isso é um bilhete válido
 // esquecido num histórico de navegador; menos, e quem parou para achar a senha

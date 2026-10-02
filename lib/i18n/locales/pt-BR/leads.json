@@ -1,0 +1,28 @@
+{
+  "errors": {
+    "leadAlreadyConverted": "Este lead já virou aluno.",
+    "leadNoName": "O lead precisa de um nome",
+    "leadNotFound": "Lead não encontrado"
+  },
+  "leads": {
+    "origin": {
+      "anuncio": "Anúncio",
+      "evento": "Evento",
+      "facebook": "Facebook",
+      "indicacao": "Indicação",
+      "instagram": "Instagram",
+      "outra": "Outra",
+      "porta": "Passou na porta",
+      "site": "Site",
+      "whatsapp": "WhatsApp"
+    },
+    "stage": {
+      "contato": "Em contato",
+      "convertido": "Virou cadastro",
+      "novo": "Novo",
+      "perdido": "Perdido",
+      "proposta": "Proposta enviada",
+      "visita": "Visita marcada"
+    }
+  }
+}

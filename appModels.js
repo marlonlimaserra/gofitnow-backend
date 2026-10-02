@@ -129,6 +129,10 @@ models.recipeCategory = require("./model/RecipeCategory_model.js");
 models.userCategory = require("./model/UserCategory_model.js");
 models.role = require("./model/Role_model.js");
 models.permissionGroup = require("./model/PermissionGroup_model.js");
+models.lead = require("./model/Lead_model.js");
+models.customField = require("./model/CustomField_model.js");
+models.customFieldGroup = require("./model/CustomFieldGroup_model.js");
+models.departamento = require("./model/Departamento_model.js");
 models.link = require("./model/Link_model.js");
 models.actionHistory = require("./model/ActionHistory_model.js");
 models.workoutTemplate = require("./model/WorkoutTemplate_model.js");
@@ -158,6 +162,9 @@ models.oauthFacebook = require("./model/OauthFacebook_model.js");
 // dentro. Herda do mesmo `Oauth_model` porque o bilhete de ida e volta é o
 // mesmo problema — o que muda é tudo depois do código. Ver o cabeçalho dele.
 models.oauthInstagram = require("./model/OauthInstagram_model.js");
+models.oauthPagina = require("./model/OauthPagina_model.js");
 models.contaConectada = require("./model/ContaConectada_model.js");
+// O rascunho entre "autorizou" e "escolheu quais". Ver o cabeçalho dele.
+models.escolhaDeConexao = require("./model/EscolhaDeConexao_model.js");
 
 module.exports = models;

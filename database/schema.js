@@ -53,6 +53,9 @@ const POR_INSTANCIA = [
   // Página e o WhatsApp depois. Do cliente porque o TOKEN é dele: é a conta
   // dele, autorizada por ele, e só o sistema dele deve falar por ela.
   "connected_accounts",
+  // O rascunho da escolha: o que voltou do consentimento e ainda não foi
+  // gravado. Morre sozinho em 30 minutos — ver o índice de TTL.
+  "connection_choices",
   "user_tokens",
   "workouts",
   "diets",
@@ -91,6 +94,19 @@ const POR_INSTANCIA = [
   // O COMPROVANTE de uma conta: os bytes à parte, como o do pagamento. A ficha
   // leve fica no documento da conta; o arquivo mora aqui.
   "payable_files",
+  // OS CAMPOS CUSTOMIZADOS — as perguntas que a casa inventa para a ficha
+  // ("convênio", "tamanho da camiseta"). Do cliente, e sem discussão: a
+  // pergunta é dele, e a resposta mora na ficha de quem ele atende.
+  //
+  // Aqui vive só a DEFINIÇÃO. O valor de cada pessoa fica no documento dela,
+  // em `customFields`, perto do resto do cadastro — que é onde é lido.
+  "custom_fields",
+  // AS GAVETAS em que esses campos se separam na ficha (Principal, Pessoal,
+  // Assinatura). Do cliente, como os campos — é a organização dele.
+  "custom_field_groups",
+  // OS DEPARTAMENTOS — Financeiro, Vendas, Suporte. Do cliente: é a divisão
+  // interna DELE, e é por onde o chat vai separar as filas.
+  "departments",
   // OS FORNECEDORES — quem recebe o dinheiro que sai, e a foto de cada um.
   // Do cliente: a lista de quem uma academia paga é dela.
   "suppliers",
@@ -510,6 +526,19 @@ async function indicesEssenciais(db, dias = retencaoDeLogs.PADRAO) {
     .collection("connected_accounts")
     .createIndex({ instance: 1, tipo: 1, externalId: 1 }, { unique: true, name: "conta_unica" });
 
+  // ── O RASCUNHO MORRE SOZINHO ──────────────────────────────────────────
+  //
+  // Ele carrega token de Página, e token de Página não expira. Um rascunho
+  // abandonado é segredo vivo guardado para sempre — o TTL é o que o apaga
+  // sem ninguém precisar lembrar.
+  await db
+    .collection("connection_choices")
+    .createIndex({ instance: 1, escolha: 1 }, { unique: true, name: "por_escolha" });
+  await db.collection("connection_choices").createIndex(
+    { createdAt: 1 },
+    { expireAfterSeconds: require("../model/EscolhaDeConexao_model.js").VALIDADE_SEGUNDOS, name: "expira" }
+  );
+
   await db.collection("user_action_history").createIndex({ instance: 1, createdAt: -1 }, { name: "by_date" });
   await db
     .collection("user_action_history")
@@ -813,6 +842,140 @@ async function ensureUmBanco(db, opcoes) {
       },
     },
   ]);
+
+  // ── OS CAMPOS CUSTOMIZADOS ──────────────────────────────────────────────
+  //
+  // O alias é a CHAVE: é por ele que a resposta de cada pessoa é guardada, e é
+  // por ele que a gravação confere se já existe um campo com esse nome. Único
+  // por instância, e não global — duas academias podem ter "convenio".
+  await db
+    .collection("custom_fields")
+    .createIndex({ instance: 1, alias: 1 }, { unique: true, name: "alias_unico" });
+  // A lista abre na ordem escolhida, e é a leitura que a ficha faz toda vez.
+  await db.collection("custom_fields").createIndex({ instance: 1, ordem: 1 }, { name: "by_ordem" });
+  // ── AS CORES NOMEADAS VIRAM HEX, UMA VEZ ────────────────────────────────
+  //
+  // Os grupos nasceram com a cor em NOME ("slate", "rose") porque as classes do
+  // Tailwind precisam estar escritas inteiras no código. Com o seletor de cor
+  // livre (01/10/2026), o selo passou a ser pintado por estilo em linha e a cor
+  // virou hex — então os nomes gravados antes precisam acompanhar, senão esses
+  // grupos sairiam com a cor padrão sem ninguém ter mexido.
+  const PALETA_ANTIGA = {
+    slate: "#64748b",
+    blue: "#3b82f6",
+    emerald: "#10b981",
+    amber: "#f59e0b",
+    violet: "#8b5cf6",
+    rose: "#f43f5e",
+    cyan: "#06b6d4",
+    lime: "#84cc16",
+  };
+
+  for (const [nome, hex] of Object.entries(PALETA_ANTIGA)) {
+    await db.collection("custom_field_groups").updateMany({ cor: nome }, { $set: { cor: hex } });
+  }
+
+  // Os grupos: a chave é única por instância (é ela que o campo guarda), e a
+  // ordem é como a ficha empilha as gavetas.
+  await db
+    .collection("custom_field_groups")
+    .createIndex({ instance: 1, key: 1 }, { unique: true, name: "key_unica" });
+  await db
+    .collection("custom_field_groups")
+    .createIndex({ instance: 1, ordem: 1 }, { name: "by_ordem" });
+
+  // Os departamentos: a chave é única por instância (é ela que a conversa vai
+  // carimbar), e a ordem é como a lista os empilha.
+  await db
+    .collection("departments")
+    .createIndex({ instance: 1, key: 1 }, { unique: true, name: "key_unica" });
+  await db.collection("departments").createIndex({ instance: 1, ordem: 1 }, { name: "by_ordem" });
+
+  // ── NOME E SOBRENOME NAS FICHAS QUE JÁ EXISTEM ──────────────────────────
+  //
+  // *"acho melhor agente trabalhar com 'nome' e 'sobrenome'"* (01/10/2026).
+  //
+  // As fichas gravadas até aqui têm só `name`. A divisão é feita uma vez, com a
+  // regra de `lib/nomeDaPessoa.separar`: a PRIMEIRA palavra é o nome, o RESTO é
+  // o sobrenome.
+  //
+  // `name` NÃO é tocado — e isso é o que torna a migração segura. A heurística
+  // erra em nome composto ("Ana Beatriz Costa" vira nome "Ana"), mas não PERDE
+  // nada: o nome inteiro continua gravado como sempre esteve, e quem quiser
+  // arruma a separação abrindo a ficha.
+  //
+  // `firstName: { $exists: false }` é o que a torna idempotente: quem já foi
+  // dividido (ou editado à mão depois) não é mexido num deploy seguinte.
+  await db.collection("users").updateMany({ firstName: { $exists: false } }, [
+    {
+      $set: {
+        firstName: {
+          $let: {
+            vars: { limpo: { $trim: { input: { $ifNull: ["$name", ""] } } } },
+            in: {
+              $let: {
+                vars: { corte: { $indexOfCP: ["$$limpo", " "] } },
+                in: {
+                  $cond: [
+                    { $lt: ["$$corte", 0] },
+                    "$$limpo",
+                    { $substrCP: ["$$limpo", 0, "$$corte"] },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        lastName: {
+          $let: {
+            vars: { limpo: { $trim: { input: { $ifNull: ["$name", ""] } } } },
+            in: {
+              $let: {
+                vars: { corte: { $indexOfCP: ["$$limpo", " "] } },
+                in: {
+                  $cond: [
+                    { $lt: ["$$corte", 0] },
+                    "",
+                    {
+                      $trim: {
+                        input: {
+                          $substrCP: [
+                            "$$limpo",
+                            { $add: ["$$corte", 1] },
+                            { $strLenCP: "$$limpo" },
+                          ],
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  ]);
+
+  // ── OS LEADS, QUE MORAM EM `users` ──────────────────────────────────────
+  //
+  // Eles têm `type: "lead"` e os campos do funil aninhados em `lead` — ver
+  // `model/Lead_model.js` para o porquê. Os índices são sobre `users`, e todos
+  // começam por (instância, tipo): é esse par que separa o funil das fichas de
+  // aluno na mesma coleção.
+  //
+  // A lista abre pelo mais NOVO dentro das etapas abertas, e é o acesso que se
+  // repete a cada abertura da tela.
+  await db
+    .collection("users")
+    .createIndex(
+      { instance: 1, type: 1, "lead.etapa": 1, createdAt: -1 },
+      { name: "by_lead_stage_created" }
+    );
+  // E a busca por nome, sem acento e em minúsculas.
+  await db
+    .collection("users")
+    .createIndex({ instance: 1, type: 1, "lead.nameSort": 1 }, { name: "by_lead_name_sort" });
 
   // O índice acompanha a busca: por `nameSort`, e não por `name`.
   await dropIndexIfPresent(db, "suppliers", "by_name");
@@ -1347,6 +1510,15 @@ async function ensureInstanceEssencial(app, instance, { contaNova = false } = {}
     // existe, então é aqui que as contas anteriores ao recurso ganham a lista
     // cheia — uma vez, e nunca por cima do que alguém liberou depois.
     await app.api.modulo.semear({ tudo: !contaNova });
+
+    // Os campos NATIVOS no catálogo de campos customizados: Objetivo, Peso e
+    // Altura já existem na ficha, e entram aqui para a casa poder mandar neles
+    // (nome, ordem, obrigatório) sem que o valor saia do lugar.
+    //
+    // Idempotente por alias, como a de cima: um segundo boot não desfaz um
+    // "Objetivo" renomeado para "Meta".
+    await app.api.customFieldGroup.semear();
+    await app.api.customField.semear();
 
     // ── A MIGRAÇÃO `tenants` → `configurations`, POR CLIENTE ────────────────
     //

@@ -109,6 +109,19 @@ module.exports = function (app) {
     // `users.category`.
     if (req.body.category) await app.api.userCategory.gravar(id, req.body.category, "trainer");
 
+    // ── OS DEPARTAMENTOS, ESCRITOS DO OUTRO LADO ────────────────────────
+    //
+    // *"coloque para poder escolher os departamentos aqui também"*
+    // (02/10/2026).
+    //
+    // A lista mora no DEPARTAMENTO (`membros`), e não aqui: guardá-la também
+    // no usuário criaria duas verdades sobre a mesma relação, e elas divergem
+    // no primeiro lugar que escrever só uma. O que este campo faz é
+    // sincronizar aquela lista. Ver `definirDoUsuario`.
+    if (req.body.departamentos !== undefined) {
+      await app.api.departamento.definirDoUsuario(id, req.body.departamentos);
+    }
+
     const created = await app.api.user.data(id);
 
     app.insertUserActionHistory(req, admin, "create_professional", {
@@ -224,6 +237,12 @@ module.exports = function (app) {
     // had — the guard only runs on the next request, so drop the tokens now.
     if (body.active !== undefined && !Number(body.active)) {
       await app.api.auth.deleteAllTokensByUser(req.params.id);
+    }
+
+    // Os departamentos: a mesma sincronia do cadastro. Fora do `updateTrainer`
+    // porque não é campo do usuário — é a lista de OUTRO documento.
+    if (req.body.departamentos !== undefined) {
+      await app.api.departamento.definirDoUsuario(req.params.id, req.body.departamentos);
     }
 
     const updated = await app.api.user.data(req.params.id);

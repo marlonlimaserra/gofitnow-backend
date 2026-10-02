@@ -95,7 +95,15 @@ module.exports = function (app) {
 //
 // Nada aqui estoura: um evento de conta desconhecida continua sendo guardado,
 // sem dono. A Meta não reenvia o que já entregou, e o bruto perdido não volta.
-const TIPO_POR_OBJETO = { instagram: "instagram", page: "facebook" };
+// `whatsapp_business_account` entra aqui antes de existir conta conectada de
+// WhatsApp, e de propósito: quando o primeiro número for ligado, o evento já
+// chega com dono em vez de ficar órfão até alguém lembrar desta linha. A
+// entrada traz o id da WABA, que é o que o diretório guarda.
+const TIPO_POR_OBJETO = {
+  instagram: "instagram",
+  page: "facebook",
+  whatsapp_business_account: "whatsapp",
+};
 
 async function donosDoEvento(app, corpo) {
   const tipo = TIPO_POR_OBJETO[String(corpo?.object || "")];

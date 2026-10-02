@@ -337,3 +337,19 @@ test("objeto que não conhecemos não vira busca no diretório", async () => {
   assert.deepEqual(guardar[0].donos, []);
   assert.equal(perguntou, 0);
 });
+
+test("o evento do WhatsApp já sai com dono — a linha existe antes da primeira conta", async () => {
+  const { rotas, guardar } = monta({ donos: { "whatsapp:102030": "marlon" } });
+
+  const r = resposta();
+  await rotas["POST /public/webhook/meta"](
+    { headers: {}, body: { object: "whatsapp_business_account", entry: [{ id: "102030" }] } },
+    r
+  );
+  await new Promise((s) => setImmediate(s));
+
+  // Sem esta linha o primeiro número ligado entregaria eventos órfãos até
+  // alguém perceber — e a Meta não reenvia o que já entregou.
+  assert.equal(guardar[0].donos[0].tipo, "whatsapp");
+  assert.equal(guardar[0].donos[0].instancia, "marlon");
+});

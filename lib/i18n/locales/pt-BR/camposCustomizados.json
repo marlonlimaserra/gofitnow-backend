@@ -1,0 +1,47 @@
+{
+  "customFields": {
+    "group": {
+      "principal": "Principal"
+    },
+    "native": {
+      "goal": "Objetivo",
+      "height": "Altura (cm)",
+      "weight": "Peso (kg)"
+    },
+    "type": {
+      "areaDeTexto": "Área de texto",
+      "cnpj": "CNPJ",
+      "cpf": "CPF",
+      "data": "Data",
+      "dataHora": "Data e hora",
+      "email": "E-mail",
+      "estado": "Estado",
+      "fuso": "Fuso horário",
+      "idioma": "Idioma",
+      "numero": "Número",
+      "pais": "País",
+      "seletor": "Seletor",
+      "seletorMultiplo": "Seletor múltiplo",
+      "simNao": "Sim/Não",
+      "telefone": "Telefone",
+      "texto": "Texto",
+      "url": "URL"
+    }
+  },
+  "errors": {
+    "customFieldAliasReserved": "Esse alias já é de um campo do sistema",
+    "customFieldAliasTaken": "Já existe um campo com esse alias",
+    "customFieldBadAlias": "Não consegui gerar um alias a partir desse nome",
+    "customFieldDuplicate": "Já existe alguém com esse {{campo}}",
+    "customFieldGroupIsDefault": "O grupo principal não se apaga: é para onde todo campo cai",
+    "customFieldGroupNoName": "O grupo precisa de um nome",
+    "customFieldGroupNotFound": "Grupo não encontrado",
+    "customFieldGroupTaken": "Já existe um grupo com esse nome",
+    "customFieldIsNative": "Esse campo é do sistema: desligue em vez de apagar",
+    "customFieldNeedsOptions": "Um seletor precisa de pelo menos uma opção",
+    "customFieldNoName": "O campo precisa de um nome",
+    "customFieldNotFound": "Campo não encontrado",
+    "customFieldRequired": "Preencha: {{campos}}",
+    "customFieldSaveFailed": "Não consegui salvar o campo"
+  }
+}

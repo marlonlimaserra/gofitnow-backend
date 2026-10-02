@@ -306,11 +306,38 @@ ActionHistory_model.prototype.filterValues = async function () {
       .toArray(),
   ]);
 
+  // ── A FOTO DE QUEM AGIU ─────────────────────────────────────────────────
+  //
+  // *"coloque foto"* (02/10/2026), no filtro de usuário.
+  //
+  // O nome e o e-mail acima são o RETRATO do momento da ação — ficam gravados
+  // na própria linha do histórico, de propósito: quem foi apagado da conta
+  // continua legível no log, que é a razão de um log existir.
+  //
+  // A foto não pode seguir essa regra: guardar bytes em cada linha seria
+  // inviável, e guardar o carimbo deixaria o rosto desatualizado. Então ela é
+  // buscada AGORA, em `users`, por uma consulta só. Quem não existe mais fica
+  // sem foto e com o nome gravado — exatamente o que se quer.
+  const db = await this.app.mongodb.connectToServer();
+  const fotos = new Map(
+    (
+      await db
+        .collection("users")
+        .find({ _id: { $in: people.map((p) => p._id).filter(Boolean) } }, { projection: { avatarAt: 1 } })
+        .toArray()
+    ).map((u) => [String(u._id), u.avatarAt])
+  );
+
   return {
     usedActions: usedActions.filter(Boolean).sort(),
     usedCategories: usedCategories.filter(Boolean).sort(),
     usedTargetTypes: usedTargetTypes.filter(Boolean).sort(),
-    users: people.map((p) => ({ _id: p._id, name: p.name, email: p.email })),
+    users: people.map((p) => ({
+      _id: p._id,
+      name: p.name,
+      email: p.email,
+      avatarAt: fotos.get(String(p._id)) || null,
+    })),
   };
 };
 

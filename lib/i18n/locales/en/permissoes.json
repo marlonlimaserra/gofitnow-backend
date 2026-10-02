@@ -57,6 +57,10 @@
         "description": "The Instagram and Facebook accounts linked to the system",
         "title": "Connected accounts"
       },
+      "leads": {
+        "description": "People who reached out and are not registered yet",
+        "title": "Leads"
+      },
       "logs": {
         "description": "The record of everything done on the platform",
         "title": "History"
@@ -207,6 +211,16 @@
         "view": {
           "hint": "Open the screen and see which Instagram and Facebook accounts are linked.",
           "label": "View connected accounts"
+        }
+      },
+      "leads": {
+        "manage": {
+          "hint": "Create, edit, move between stages and delete.",
+          "label": "Manage leads"
+        },
+        "view": {
+          "hint": "Open the list and follow the funnel.",
+          "label": "View leads"
         }
       },
       "logs": {

@@ -6,6 +6,7 @@ const { fakeApp, call } = require("../helpers/harness.js");
 const OauthController = require("../../controllers/Oauth.js");
 const OauthGoogle = require("../../model/OauthGoogle_model.js");
 const dominio = require("../../lib/domain.js");
+const ESQUEMA = require("../../model/Oauth_model.js").ESQUEMA_APP;
 
 // A VOLTA DO GOOGLE — onde um descuido vira sessão para a pessoa errada.
 //
@@ -172,7 +173,7 @@ test("volta do app entrega a sessão no esquema próprio", async () => {
 
   const r = await volta(app, { code: "cod-1", state: "est-1" });
 
-  assert.equal(r.redirect, "gofitnow://entrar?sessao=sessao-nova");
+  assert.equal(r.redirect, `${ESQUEMA}://entrar?sessao=sessao-nova`);
   assert.deepEqual(sessoes, ["u1"]);
 });
 
@@ -183,7 +184,7 @@ test("erro na volta do app também vai pelo esquema", async () => {
 
   // Em `https` a mensagem morreria no navegador, e o app nunca saberia por que
   // nada aconteceu.
-  assert.equal(r.redirect, "gofitnow://entrar?erroLogin=sem_conta");
+  assert.equal(r.redirect, `${ESQUEMA}://entrar?erroLogin=sem_conta`);
 });
 
 test("bilhete sem destino é tratado como navegador", async () => {
@@ -204,7 +205,7 @@ test("o token é escapado na volta do app", async () => {
 
   // Sem escapar, `+` chega ao app como espaço e a sessão gravada é outra — o
   // sintoma seria "entrou e caiu na tela de login".
-  assert.equal(r.redirect, "gofitnow://entrar?sessao=tok%2Fcom%2Bsinais%3D%3D");
+  assert.equal(r.redirect, `${ESQUEMA}://entrar?sessao=tok%2Fcom%2Bsinais%3D%3D`);
 });
 
 // ── OS CAMINHOS QUE NÃO PODEM DAR SESSÃO ──────────────────────────────────

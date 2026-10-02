@@ -17,6 +17,11 @@
 // token de 60 dias visível no navegador é a conta de Instagram de um cliente
 // nas mãos de qualquer extensão instalada ali — e ele não expira quando a
 // pessoa sai do sistema.
+// `ObjectId` vem do driver, como nos outros modelos desta casa. Eu havia
+// escrito `this.app.ObjectId`, que não existe — e o erro só aparecia ao
+// clicar em desconectar, com "erro interno" na tela e um TypeError no log.
+const { ObjectId } = require("mongodb");
+
 const COLLECTION = "connected_accounts";
 
 function ContaConectada_model(app) {
@@ -41,6 +46,8 @@ ContaConectada_model.prototype.paraTela = function (doc) {
     foto: doc.foto || "",
     escopos: doc.escopos || [],
     expiraEm: doc.expiraEm || null,
+    assinada: doc.assinada === undefined ? null : Boolean(doc.assinada),
+    instagramVinculado: doc.instagramVinculado || null,
     conectadaEm: doc.conectadaEm || null,
     conectadaPor: doc.conectadaPor || null,
   };
@@ -56,9 +63,12 @@ ContaConectada_model.prototype.lista = async function (tipo) {
   return docs.map((d) => this.paraTela(d));
 };
 
+// Id torto devolve `null` em vez de estourar: o que chega aqui vem da URL, e
+// `new ObjectId("abc")` lança — virando 500 numa requisição que merece 404.
 ContaConectada_model.prototype.porId = async function (id) {
+  if (!ObjectId.isValid(String(id || ""))) return null;
   const col = await this.collection();
-  const doc = await col.findOne({ _id: this.app.ObjectId.createFromHexString(String(id)) });
+  const doc = await col.findOne({ _id: new ObjectId(String(id)) });
   return doc || null;
 };
 
@@ -84,6 +94,13 @@ ContaConectada_model.prototype.guardar = async function (dados, user) {
         nome: String(dados.nome || ""),
         foto: String(dados.foto || ""),
         escopos: Array.isArray(dados.escopos) ? dados.escopos : [],
+        // Só a Página tem isto. `assinada: false` quer dizer conta ligada que
+        // NÃO recebe evento — e a tela precisa poder dizer isso, porque por
+        // fora tudo parece certo.
+        ...(dados.assinada === undefined ? {} : { assinada: Boolean(dados.assinada) }),
+        ...(dados.instagramVinculado === undefined
+          ? {}
+          : { instagramVinculado: dados.instagramVinculado }),
         conectadaEm: agora,
         conectadaPor: user ? String(user.name || user.email || "") : null,
       },
@@ -95,8 +112,9 @@ ContaConectada_model.prototype.guardar = async function (dados, user) {
 };
 
 ContaConectada_model.prototype.remover = async function (id) {
+  if (!ObjectId.isValid(String(id || ""))) return { ok: false };
   const col = await this.collection();
-  const r = await col.deleteOne({ _id: this.app.ObjectId.createFromHexString(String(id)) });
+  const r = await col.deleteOne({ _id: new ObjectId(String(id)) });
   return { ok: r.deletedCount > 0 };
 };
 

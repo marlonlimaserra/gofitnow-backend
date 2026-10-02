@@ -27,6 +27,13 @@ routes.My = require("./controllers/My.js");
 routes.Anamnesis = require("./controllers/Anamnesis.js");
 routes.Prescription = require("./controllers/Prescription.js");
 routes.Assessment = require("./controllers/Assessment.js");
+// OS LEADS — quem procurou e ainda não é ninguém. Controller próprio, e não
+// dentro de `Student`: lead não é pessoa do sistema, não conta no limite do
+// plano e não tem ficha. Ver `model/Lead_model.js`.
+routes.Lead = require("./controllers/Lead.js");
+routes.CustomField = require("./controllers/CustomField.js");
+routes.CustomFieldGroup = require("./controllers/CustomFieldGroup.js");
+routes.Departamento = require("./controllers/Departamento.js");
 routes.Chat = require("./controllers/Chat.js");
 routes.Appointment = require("./controllers/Appointment.js");
 routes.Service = require("./controllers/Service.js");

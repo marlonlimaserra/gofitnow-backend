@@ -1,0 +1,28 @@
+{
+  "errors": {
+    "leadAlreadyConverted": "This lead has already been converted.",
+    "leadNoName": "The lead needs a name",
+    "leadNotFound": "Lead not found"
+  },
+  "leads": {
+    "origin": {
+      "anuncio": "Ad",
+      "evento": "Event",
+      "facebook": "Facebook",
+      "indicacao": "Referral",
+      "instagram": "Instagram",
+      "outra": "Other",
+      "porta": "Walk-in",
+      "site": "Website",
+      "whatsapp": "WhatsApp"
+    },
+    "stage": {
+      "contato": "In touch",
+      "convertido": "Signed up",
+      "novo": "New",
+      "perdido": "Lost",
+      "proposta": "Proposal sent",
+      "visita": "Visit booked"
+    }
+  }
+}
