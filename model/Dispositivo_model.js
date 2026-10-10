@@ -410,7 +410,27 @@ Dispositivo_model.prototype.perguntarConfiguracao = async function (id) {
 Dispositivo_model.prototype.perguntarCadastro = async function (id) {
   // Um comando por objeto: o protocolo responde um `load_objects` por vez, e
   // um lote com cinco objetos faria o firmware recusar tudo em silêncio.
-  const objetos = ["users", "access_rules", "user_access_rules", "portal_access_rules"];
+  // ── OS GRUPOS ENTRARAM DEPOIS, E MUDARAM O DIAGNÓSTICO ────────────────
+  //
+  // *"eu bloqueei o acesso, mas ainda está liberando"* (10/10/2026). O
+  // `destroy_objects` em `user_access_rules` tinha respondido `{"changes":1}`
+  // — o vínculo foi mesmo apagado — e a porta continuou abrindo. Quem libera,
+  // então, não é só o vínculo da PESSOA.
+  //
+  // A pista estava no nome das regras que ele já tinha contado: "Regra de
+  // acesso padrão para o **Grupo 1**". O iDFace governa acesso por GRUPO
+  // também, e usuário criado sem grupo declarado cai no padrão — que tem
+  // regra ligada à porta. Sem ler estes três, o caminho que realmente abre a
+  // porta é invisível daqui.
+  const objetos = [
+    "users",
+    "access_rules",
+    "user_access_rules",
+    "portal_access_rules",
+    "groups",
+    "user_groups",
+    "group_access_rules",
+  ];
 
   for (const object of objetos) {
     const ok = await this.enfileirarComando(id, {
@@ -1312,13 +1332,38 @@ Dispositivo_model.prototype.situacaoNaPorta = async function (pessoa) {
     const v = vinculos.find((x) => String(x.dispositivo) === String(aparelho._id));
     const usuario = v ? Number(v.usuarioNoAparelho) : NaN;
     const temVinculo = Number.isFinite(usuario);
+    // ── DUAS CONFIRMAÇÕES, E A MAIS NOVA GANHA ──────────────────────────
+    //
+    // O aparelho diz que tem o rosto de duas maneiras, em momentos
+    // diferentes: respondendo ao ENVIO (`success` + as notas da imagem, que
+    // viram `fotoEm`) e listando os usuários num `load_objects` depois
+    // (`image_timestamp`, que vira `cadastro.comFoto`).
+    //
+    // A primeira versão disto tratava a LISTA como autoridade sempre — e ela
+    // é uma foto do passado. Com a leitura das 17:35 e o envio das 18:04, a
+    // tela dizia *"não sei dizer se o rosto está gravado"* sobre uma foto que
+    // o aparelho tinha acabado de aceitar com nitidez 956. Não saber e saber
+    // que sim são respostas diferentes, e dar a primeira quando se tem a
+    // segunda manda a pessoa perguntar de novo por nada.
+    //
+    // É a mesma régua de `vinculoMorreu`: a leitura só derruba o que é mais
+    // ANTIGO que ela.
+    const lidoEm = aparelho?.cadastro?.em;
     const comFoto = aparelho?.cadastro?.comFoto;
+    const leituraMaisNova =
+      lidoEm && (!v?.fotoEm || new Date(lidoEm) > new Date(v.fotoEm));
+
+    let temRosto = null;
+    if (v?.fotoErro) temRosto = false;
+    else if (temVinculo && Array.isArray(comFoto) && leituraMaisNova) {
+      temRosto = comFoto.includes(usuario);
+    } else if (v?.fotoEm) temRosto = true;
 
     return {
       dispositivo: String(aparelho._id),
       nome: aparelho.nome || "",
       usuario: temVinculo ? usuario : null,
-      temRosto: temVinculo && Array.isArray(comFoto) ? comFoto.includes(usuario) : null,
+      temRosto,
       enviadaEm: v?.fotoEm || null,
       recusa: v?.fotoErro || "",
     };

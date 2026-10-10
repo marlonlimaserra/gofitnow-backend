@@ -121,6 +121,12 @@ function montar({
   });
 
   modelo.colecaoDeVinculos = async () => ({
+    // `situacaoNaPorta` varre os vínculos da pessoa em TODOS os aparelhos de
+    // uma vez, em vez de um `findOne` por leitor.
+    find: (filtro) => ({
+      toArray: async () =>
+        gravados.filter((v) => !filtro.person || String(v.person) === String(filtro.person)),
+    }),
     findOne: async (filtro) =>
       gravados.find(
         (v) =>
@@ -140,7 +146,12 @@ function montar({
     },
   });
 
-  modelo.listar = async () => [{ _id: APARELHO, nome: "Entrada" }];
+  // O `cadastro` vai junto: é dele que `situacaoNaPorta` tira a data da
+  // leitura e a lista de quem tem rosto. Sem ele o dublê respondia "não sei"
+  // por falta de dado, e os testes passavam pelo motivo errado.
+  modelo.listar = async () => [
+    { _id: APARELHO, nome: "Entrada", cadastro: { regraDaPorta, ...cadastro } },
+  ];
 
   return { modelo, comandos, gravados };
 }
@@ -476,4 +487,61 @@ test("voltou com recusa: RECUSADO — e esse é defeito NOSSO", () => {
     }),
     "recusado"
   );
+});
+
+// ── DUAS CONFIRMAÇÕES, E A MAIS NOVA GANHA ─────────────────────────────────
+//
+// O aparelho diz que tem o rosto de duas maneiras, em momentos diferentes:
+// respondendo ao ENVIO (vira `fotoEm`) e listando os usuários depois
+// (`image_timestamp` → `cadastro.comFoto`). A segunda é uma foto do passado.
+
+const vinculoCom = (extra) => [{
+  _id: "v1",
+  dispositivo: APARELHO,
+  person: PESSOA,
+  usuarioNoAparelho: "4",
+  ...extra,
+}];
+
+test("leitura VELHA não apaga uma foto que o aparelho acabou de aceitar", async () => {
+  // O defeito, com print: a lista de usuários era das 17:35 e a foto foi
+  // aceita às 18:04, com nitidez 956 — e a tela dizia "não sei dizer se o
+  // rosto está gravado". Não saber e saber que sim são respostas diferentes.
+  const { modelo } = montar({
+    vinculos: vinculoCom({ fotoEm: new Date("2026-10-10T18:04:17Z"), fotoErro: "" }),
+    cadastro: { em: new Date("2026-10-10T17:35:09Z"), comFoto: [] },
+  });
+
+  const [linha] = await modelo.situacaoNaPorta(PESSOA);
+  assert.equal(linha.temRosto, true);
+});
+
+test("leitura NOVA que não lista a pessoa derruba a confirmação", async () => {
+  // Aqui o aparelho falou depois, e disse que não tem. É "sei que não", e
+  // vale mais que o nosso "mandamos e ele aceitou" de antes.
+  const { modelo } = montar({
+    vinculos: vinculoCom({ fotoEm: new Date("2026-10-10T17:00:00Z"), fotoErro: "" }),
+    cadastro: { em: new Date("2026-10-10T18:30:00Z"), comFoto: [] },
+  });
+
+  const [linha] = await modelo.situacaoNaPorta(PESSOA);
+  assert.equal(linha.temRosto, false);
+});
+
+test("sem envio e sem leitura, a resposta honesta é 'não sei'", async () => {
+  const { modelo } = montar({ vinculos: vinculoCom({}), cadastro: {} });
+
+  const [linha] = await modelo.situacaoNaPorta(PESSOA);
+  assert.equal(linha.temRosto, null);
+});
+
+test("recusa registrada vence tudo — nem leitura nova a desfaz", async () => {
+  const { modelo } = montar({
+    vinculos: vinculoCom({ fotoEm: null, fotoErro: "No face found" }),
+    cadastro: { em: new Date("2026-10-10T18:30:00Z"), comFoto: [4] },
+  });
+
+  const [linha] = await modelo.situacaoNaPorta(PESSOA);
+  assert.equal(linha.temRosto, false);
+  assert.equal(linha.recusa, "No face found");
 });
