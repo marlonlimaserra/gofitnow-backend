@@ -113,6 +113,7 @@
     "send_anamnesis_link": "Sent the history link",
     "set_user_category": "Changed a user's category",
     "unlink_person": "Removed from their own list",
+    "update_access_device_settings": "Changed a door reader's settings",
     "update_account_language": "Changed the account language",
     "update_ai_settings": "Configured the assistant",
     "update_anamnesis": "Changed the history",

@@ -78,6 +78,28 @@ function paraTela(d) {
   };
 }
 
+// ── A PORTA PRECISA SABER ─────────────────────────────────────────────────
+//
+// *"bote um checkbox: bloquear se houver pendências"* (10/10/2026). Um leitor
+// pode ser configurado para barrar quem tem assunto em aberto — e a camiseta
+// entregue na quinta tem de deixar a pessoa entrar na quinta, não no dia em
+// que alguém lembrar de reabrir a catraca dela na mão.
+//
+// Mora AQUI, e não nas cinco rotas que mexem em pendência, pela mesma razão da
+// limpeza de cache: quem escreve não pode precisar lembrar. Rota nova que
+// resolva uma pendência por outro caminho já nasce avisando a porta.
+//
+// Nunca derruba a operação: a pendência foi gravada, e uma falha ao falar com
+// o leitor não pode virar um erro na tela de quem entregou a camiseta. O
+// leitor se acerta no próximo "Perguntar ao aparelho" ou na próxima virada.
+Pendency_model.prototype.avisarAPorta = async function (person) {
+  try {
+    await this.app.api.dispositivo.reavaliarPassagem(person);
+  } catch (erro) {
+    console.error("[pendencia] não consegui reavaliar a catraca:", erro.message);
+  }
+};
+
 Pendency_model.prototype.insert = async function (person, obj, quem) {
   if (!ObjectId.isValid(person)) return null;
 
@@ -98,6 +120,7 @@ Pendency_model.prototype.insert = async function (person, obj, quem) {
     createdAt: new Date(),
   });
 
+  await this.avisarAPorta(person);
   return r.insertedId;
 };
 
@@ -121,6 +144,7 @@ Pendency_model.prototype.resolver = async function (person, id, quem) {
     }
   );
 
+  if (r.matchedCount) await this.avisarAPorta(person);
   return r.matchedCount > 0;
 };
 
@@ -133,6 +157,7 @@ Pendency_model.prototype.reabrir = async function (person, id) {
     { $set: { resolvidoEm: null, resolvidoPor: null, resolvidoPorNome: "" } }
   );
 
+  if (r.matchedCount) await this.avisarAPorta(person);
   return r.matchedCount > 0;
 };
 
@@ -143,6 +168,7 @@ Pendency_model.prototype.remove = async function (person, id) {
 
   const col = await this.collection();
   const r = await col.deleteOne({ _id: new ObjectId(id), person: new ObjectId(person) });
+  if (r.deletedCount) await this.avisarAPorta(person);
   return r.deletedCount > 0;
 };
 

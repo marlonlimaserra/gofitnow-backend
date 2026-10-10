@@ -113,6 +113,7 @@
     "send_anamnesis_link": "Envió el enlace de la anamnesis",
     "set_user_category": "Cambió la categoría de un usuario",
     "unlink_person": "Quitó de su propia lista",
+    "update_access_device_settings": "Cambió la configuración de un lector de la puerta",
     "update_account_language": "Cambió el idioma de la cuenta",
     "update_ai_settings": "Configuró el asistente",
     "update_anamnesis": "Cambió la anamnesis",

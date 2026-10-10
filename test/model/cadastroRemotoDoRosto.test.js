@@ -589,3 +589,92 @@ test("o comando carrega o DONO — senão a regra e o bloqueio ficam sem pessoa"
   assert.equal(comandos[0].endpoint, "destroy_objects");
   assert.equal(String(comandos[0].pessoa), String(PESSOA));
 });
+
+// ── A PENDÊNCIA PODE VETAR A PASSAGEM ──────────────────────────────────────
+//
+// *"bote aqui uma aba chamada configurações, a primeira vai ser um checkbox,
+// 'bloquear se houver pendências'"* (10/10/2026).
+//
+// A pendência nasceu sem trancar nada, por decisão dele — *"só cadastra como
+// pendência, não precisa travar até o login dele no app"*. A catraca é o
+// primeiro lugar onde ela passa a valer, e por isso a trava é OPCIONAL, por
+// aparelho, e desligada por padrão: ligar muda quem entra na academia amanhã.
+//
+// O que precisa ficar preso: o veto NÃO mexe em `passagemLiberada`. A chave da
+// ficha continua dizendo o que a casa quer; a pendência diz o que vale hoje.
+// Misturar os dois faria a camiseta entregue na quinta deixar a pessoa
+// bloqueada para sempre, com a ficha dizendo que ela está liberada.
+
+function comPendencias(quantas, ajustes = {}) {
+  const base = montar({
+    vinculos: vinculoCom({ fotoEm: new Date("2026-10-10T18:04:17Z") }),
+    ...ajustes,
+  });
+
+  base.modelo.app.api.pendency = { contarAbertasDe: async () => quantas };
+  base.modelo.app.api.user = {
+    data: async () => ({ name: "Marlon", passagemLiberada: true }),
+  };
+  return base;
+}
+
+test("com a trava LIGADA e pendência aberta, liberar na verdade bloqueia", async () => {
+  const { modelo, comandos } = comPendencias(1);
+  modelo.listar = async () => [
+    { _id: APARELHO, nome: "Entrada", bloquearComPendencia: true, cadastro: { regraDaPorta: 2 } },
+  ];
+
+  const [linha] = await modelo.sincronizarPassagem(PESSOA, true);
+
+  assert.equal(comandos[0].endpoint, "destroy_objects");
+  // E a tela sabe DIZER por quê — senão parece que a casa bloqueou quem a
+  // casa acabou de liberar.
+  assert.equal(linha.porPendencia, true);
+});
+
+test("com a trava ligada e NENHUMA pendência, libera normalmente", async () => {
+  const { modelo, comandos } = comPendencias(0);
+  modelo.listar = async () => [
+    { _id: APARELHO, nome: "Entrada", bloquearComPendencia: true, cadastro: { regraDaPorta: 2 } },
+  ];
+
+  await modelo.sincronizarPassagem(PESSOA, true);
+
+  assert.equal(comandos[0].endpoint, "user_set_image_list");
+  assert.equal(comandos[1].body.object, "user_access_rules");
+});
+
+test("com a trava DESLIGADA, a pendência não atrapalha ninguém", async () => {
+  // Padrão de todo leitor novo. Uma academia que não usa a trava não pode
+  // nem pagar a consulta das pendências.
+  let perguntou = false;
+  const { modelo, comandos } = comPendencias(99);
+  modelo.app.api.pendency.contarAbertasDe = async () => {
+    perguntou = true;
+    return 99;
+  };
+
+  await modelo.sincronizarPassagem(PESSOA, true);
+
+  assert.equal(perguntou, false);
+  assert.equal(comandos[0].endpoint, "user_set_image_list");
+});
+
+test("resolver a pendência reabre a catraca sozinho, sem ninguém mexer nela", async () => {
+  // A camiseta entregue na quinta tem de deixar a pessoa entrar na quinta.
+  const { modelo, comandos } = comPendencias(0);
+  modelo.listar = async () => [
+    { _id: APARELHO, nome: "Entrada", bloquearComPendencia: true, cadastro: { regraDaPorta: 2 } },
+  ];
+
+  await modelo.reavaliarPassagem(PESSOA);
+
+  assert.ok(comandos.some((c) => c.body?.object === "user_access_rules"));
+});
+
+test("sem nenhum leitor com a trava, reavaliar não faz nada", async () => {
+  const { modelo, comandos } = comPendencias(5);
+
+  assert.deepEqual(await modelo.reavaliarPassagem(PESSOA), []);
+  assert.equal(comandos.length, 0);
+});

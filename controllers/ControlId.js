@@ -604,6 +604,30 @@ module.exports = function (app) {
   // A FILA DE PEDIDOS, com o estado de cada um. É a resposta visível para
   // "mandei e não sei se chegou" — e ela distingue o aparelho que não veio
   // buscar do que veio, levou e recusou.
+  // ── OS AJUSTES DO LEITOR ───────────────────────────────────────────────
+  //
+  // *"bote aqui uma aba chamada configurações, a primeira vai ser um checkbox,
+  // 'bloquear se houver pendências'"* (10/10/2026).
+  //
+  // Ligar isto muda quem entra na academia amanhã de manhã, então é
+  // `users.manage` — a mesma permissão de criar o leitor, não a de editar uma
+  // ficha.
+  app.patch("/access-devices/:id/settings", async function (req, res) {
+    const user = await app.helpers.ReqProtected.can(req, res, "users.manage");
+    if (user === false) return;
+
+    const leitor = await app.api.dispositivo.ajustar(req.params.id, req.body || {});
+    if (!leitor) return res.status(404).send({ msg: req.t("errors.notFound") });
+
+    app.insertUserActionHistory(req, user, "update_access_device_settings", {
+      category: "configuration",
+      local: { target_type: "access_devices", target_id: String(req.params.id) },
+      extra: { bloquearComPendencia: Boolean(leitor.bloquearComPendencia) },
+    });
+
+    res.send(leitor);
+  });
+
   app.get("/access-devices/:id/queue", async function (req, res) {
     const user = await app.helpers.ReqProtected.can(req, res, "users.manage");
     if (user === false) return;

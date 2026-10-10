@@ -193,6 +193,14 @@ Dispositivo_model.prototype.criar = async function (dados = {}) {
     unit: ObjectId.isValid(dados.unit) ? new ObjectId(String(dados.unit)) : null,
     segredoHash: hashDoSegredo(segredo),
     ativo: true,
+    // ── A CATRACA HONRA AS PENDÊNCIAS? ────────────────────────────────────
+    //
+    // Desligado por padrão, e isso é escolha. Pendência nasceu explicitamente
+    // sem travar nada — *"só cadastra como pendência, não precisa travar até o
+    // login dele no app"* — e um leitor novo que começasse barrando gente por
+    // causa de uma camiseta não entregue seria uma surpresa na porta da
+    // academia, no primeiro dia.
+    bloquearComPendencia: false,
     ultimoContato: null,
     serie: "",
     firmware: "",
@@ -442,6 +450,32 @@ Dispositivo_model.prototype.perguntarCadastro = async function (id) {
   }
 
   return objetos.length;
+};
+
+// ── OS AJUSTES DO LEITOR ─────────────────────────────────────────────────
+//
+// *"bote aqui uma aba chamada configurações, a primeira vai ser um checkbox,
+// 'bloquear se houver pendências'"* (10/10/2026).
+//
+// Por APARELHO, e não por academia: a porta da rua e a catraca da sala de
+// musculação não precisam ter a mesma régua — barrar na entrada quem deve uma
+// camiseta é uma decisão, barrar no caminho para o treino é outra.
+Dispositivo_model.prototype.ajustar = async function (id, ajustes = {}) {
+  if (!ObjectId.isValid(id)) return null;
+
+  const set = { updatedAt: new Date() };
+  if (ajustes.bloquearComPendencia !== undefined) {
+    set.bloquearComPendencia = Boolean(ajustes.bloquearComPendencia);
+  }
+
+  const col = await this.collection();
+  const r = await col.findOneAndUpdate(
+    { _id: new ObjectId(String(id)) },
+    { $set: set },
+    { returnDocument: "after", projection: { segredoHash: 0, segredoDoMonitorHash: 0 } }
+  );
+
+  return r?.value || r || null;
 };
 
 Dispositivo_model.prototype.listar = async function () {
@@ -1327,6 +1361,29 @@ Dispositivo_model.prototype.bloquearNoAparelho = async function (
   return ok ? { usuario } : { erro: "nao_encontrado" };
 };
 
+// ── A PENDÊNCIA MUDOU: A PORTA PRECISA SABER ─────────────────────────────
+//
+// A trava não pode valer só no momento em que alguém vira a chave da ficha. A
+// camiseta é entregue na quinta e a pessoa tem de entrar na quinta — não no dia
+// em que alguém lembrar de reabrir a catraca dela na mão.
+//
+// Então toda vez que uma pendência nasce, é resolvida, reaberta ou apagada,
+// isto roda e reaplica o que a ficha já dizia. Não decide nada por conta
+// própria: `passagemLiberada` continua sendo a vontade da casa, e esta função
+// só recalcula o que ela significa hoje.
+//
+// Sai barato quando não há leitor nenhum, que é o caso da maioria: uma consulta
+// à lista, que já é cacheada, e volta.
+Dispositivo_model.prototype.reavaliarPassagem = async function (pessoa) {
+  const aparelhos = await this.listar();
+  if (!aparelhos.some((a) => a.bloquearComPendencia)) return [];
+
+  const alvo = await this.app.api.user.data(pessoa);
+  if (!alvo) return [];
+
+  return this.sincronizarPassagem(pessoa, alvo.passagemLiberada !== false);
+};
+
 // ── O QUE ESTA PESSOA TEM DENTRO DE CADA LEITOR ──────────────────────────
 //
 // *"poderia mostrar a 'foto cadastrada' também"* (10/10/2026).
@@ -1420,11 +1477,25 @@ Dispositivo_model.prototype.sincronizarPassagem = async function (pessoa, libera
   const aparelhos = await this.listar();
   const saida = [];
 
+  // ── A PENDÊNCIA PODE VETAR A LIBERAÇÃO ────────────────────────────────
+  //
+  // Só é contada se ALGUM aparelho pedir — a conta é uma consulta a mais, e
+  // academia que não usa a trava não deve pagar por ela em toda virada de
+  // chave.
+  //
+  // O veto não mexe em `passagemLiberada`: a chave da ficha continua dizendo o
+  // que a casa QUER, e a pendência diz o que vale hoje. Misturar os dois faria
+  // a camiseta entregue na quinta deixar a pessoa bloqueada para sempre, com a
+  // ficha dizendo que ela está liberada.
+  const alguemVeta = aparelhos.some((a) => a.bloquearComPendencia);
+  const pendencias = alguemVeta ? await this.app.api.pendency.contarAbertasDe(pessoa) : 0;
+
   for (const aparelho of aparelhos) {
     const quem = { dispositivo: String(aparelho._id), nome: aparelho.nome || "" };
+    const vetado = Boolean(aparelho.bloquearComPendencia) && pendencias > 0;
 
     try {
-      if (liberado) {
+      if (liberado && !vetado) {
         saida.push({ ...quem, ...(await this.cadastrarNoAparelho(aparelho._id, pessoa)) });
         continue;
       }
@@ -1433,11 +1504,17 @@ Dispositivo_model.prototype.sincronizarPassagem = async function (pessoa, libera
       // Nunca esteve neste aparelho: não há o que bloquear. Mandar o comando
       // assim mesmo traria `{"changes":0}` e a tela mostraria erro onde não há.
       if (usuario === null) {
-        saida.push({ ...quem, semVinculo: true });
+        saida.push({ ...quem, semVinculo: true, porPendencia: vetado });
         continue;
       }
 
-      saida.push({ ...quem, ...(await this.bloquearNoAparelho(aparelho._id, usuario, pessoa)) });
+      saida.push({
+        ...quem,
+        ...(await this.bloquearNoAparelho(aparelho._id, usuario, pessoa)),
+        // Por que ficou bloqueado, para a tela não dizer que a casa bloqueou
+        // quem a casa liberou.
+        porPendencia: vetado && liberado,
+      });
     } catch (erro) {
       console.error("[controlid] sincronizar passagem:", erro.message);
       saida.push({ ...quem, erro: "falhou" });
