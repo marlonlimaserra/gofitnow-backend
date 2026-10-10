@@ -54,6 +54,7 @@ routes.Employee = require("./controllers/Employee.js");
 routes.DocumentTemplate = require("./controllers/DocumentTemplate.js");
 routes.PersonDocument = require("./controllers/PersonDocument.js");
 routes.Checkin = require("./controllers/Checkin.js");
+routes.ControlId = require("./controllers/ControlId.js");
 routes.Structure = require("./controllers/Structure.js");
 routes.Unit = require("./controllers/Unit.js");
 routes.GroupClass = require("./controllers/GroupClass.js");

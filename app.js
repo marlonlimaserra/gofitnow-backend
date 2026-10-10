@@ -11,6 +11,7 @@ const clientIp = require("./lib/clientIp.js");
 const clusterLib = require("./lib/cluster.js");
 const tempoReal = require("./lib/tempoReal.js");
 const instanceGate = require("./lib/instanceGate.js");
+const corpoDoLeitor = require("./lib/corpoDoLeitor.js");
 const rateLimit = require("./lib/rateLimit.js");
 const tentativasDeLogin = require("./lib/tentativasDeLogin.js");
 const travaDeEnvio = require("./lib/travaDeEnvio.js");
@@ -59,6 +60,13 @@ app.insertUserActionHistory = function (req, user, action, data) {
 };
 
 // ── Middleware ───────────────────────────────────────────────────────────
+//
+// O LEITOR DA PORTA VEM PRIMEIRO, e isso é o conserto de um defeito caro: o
+// `bodyParser.json()` abaixo estourava com o corpo do firmware e devolvia 400
+// — 213 vezes, sem uma linha de log, porque ele roda antes do registrador de
+// requisições. Ver `lib/corpoDoLeitor.js`.
+app.use("/cid", corpoDoLeitor());
+
 app.use(bodyParser.urlencoded({ extended: true, limit: "10mb" }));
 // ── O CORPO CRU, guardado no caminho ──────────────────────────────────────
 //
@@ -106,8 +114,28 @@ app.use((req, res, next) => {
   next();
 });
 
+// ── O REGISTRO DE REQUISIÇÕES, SEM O SEGREDO DO LEITOR ────────────────────
+//
+// A credencial do leitor da porta viaja NO CAMINHO (`/cid/instancia.SEGREDO/…`),
+// porque um leitor facial não manda cabeçalho — tem um campo de endereço e nada
+// mais. O efeito colateral é que `req.originalUrl` carrega o segredo, e este
+// `console.log` o estava escrevendo inteiro no log do pm2, de minuto em minuto,
+// nas duas credenciais: a do monitor E a do PUSH.
+//
+// Log não é lugar de segredo. Ele é lido por cima para depurar, vai para
+// arquivo, sobrevive a rotação e sai da máquina em qualquer cópia. Guardamos só
+// o hash no banco justamente para que um vazamento de banco não entregue a
+// credencial — e aí ela aparecia em texto no log ao lado.
+//
+// Fica a instância, que não é segredo (é nome de subdomínio), e o nome do
+// endpoint, que é o que se procura ao depurar. Encontrado em 09/10/2026, ao ler
+// o log atrás da primeira batida que chegou.
+function semSegredo(url) {
+  return String(url).replace(/(\/cid\/[^./?#]+\.)[^/?#]+/, "$1…");
+}
+
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.originalUrl}`);
+  console.log(`${req.method} ${semSegredo(req.originalUrl)}`);
   next();
 });
 
@@ -183,7 +211,7 @@ app.use((req, res) => {
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  console.error("Route error:", req && req.method, req && req.originalUrl, err);
+  console.error("Route error:", req && req.method, req && semSegredo(req.originalUrl), err);
   if (res.headersSent) return;
 
   // A mensagem crua do erro só vai para o cliente com DEBUG_ERRORS; caso

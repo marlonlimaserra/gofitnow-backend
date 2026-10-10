@@ -246,6 +246,10 @@
           "hint": "Changer les données, les mesures et les observations.",
           "label": "Modifier la fiche"
         },
+        "gate": {
+          "hint": "Décider qui franchit la porte. Volontairement séparé de la modification de la fiche.",
+          "label": "Autoriser le tourniquet"
+        },
         "view": {
           "hint": "Ouvrir la liste et la fiche de qui est déjà lié.",
           "label": "Voir les personnes"

@@ -78,6 +78,9 @@ models.pendency = require("./model/Pendency_model.js");
 // A ENTRADA NA ACADEMIA. Diferente do check-in de aula coletiva: ali é ter
 // feito a aula, aqui é ter passado pela porta — e a maioria treina sozinha.
 models.checkin = require("./model/Checkin_model.js");
+// Os LEITORES da porta (Control iD). O aparelho é quem liga para nós — ver
+// controllers/ControlId.js.
+models.dispositivo = require("./model/Dispositivo_model.js");
 // A ESTRUTURA — o que a casa TEM (equipamentos, com histórico de manutenção) e
 // o que ela GASTA (insumos, com saldo). Dois modelos porque são duas coisas:
 // um tem identidade, o outro tem quantidade.

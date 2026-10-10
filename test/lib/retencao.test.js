@@ -101,6 +101,14 @@ test("só as collections combinadas têm TTL", () => {
     // (26/09/2026). Ele carrega token de Página, que não expira — um rascunho
     // abandonado seria segredo vivo guardado para sempre. 30 minutos.
     "connection_choices",
+    // O HISTÓRICO CRU dos leitores da porta (06/10/2026): *"bote um botão para
+    // ver o histórico e dados bruto do que chega"*. É registro de DEPURAÇÃO —
+    // o que o aparelho mandou e quando —, não dado do cliente. Três dias, que
+    // é o alcance da pergunta real ("o que aconteceu ontem à noite").
+    //
+    // A frequência que sai daí vira `checkins`, que NÃO tem prazo: o que
+    // interessa ao dono sobrevive à faxina do que interessa a quem depura.
+    "access_device_events",
   ]);
 
   const achadas = new Set();

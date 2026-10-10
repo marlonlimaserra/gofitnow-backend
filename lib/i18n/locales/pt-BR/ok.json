@@ -58,6 +58,8 @@
     "unitRemoved": "Unidade removida.",
     "unitSaved": "Ordem salva.",
     "userRemoved": "Usuário removido.",
-    "workoutRemoved": "Treino removido."
+    "workoutRemoved": "Treino removido.",
+    "accessDeviceRemoved": "Leitor removido.",
+    "accessDeviceLinked": "Pessoa vinculada ao leitor."
   }
 }

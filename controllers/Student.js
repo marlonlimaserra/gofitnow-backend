@@ -10,6 +10,27 @@ const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 // `app.depois` só existe quando o teste o injeta — em produção ele é undefined,
 // e chamá-lo direto estoura DEPOIS do `res.send`, onde o erro não tem para onde
 // ir. O `|| depoisLib` é o padrão do Portal.js, e existe por isso.
+// ── O ACESSO AO APP NO REGISTRO, SEM O SEGREDO ────────────────────────────
+//
+// *"só ficha? esse aluno tinha acesso, eu só tirei"* e, antes,
+// *"editou uma ficha, mas e aí? o que foi mudado"* (06/10/2026).
+//
+// O diff ignora `password` e `salt` de propósito: hash de senha não entra em
+// log de auditoria, nem o nosso. Só que tirar o acesso muda EXATAMENTE esses
+// dois campos — então a linha saía dizendo "editou uma ficha" e mais nada,
+// escondendo a mudança mais séria que a tela permite fazer.
+//
+// A saída é gravar o FATO e não o segredo: um booleano derivado de haver senha
+// ou não. É a mesma informação que a tela já mostra no crachá, e nada do que
+// se guarda aqui ajuda alguém a entrar na conta de ninguém.
+function comAcessoAoApp(diff, antes, depois) {
+  const tinha = Boolean(antes?.password);
+  const tem = Boolean(depois?.password);
+  if (tinha === tem) return diff;
+
+  return { ...diff, acessoAoApp: { from: tinha, to: tem } };
+}
+
 module.exports = function (app) {
 
   // ── AS RESPOSTAS DOS CAMPOS CUSTOMIZADOS ────────────────────────────────
@@ -514,6 +535,30 @@ module.exports = function (app) {
     if (trainer === false) return;
 
     const body = req.body || {};
+
+    // ── DUAS CHAVES QUE NÃO VÊM COM `people.edit` ──────────────────────────
+    //
+    // Esta rota guarda a ficha inteira, e `people.edit` é a permissão de mexer
+    // em DADOS: nome, telefone, objetivo. Duas coisas que passam por aqui não
+    // são dados — são poderes:
+    //
+    //   bloquearAcesso     tira a pessoa do aplicativo  → `people.access`
+    //   passagemLiberada   tira a pessoa da PORTA       → `people.gate`
+    //
+    // Sem esta conferência, `people.edit` passaria a conceder as duas de
+    // graça — e foi exatamente o buraco que eu abri ao trazer essas chaves
+    // para dentro do formulário: tirar acesso tinha rota própria, protegida
+    // por `people.access`, e pelo formulário escapava dela.
+    //
+    // Recusa em vez de ignorar em silêncio: ignorar faria a tela mostrar
+    // "salvo" com a chave do jeito que estava, e quem salvou iria embora
+    // achando que bloqueou alguém.
+    if (body.bloquearAcesso !== undefined && !trainer.permissions?.includes("people.access")) {
+      return res.status(403).send({ msg: req.t("errors.noPermission"), code: "no_permission" });
+    }
+    if (body.passagemLiberada !== undefined && !trainer.permissions?.includes("people.gate")) {
+      return res.status(403).send({ msg: req.t("errors.noPermission"), code: "no_permission" });
+    }
     const target = await app.api.user.dataStudent(trainer._id, req.params.id);
 
     if (!target) {
@@ -626,7 +671,7 @@ module.exports = function (app) {
       category: "people",
       local: { target_type: "people", target_id: req.params.id + "", person: req.params.id },
       extra: { name: updated.name },
-      diff: app.api.actionHistory.diff(target, updated),
+      diff: comAcessoAoApp(app.api.actionHistory.diff(target, updated), target, updated),
     });
 
     res.send({
@@ -634,6 +679,23 @@ module.exports = function (app) {
       notes: await app.api.link.notesOf(trainer._id, req.params.id),
       active: await app.api.link.activeOf(trainer._id, req.params.id),
     });
+
+    // ── A CATRACA, QUANDO A CHAVE VEIO PELO FORMULÁRIO ────────────────────
+    //
+    // `passagemLiberada` tem dois caminhos: o crachá da ficha, que tem rota
+    // própria (`POST /people/:id/gate`) e mostra o que aconteceu no aparelho,
+    // e este — a mesma chave dentro do formulário de edição.
+    //
+    // Aqui a sincronização é DEPOIS da resposta e sem esperar: cadastrar um
+    // rosto lê a foto do bucket, e segurar o Salvar da ficha inteira por causa
+    // disso seria cobrar de todo mundo o preço de um campo. Se o aparelho
+    // recusar, fica no log — e o crachá da ficha, que é por onde isso é feito
+    // de verdade, conta na tela.
+    if (body.passagemLiberada !== undefined) {
+      (app.depois || depoisLib)(`catraca de ${req.params.id}`, () =>
+        app.api.dispositivo.sincronizarPassagem(req.params.id, Boolean(body.passagemLiberada))
+      );
+    }
   });
 
   // Revokes the person's login while keeping the profile.

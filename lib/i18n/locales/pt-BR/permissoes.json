@@ -246,6 +246,10 @@
           "hint": "Alterar dados, medidas e observações.",
           "label": "Editar ficha"
         },
+        "gate": {
+          "hint": "Decidir quem entra pela porta. Separado de editar ficha de propósito.",
+          "label": "Liberar a catraca"
+        },
         "view": {
           "hint": "Abrir a lista e a ficha de quem já está vinculado.",
           "label": "Ver pessoas"

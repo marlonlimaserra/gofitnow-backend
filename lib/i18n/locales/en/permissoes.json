@@ -246,6 +246,10 @@
           "hint": "Change data, measurements and notes.",
           "label": "Edit record"
         },
+        "gate": {
+          "hint": "Decide who gets through the door. Deliberately separate from editing the record.",
+          "label": "Release the gate"
+        },
         "view": {
           "hint": "Open the list and the record of whoever is already linked.",
           "label": "View people"

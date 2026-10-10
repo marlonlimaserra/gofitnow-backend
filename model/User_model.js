@@ -109,7 +109,11 @@ User_model.prototype.hashPassword = function (password, salt) {
 User_model.prototype.filter = function (doc) {
   if (!doc) return doc;
   const { password, salt, ...rest } = doc;
-  rest.hasAccess = !!password;
+  // `hasAccess` é "entra no app agora" — e quem está bloqueado não entra,
+  // mesmo tendo senha. `temSenha` existe para a tela saber se LIBERAR precisa
+  // pedir senha nova ou é só desfazer o bloqueio.
+  rest.temSenha = !!password;
+  rest.hasAccess = !!password && !doc.appBloqueado;
   return rest;
 };
 
@@ -1048,6 +1052,11 @@ User_model.prototype.insertStudent = async function (trainerId, obj) {
     phone: obj.phone ? String(obj.phone).trim() : "",
     birthDate: obj.birthDate ? String(obj.birthDate) : "",
     sex: SEXES.includes(String(obj.sex)) ? String(obj.sex) : "",
+    // Nasce LIBERADO na catraca. Quem cadastra alguém numa academia com leitor
+    // quer que a pessoa entre; o contrário — cadastrar e ela ser barrada na
+    // porta sem ninguém entender — é o pior primeiro dia possível. Quem não
+    // tem leitor não vê esta chave em lugar nenhum, e ela não custa nada.
+    passagemLiberada: obj.passagemLiberada === undefined ? true : Boolean(obj.passagemLiberada),
     goal: obj.goal ? String(obj.goal).trim() : "",
     // ── A UNIDADE, e ela é UMA SÓ ─────────────────────────────────────
     //
@@ -1120,6 +1129,31 @@ User_model.prototype.updateStudent = async function (trainerId, id, obj) {
   if (obj.unit !== undefined) set.unit = unidade(obj.unit);
   if (obj.weight !== undefined) set.weight = obj.weight === "" ? null : Number(obj.weight);
   if (obj.height !== undefined) set.height = obj.height === "" ? null : Number(obj.height);
+  // ── A PASSAGEM NA CATRACA ───────────────────────────────────────────────
+  //
+  // Se esta pessoa é liberada no leitor da porta. Mora no USUÁRIO e não no
+  // vínculo de propósito: a catraca é da casa, não do professor — dois
+  // professores acompanhando o mesmo aluno não podem discordar sobre ele
+  // entrar ou não.
+  //
+  // Nasce LIBERADO (ver `insertStudent`): quem cadastra um aluno numa academia
+  // com catraca quer que ele entre, e o contrário — cadastrar e a pessoa ser
+  // barrada na porta sem ninguém entender — é o pior primeiro dia possível.
+  if (obj.passagemLiberada !== undefined) set.passagemLiberada = Boolean(obj.passagemLiberada);
+
+  // ── BLOQUEAR O ACESSO AO APLICATIVO PELO FORMULÁRIO ─────────────────────
+  //
+  // Tirar acesso existia só como AÇÃO — um botão vermelho com confirmação,
+  // fora do formulário, e só na versão de celular. Na ficha de alguém com
+  // acesso, no computador, não havia como tirar.
+  //
+  // Agora é estado, como "ativo na lista" e "passagem liberada": escolhe-se e
+  // salva. *"igual os outros"* (06/10/2026).
+  //
+  // Apaga a senha e o sal. A pessoa continua existindo, com toda a ficha — ela
+  // só deixa de entrar. É exatamente o que `revokeStudentAccess` já fazia; a
+  // diferença é por onde se pede.
+  if (obj.bloquearAcesso !== undefined) set.appBloqueado = Boolean(obj.bloquearAcesso);
   // `active` NÃO entra aqui: na visão do profissional ele quer dizer "ativo na
   // minha lista" e mora no vínculo. O da conta é do admin, em Usuários.
 
@@ -1132,6 +1166,10 @@ User_model.prototype.updateStudent = async function (trainerId, id, obj) {
   if (obj.password) {
     set.salt = this.generateSalt();
     set.password = this.hashPassword(obj.password, set.salt);
+    // Definir senha nova DESBLOQUEIA. Sem isto, o profissional digitaria a
+    // senha, a tela diria "salvo", e a pessoa continuaria sem entrar — com a
+    // chave de bloqueio ligada em silêncio por trás.
+    set.appBloqueado = false;
   }
 
   // ── UMA RESPOSTA POR VEZ, POR CAMINHO ─────────────────────────────────
@@ -1217,7 +1255,9 @@ User_model.prototype.revokeStudentAccess = async function (trainerId, id) {
   const col = await this.collection();
   const r = await col.updateOne(
     { _id: new ObjectId(id), createdBy: new ObjectId(trainerId) },
-    { $set: { password: null, salt: null, updatedAt: new Date() } }
+    // A senha FICA. Ver `podeEntrar`: o que tranca é a chave, e é ela que a
+    // volta desfaz sem pedir nada a ninguém.
+    { $set: { appBloqueado: true, updatedAt: new Date() } }
   );
   return r.matchedCount > 0;
 };
@@ -1352,6 +1392,21 @@ User_model.prototype.podeEntrar = function (user) {
   // ficha existe, o login ainda não. Sem senha definida não há o que conferir —
   // e um caminho de login que dispensa senha entraria por essa porta.
   if (!user.password || !user.salt) return false;
+  // ── BLOQUEADO É DIFERENTE DE SEM SENHA ──────────────────────────────────
+  //
+  // *"eu tirei o acesso, mas quando volta dar acesso ao app pede senha de
+  // novo"* (06/10/2026), duas vezes.
+  //
+  // Tirar o acesso apagava a senha. Era irreversível por construção: o hash ia
+  // embora e não havia o que restaurar. Para academia isso é errado — bloquear
+  // inadimplente e liberar quando paga é rotina, e exigir senha nova a cada
+  // volta transforma cobrança em chamado de suporte.
+  //
+  // Agora é uma CHAVE. A senha fica onde estava; a pessoa só não entra. Aqui é
+  // o lugar certo da recusa porque este portão vale para as DUAS provas de
+  // identidade — senha e Google. Pô-la só no `authenticate` faria entrar pelo
+  // Google ser o jeito de furar o bloqueio.
+  if (user.appBloqueado) return false;
   return true;
 };
 

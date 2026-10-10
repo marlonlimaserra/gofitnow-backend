@@ -239,6 +239,7 @@ Role_model.prototype.ensureSystemRoles = async function () {
         "people.edit",
         "people.delete",
         "people.access",
+        "people.gate",
         "workouts.view",
         "workouts.manage",
         "exercises.view",

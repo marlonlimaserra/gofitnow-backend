@@ -139,6 +139,18 @@ const POR_INSTANCIA = [
   // A ENTRADA NA ACADEMIA — quem passou pela porta e quando. A base da
   // frequência, e um dia da ocupação por horário.
   "checkins",
+  // OS LEITORES DA PORTA e o que orbita cada um: o de-para entre o número de
+  // usuário do aparelho e a nossa pessoa, as batidas que chegaram antes de
+  // alguém ligar as pontas, e a fila de comandos do canal de push.
+  // Do CLIENTE: o leitor é da academia, e a frequência que ele gera também.
+  "access_devices",
+  "access_device_users",
+  "access_device_pendings",
+  "access_device_commands",
+  "access_device_events",
+  // O que o aparelho RECUSOU, guardado à parte para tratarmos depois — metade
+  // é defeito nosso, descoberto só quando o firmware diz não.
+  "access_device_errors",
   // ── A ESTRUTURA ──────────────────────────────────────────────────────────
   //
   // Os EQUIPAMENTOS e a história de manutenção de cada um; os INSUMOS e o livro
@@ -1107,6 +1119,72 @@ async function ensureUmBanco(db, opcoes) {
   // E por DIA da casa inteira: "quem está aqui agora", e a ocupação por horário
   // quando ela existir.
   await db.collection("checkins").createIndex({ instance: 1, em: -1 }, { name: "by_date" });
+
+  // ── OS LEITORES DA PORTA ───────────────────────────────────────────────
+  //
+  // O índice do SEGREDO é o mais quente desta integração inteira: cada leitor
+  // bate no servidor a cada poucos segundos — push, batimento de vida e cada
+  // passagem —, e toda requisição começa procurando o aparelho pelo hash. Sem
+  // ele, cada batida varre a collection.
+  //
+  // Repare que ele NÃO leva `instance` na frente, ao contrário de todos os
+  // outros: quem procura por segredo já está dentro do contexto da instância
+  // (o `lib/escopo.js` acrescenta o filtro sozinho), e o hash é único no
+  // universo — 192 bits aleatórios não colidem entre clientes.
+  await db.collection("access_devices").createIndex({ segredoHash: 1 }, { name: "by_secret" });
+  // A SEGUNDA credencial, a do monitor — ver o cabeçalho de `porSegredo`. A
+  // busca é um `$or` entre as duas, e sem este índice metade dela varre.
+  // Esparso: a maioria dos leitores nunca terá a segunda.
+  await db
+    .collection("access_devices")
+    .createIndex({ segredoDoMonitorHash: 1 }, { name: "by_monitor_secret", sparse: true });
+
+  // O DE-PARA "usuário 37 do leitor da entrada" → pessoa. Único de propósito:
+  // o mesmo número no mesmo aparelho não pode apontar para duas pessoas, e
+  // deixar isso para a aplicação é deixar para o dia em que alguém clicar
+  // duas vezes.
+  await db
+    .collection("access_device_users")
+    .createIndex(
+      { instance: 1, dispositivo: 1, usuarioNoAparelho: 1 },
+      { name: "by_device_user", unique: true }
+    );
+
+  // As batidas órfãs, lidas quando alguém liga as pontas.
+  await db
+    .collection("access_device_pendings")
+    .createIndex(
+      { instance: 1, dispositivo: 1, usuarioNoAparelho: 1 },
+      { name: "by_device_user" }
+    );
+
+  // A fila do push: o próximo comando não enviado daquele aparelho, na ordem
+  // em que entrou. É consultado na mesma cadência do batimento de vida.
+  await db
+    .collection("access_device_commands")
+    .createIndex(
+      { instance: 1, dispositivo: 1, enviadoEm: 1, createdAt: 1 },
+      { name: "by_device_queue" }
+    );
+
+  // O HISTÓRICO CRU de cada leitor, do mais recente para trás — é assim que a
+  // tela lê, e só assim.
+  await db
+    .collection("access_device_events")
+    .createIndex({ instance: 1, dispositivo: 1, em: -1 }, { name: "by_device_date" });
+
+  // ── E A FAXINA, QUE AQUI NÃO É OPCIONAL ────────────────────────────────
+  //
+  // Isto é registro de depuração: um leitor conversa o dia inteiro, e sem
+  // prazo de validade a collection cresce para sempre guardando o que ninguém
+  // vai reler. Três dias cobrem "o que aconteceu ontem à noite", que é a
+  // pergunta real, e o Mongo apaga o resto sozinho.
+  //
+  // O índice de TTL é de campo ÚNICO de propósito: com `instance` na frente o
+  // Mongo não expira nada, e a faxina falharia em silêncio.
+  await db
+    .collection("access_device_events")
+    .createIndex({ em: 1 }, { name: "faxina", expireAfterSeconds: 3 * 24 * 60 * 60 });
 
   // ── AS UNIDADES ────────────────────────────────────────────────────────
   //

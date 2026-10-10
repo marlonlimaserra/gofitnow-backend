@@ -1,9 +1,11 @@
 {
   "errors": {
+    "accessDeviceInUse": "Ce lecteur est utilisé et a déjà enregistré des entrées. Confirmez avec votre mot de passe pour le supprimer.",
     "deletionFailed": "Je n'ai pas pu terminer la suppression. Réessayez dans un instant.",
     "deletionNeedsPassword": "Saisissez votre mot de passe pour confirmer la suppression.",
     "deletionNothingScheduled": "Aucune suppression n'est programmée sur ce compte.",
     "deletionOwnerBlocked": "Vous êtes le titulaire de ce compte, il ne peut donc pas être supprimé ici — la plateforme resterait sans responsable. Contactez le support pour fermer le compte entier.",
-    "deletionWrongPassword": "Mot de passe incorrect. Saisissez celui de votre compte pour confirmer."
+    "deletionWrongPassword": "Mot de passe incorrect. Saisissez celui de votre compte pour confirmer.",
+    "accessDeviceAskFirst": "Demandez à l’appareil ce qu’il a enregistré avant d’autoriser : sans cela, impossible de savoir quelle règle ouvre la porte."
   }
 }

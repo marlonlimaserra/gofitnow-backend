@@ -246,6 +246,10 @@
           "hint": "Cambiar datos, medidas y observaciones.",
           "label": "Editar ficha"
         },
+        "gate": {
+          "hint": "Decidir quién entra por la puerta. Separado de editar la ficha a propósito.",
+          "label": "Liberar el torniquete"
+        },
         "view": {
           "hint": "Abrir la lista y la ficha de quien ya está vinculado.",
           "label": "Ver personas"
