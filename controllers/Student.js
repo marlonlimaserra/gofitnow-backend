@@ -5,6 +5,7 @@ const valoresDeCampos = require("../lib/valoresDeCampos.js");
 const acoesDoCatalogo = require("../lib/actions.js");
 const fotoDoWhatsapp = require("../lib/fotoDoWhatsapp.js");
 const depoisLib = require("../lib/depois.js");
+const condicoes = require("../lib/condicoes");
 const lenteDeUnidade = require("../lib/lenteDeUnidade.js");
 
 // `app.depois` só existe quando o teste o injeta — em produção ele é undefined,
@@ -111,6 +112,18 @@ module.exports = function (app) {
   // word each professional chose — aluno, paciente, cliente — for the same
   // record.
 
+  // A árvore de condições vem como texto na URL. Ler aqui, e não no modelo,
+  // porque é a BORDA que lida com o formato do transporte — o modelo recebe
+  // objeto, como todo o resto dos filtros.
+  function lerArvore(texto) {
+    if (!texto) return null;
+    try {
+      return JSON.parse(texto);
+    } catch {
+      return null;
+    }
+  }
+
   app.get("/people", async function (req, res) {
     const trainer = await app.helpers.ReqProtected.can(req, res, "people.view");
     if (trainer === false) return;
@@ -132,6 +145,19 @@ module.exports = function (app) {
         createdTo: req.query.createdTo,
         // "current" | "expired" | "none" — a relação com os treinos.
         workout: req.query.workout,
+        // ── A ABA "AVANÇADO" ───────────────────────────────────────────
+        //
+        // A árvore de condições, em JSON na query string. Ela chega CRUA e é
+        // peneirada pelo catálogo em `lib/condicoes/` — nada do que vem
+        // daqui vira caminho de consulta.
+        //
+        // JSON em `GET` e não um `POST` de busca: a lista inteira depende de a
+        // URL descrever o que está na tela. É o que faz recarregar, voltar e
+        // mandar o link continuarem mostrando o mesmo recorte.
+        //
+        // Quebrado é tratado como ausente: um filtro que o servidor não
+        // entendeu não pode virar "não mostre nada" nem derrubar a lista.
+        condicoes: lerArvore(req.query.condicoes),
         // A LENTE DA UNIDADE, escolhida no alto da tela. Vazia é "todas", que
         // é o estado de quem atende num lugar só — e de toda conta que nunca
         // cadastrou unidade nenhuma.
@@ -142,6 +168,27 @@ module.exports = function (app) {
         limit: req.query.limit,
       })
     );
+  });
+
+  // ── O CATÁLOGO DE CONDIÇÕES ──────────────────────────────────────────
+  //
+  // O que a aba "Avançado" pode perguntar. A tela o busca para desenhar o
+  // seletor — as categorias, a busca, os operadores de cada tipo — e é o mesmo
+  // catálogo que AUTORIZA no servidor. Duplicá-lo na tela faria os dois
+  // divergirem na primeira adição, e o lado atrasado seria o que decide.
+  //
+  // `people.view`: quem vê a lista pode saber por que filtrar.
+  app.get("/people/conditions", async function (req, res) {
+    const trainer = await app.helpers.ReqProtected.can(req, res, "people.view");
+    if (trainer === false) return;
+
+    // As geradas vão junto, com o rótulo já traduzido — ver `dinamicas` em
+    // `lib/condicoes/`. É aqui que `req.t` existe, e é por isso que o rótulo
+    // de um campo NATIVO (que guarda uma chave de i18n, não um nome) sai
+    // resolvido daqui em vez de a tela precisar conhecê-lo.
+    const geradas = await condicoes.dinamicas(app, req.t.bind(req));
+
+    res.send({ categorias: condicoes.CATEGORIAS, condicoes: condicoes.catalogo(geradas) });
   });
 
   app.get("/people/summary", async function (req, res) {

@@ -41,6 +41,8 @@ function statusOf(d) {
 }
 
 Diet_model.prototype.statusOf = statusOf;
+// Exportado para a migração que preenche os planos antigos.
+Diet_model.prototype.resumoDoPlano = resumoDoPlano;
 
 function numeroOuNulo(valor) {
   if (valor === undefined || valor === null || valor === "") return null;
@@ -164,6 +166,48 @@ function somar(itens) {
   }
 
   return total;
+}
+
+// ── O RESUMO GRAVADO, PARA O FILTRO ──────────────────────────────────────
+//
+// *"acho que seria bom salvar o total no mongo mesmo, pra ficar mais fácil de
+// filtrar"* (10/10/2026). Ele está certo, e isto parece contrariar a decisão
+// escrita logo acima — *"um total gravado é um total que pode discordar da
+// lista logo abaixo dele"*.
+//
+// Não contraria, porque o perigo daquela frase é um total DIGITADO, ou
+// calculado por uma segunda regra. Este sai do mesmo `somar` e dos mesmos
+// `principais` que a tela usa, e é escrito num caminho só: `saveMeals` é a
+// única coisa que mexe em alimento.
+//
+// ── E A TELA CONTINUA SOMANDO NA LEITURA ─────────────────────────────────
+//
+// De propósito. Se um dia os dois divergirem — um caminho de escrita novo que
+// esqueça de chamar isto —, a tela estará certa e o filtro um pouco errado. O
+// erro aponta para o lado barato: uma dieta deixa de aparecer num filtro, em
+// vez de a tela mentir sobre o que a pessoa vai comer.
+//
+// ── O QUE MUDOU NA PRÁTICA ───────────────────────────────────────────────
+//
+// O filtro era um `$lookup` que desmontava refeição por refeição e alimento
+// por alimento DENTRO do banco, por pessoa da página, só para refazer uma
+// conta que já tinha sido feita na última vez que alguém salvou o plano.
+// Agora é um `$match` num campo.
+function resumoDoPlano(meals) {
+  const refeicoes = meals || [];
+
+  // Os principais de cada refeição — a mesma regra da tela: alimentos que
+  // dividem o `group` são substitutos, e a pessoa come um deles.
+  const contam = refeicoes.flatMap((m) => principais(m.foods || []));
+
+  return {
+    ...somar(contam),
+    // TODOS os nomes, inclusive os substitutos: "tem frango?" é sobre o que
+    // está no plano, e um substituto está no plano.
+    alimentos: refeicoes
+      .flatMap((m) => (m.foods || []).map((f) => String(f.name || "").trim()))
+      .filter(Boolean),
+  };
 }
 
 function comTotais(doc) {
@@ -459,6 +503,10 @@ Diet_model.prototype.insert = async function (trainerId, studentId, obj) {
     // Nasce vazio em vez de sem o campo: a tela abre direto nas refeições, e
     // `undefined` obrigaria toda leitura a se defender.
     meals: [],
+    // Nasce calculado, como o `meals: []` logo acima: um campo ausente
+    // obrigaria toda consulta a se defender, e `$lt` não casa com ausente —
+    // quem filtrasse "menos de 500 kcal" perderia os planos vazios.
+    resumo: resumoDoPlano([]),
     createdAt: new Date(),
     updatedAt: new Date(),
   });
@@ -513,7 +561,9 @@ Diet_model.prototype.saveMeals = async function (trainerId, id, meals) {
 
   const r = await col.updateOne(
     { _id: new ObjectId(id), trainer: new ObjectId(trainerId) },
-    { $set: { meals: limpas, updatedAt: new Date() } }
+    // O resumo vai no MESMO `$set` das refeições: gravar em dois tempos
+    // deixaria uma janela em que o filtro responde pelo plano de antes.
+    { $set: { meals: limpas, resumo: resumoDoPlano(limpas), updatedAt: new Date() } }
   );
 
   return r.matchedCount > 0;

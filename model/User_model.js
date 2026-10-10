@@ -1,6 +1,7 @@
 const sessaoGuardada = require("../lib/sessaoGuardada.js");
 const telefones = require("../lib/telefone.js");
 const { ObjectId } = require("mongodb");
+const condicoes = require("../lib/condicoes");
 const nomeDaPessoa = require("../lib/nomeDaPessoa.js");
 const permissionCatalog = require("../lib/permissions.js");
 const instanceContext = require("../lib/instance.js");
@@ -775,6 +776,71 @@ User_model.prototype.pageStudents = async function (trainerId, filtros = {}) {
   const periodo = await this.periodoDeCadastro(filtros);
   if (periodo) etapas.push({ $match: { createdAt: periodo } });
 
+  // ── O FILTRO AVANÇADO ────────────────────────────────────────────────────
+  //
+  // A árvore de condições da aba "Avançado", já traduzida e já peneirada pelo
+  // catálogo — ver `lib/condicoes/`, que explica por que NADA do que chega
+  // da tela vira caminho de consulta.
+  //
+  // Entra DEPOIS dos filtros simples e ANTES da junção com o vínculo, no mesmo
+  // lugar em que o período entra: é um recorte sobre a pessoa, e quanto antes
+  // ele corta, menos junções a parte cara faz.
+  //
+  // Ele SOMA com os filtros básicos em vez de substituí-los. Duas abas que se
+  // anulam seriam uma armadilha: a pessoa escolhe "Ativos" no básico, monta
+  // três condições no avançado, e o resultado ignora uma das duas escolhas sem
+  // dizer qual.
+  // O FUSO DA CONTA vai junto: uma data escolhida na tela é um dia de
+  // CALENDÁRIO, e `createdAt` é um instante. É a mesma conta que
+  // `periodoDeCadastro` faz logo acima, e pela mesma razão.
+  // As condições geradas (campos customizados) custam uma consulta ao
+  // catálogo de campos. Só são buscadas quando há árvore para traduzir — a
+  // listagem sem filtro avançado, que é a esmagadora maioria, não paga nada.
+  const geradas = filtros.condicoes ? await condicoes.dinamicas(this.app) : [];
+
+  // ── O CONTEXTO DE QUANDO A PERGUNTA É FEITA ──────────────────────────
+  //
+  // "Tem cobrança vencida" e "tem dieta vigente" mudam de resposta à
+  // meia-noite. Guardar essa data num módulo faria o servidor responder com o
+  // dia em que ele subiu — e o defeito só apareceria no dia seguinte.
+  //
+  // `hoje` é instante (vencimento é `Date`); `dia` é texto "AAAA-MM-DD",
+  // porque dieta e aula coletiva guardam o dia de calendário como texto.
+  const agora = new Date();
+  const ctx = { hoje: agora, dia: agora.toISOString().slice(0, 10) };
+
+  const avancado = condicoes.traduzir(
+    filtros.condicoes,
+    await this.fusoDaConta(),
+    geradas,
+    ctx
+  );
+
+  // ── AS JUNÇÕES QUE A ÁRVORE PEDE ─────────────────────────────────────
+  //
+  // Uma condição de outro domínio — frequência, financeiro, dieta — só pode
+  // ser perguntada depois de a collection dela ser juntada. Cada condição
+  // declara a sua, e `juntasDe` as deduplica: três perguntas de frequência
+  // custam UMA varredura de `checkins`.
+  //
+  // Elas entram ANTES do `$match` avançado e DEPOIS dos filtros simples: o
+  // que já cortou gente barato reduz o número de pessoas para quem a junção
+  // cara roda.
+  const juntas = condicoes.juntasDe(filtros.condicoes, geradas);
+  for (const j of juntas) etapas.push(...j.estagios(ctx));
+  // ── O STATUS OBRIGA A JUNÇÃO A SUBIR ──────────────────────────────────
+  //
+  // Ativo/inativo é do VÍNCULO, não da pessoa: ele só existe depois do
+  // `$lookup` lá embaixo. O filtro básico resolve isso recortando os ids
+  // antes do pipeline, mas aqui não dá — dentro de um OU, "ativo OU tem foto"
+  // não se expressa por recorte de ids.
+  //
+  // Então, quando a árvore fala de status, o `$match` dela espera a junção
+  // subir (ver `precisaDoVinculoAntes`). Quando não fala, ele corta aqui, cedo,
+  // que é onde é barato.
+  const avancadoUsaVinculo = condicoes.usaVinculo(filtros.condicoes);
+  if (avancado && !avancadoUsaVinculo) etapas.push({ $match: avancado });
+
   // A junção com o vínculo — e o `active`/`notes` que saem dela.
   //
   // Ela é a parte cara desta consulta: um `$expr` correlacionado por pessoa, que
@@ -909,8 +975,11 @@ User_model.prototype.pageStudents = async function (trainerId, filtros = {}) {
   // Filtrar por status já aconteceu, na escolha dos ids. O que ainda obriga a
   // junção a subir é ORDENAR por ele: não dá para escolher as quinze primeiras
   // por um campo que só existe depois de juntar.
-  const precisaDoVinculoAntes = campo === "active";
+  const precisaDoVinculoAntes = campo === "active" || avancadoUsaVinculo;
   if (precisaDoVinculoAntes) etapas.push(...juntarVinculo);
+
+  // Agora `active` existe, e a condição avançada que depende dele pode cortar.
+  if (avancado && avancadoUsaVinculo) etapas.push({ $match: avancado });
 
   // Vazio sempre no fim, nas duas direções — a mesma regra que a tela seguia
   // quando ordenava sozinha. Ordenar por Objetivo para encontrar uma fileira de
