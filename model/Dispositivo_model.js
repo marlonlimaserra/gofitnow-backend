@@ -600,6 +600,18 @@ Dispositivo_model.prototype.enfileirarComando = async function (dispositivo, com
     // disparar os próximos. A continuação mora no comando, e não numa fila
     // nova: quem apaga o comando apaga a saga junto, que é o certo.
     prosseguir: comando.prosseguir || null,
+    // ── DE QUEM É ESTE COMANDO ────────────────────────────────────────────
+    //
+    // *"tem como pôr 'aguardando aparelho confirmar'? assim sei que já foi
+    // liberado"* (10/10/2026). O crachá da ficha ficava verde no instante do
+    // clique, e o aparelho só saberia um minuto depois — entre os dois havia
+    // uma janela em que a tela dizia uma coisa e a porta fazia outra.
+    //
+    // Para a ficha poder dizer "aguardando", ela precisa saber se sobrou
+    // comando SEU na fila. O `prosseguir` já carregava a pessoa, mas só nos
+    // dois comandos que continuam uma saga; a regra e o bloqueio não tinham
+    // dono. Agora o dono é campo do comando, e vale para todos.
+    pessoa: ObjectId.isValid(comando.pessoa) ? new ObjectId(String(comando.pessoa)) : null,
     createdAt: new Date(),
   });
   return true;
@@ -924,7 +936,11 @@ function regraDaPorta(doc) {
   return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : null;
 }
 
-Dispositivo_model.prototype.liberarNoAparelho = async function (dispositivo, usuarioNoAparelho) {
+Dispositivo_model.prototype.liberarNoAparelho = async function (
+  dispositivo,
+  usuarioNoAparelho,
+  pessoa
+) {
   if (!ObjectId.isValid(dispositivo)) return { erro: "nao_encontrado" };
 
   const usuario = Number(usuarioNoAparelho);
@@ -946,6 +962,7 @@ Dispositivo_model.prototype.liberarNoAparelho = async function (dispositivo, usu
       object: "user_access_rules",
       values: [{ user_id: usuario, access_rule_id: regra }],
     },
+    pessoa,
   });
 
   return ok ? { regra } : { erro: "nao_encontrado" };
@@ -1143,6 +1160,7 @@ Dispositivo_model.prototype.enfileirarFoto = async function (dispositivo, usuari
       pessoa: ObjectId.isValid(pessoa) ? new ObjectId(String(pessoa)) : null,
       usuario: Number(usuario),
     },
+    pessoa,
   });
 };
 
@@ -1191,7 +1209,7 @@ Dispositivo_model.prototype.cadastrarNoAparelho = async function (dispositivo, p
   const jaTem = vinculo && !vinculoMorreu(doc, vinculo) ? Number(vinculo.usuarioNoAparelho) : null;
   if (jaTem !== null && Number.isFinite(jaTem)) {
     if (foto.base64) await this.enfileirarFoto(dispositivo, jaTem, foto.base64, pessoa);
-    const r = await this.liberarNoAparelho(dispositivo, jaTem);
+    const r = await this.liberarNoAparelho(dispositivo, jaTem, pessoa);
     if (r.erro) return { erro: r.erro };
     return { usuario: jaTem, regra: r.regra, jaExistia: true, semFoto: Boolean(foto.erro) };
   }
@@ -1226,6 +1244,7 @@ Dispositivo_model.prototype.cadastrarNoAparelho = async function (dispositivo, p
       ],
     },
     prosseguir: { tipo: "cadastro", pessoa: new ObjectId(String(pessoa)) },
+    pessoa,
   });
 
   return ok ? { criando: true } : { erro: "nao_encontrado" };
@@ -1254,7 +1273,7 @@ Dispositivo_model.prototype.prosseguirCadastro = async function (dispositivo, co
   const foto = await this.fotoParaOAparelho(pessoa);
   if (foto.base64) await this.enfileirarFoto(dispositivo, usuario, foto.base64, pessoa);
 
-  await this.liberarNoAparelho(dispositivo, usuario);
+  await this.liberarNoAparelho(dispositivo, usuario, pessoa);
 };
 
 // O terceiro tempo: o aparelho disse o que achou da foto. Fica gravado no
@@ -1285,7 +1304,11 @@ Dispositivo_model.prototype.guardarResultadoDaFoto = async function (comando, re
 // de tirar o acesso ao app sem apagar a senha.
 //
 // Apagar o rosto de verdade existe num lugar só, e é outro: excluir a ficha.
-Dispositivo_model.prototype.bloquearNoAparelho = async function (dispositivo, usuarioNoAparelho) {
+Dispositivo_model.prototype.bloquearNoAparelho = async function (
+  dispositivo,
+  usuarioNoAparelho,
+  pessoa
+) {
   const usuario = Number(usuarioNoAparelho);
   if (!ObjectId.isValid(dispositivo) || !Number.isFinite(usuario)) {
     return { erro: "nao_encontrado" };
@@ -1298,6 +1321,7 @@ Dispositivo_model.prototype.bloquearNoAparelho = async function (dispositivo, us
       object: "user_access_rules",
       where: { user_access_rules: { user_id: usuario } },
     },
+    pessoa,
   });
 
   return ok ? { usuario } : { erro: "nao_encontrado" };
@@ -1327,6 +1351,17 @@ Dispositivo_model.prototype.situacaoNaPorta = async function (pessoa) {
 
   const col = await this.colecaoDeVinculos();
   const vinculos = await col.find({ person: new ObjectId(String(pessoa)) }).toArray();
+
+  // ── O QUE AINDA NÃO CHEGOU NO APARELHO ────────────────────────────────
+  //
+  // Comando enfileirado e sem resposta é a janela em que a tela diz uma coisa
+  // e a porta faz outra. Enquanto houver um, a ficha mostra "aguardando o
+  // aparelho" em vez do crachá verde — que é o pedido de 10/10/2026, e também
+  // o melhor sintoma que temos de um leitor desligado: a espera não some.
+  const comandos = await this.colecaoDeComandos();
+  const esperando = await comandos
+    .find({ pessoa: new ObjectId(String(pessoa)), resultado: null })
+    .toArray();
 
   return aparelhos.map((aparelho) => {
     const v = vinculos.find((x) => String(x.dispositivo) === String(aparelho._id));
@@ -1366,6 +1401,7 @@ Dispositivo_model.prototype.situacaoNaPorta = async function (pessoa) {
       temRosto,
       enviadaEm: v?.fotoEm || null,
       recusa: v?.fotoErro || "",
+      pendente: esperando.some((c) => String(c.dispositivo) === String(aparelho._id)),
     };
   });
 };
@@ -1401,7 +1437,7 @@ Dispositivo_model.prototype.sincronizarPassagem = async function (pessoa, libera
         continue;
       }
 
-      saida.push({ ...quem, ...(await this.bloquearNoAparelho(aparelho._id, usuario)) });
+      saida.push({ ...quem, ...(await this.bloquearNoAparelho(aparelho._id, usuario, pessoa)) });
     } catch (erro) {
       console.error("[controlid] sincronizar passagem:", erro.message);
       saida.push({ ...quem, erro: "falhou" });

@@ -118,6 +118,15 @@ function montar({
 
   modelo.colecaoDeComandos = async () => ({
     insertOne: async (doc) => comandos.push(doc),
+    // `situacaoNaPorta` pergunta o que sobrou na fila desta pessoa.
+    find: (filtro) => ({
+      toArray: async () =>
+        comandos.filter(
+          (c) =>
+            (!filtro.pessoa || String(c.pessoa) === String(filtro.pessoa)) &&
+            (filtro.resultado === undefined || c.resultado === filtro.resultado)
+        ),
+    }),
   });
 
   modelo.colecaoDeVinculos = async () => ({
@@ -544,4 +553,39 @@ test("recusa registrada vence tudo — nem leitura nova a desfaz", async () => {
   const [linha] = await modelo.situacaoNaPorta(PESSOA);
   assert.equal(linha.temRosto, false);
   assert.equal(linha.recusa, "No face found");
+});
+
+// ── A ESPERA PELO APARELHO ─────────────────────────────────────────────────
+//
+// *"tem como pôr 'aguardando aparelho confirmar'? assim sei que já foi
+// liberado"* (10/10/2026). O crachá ficava verde no instante do clique, e o
+// leitor só saberia no próximo ciclo. Com dois leitores, ou com um DESLIGADO,
+// essa janela não é de um minuto — é de quanto tempo ele ficar fora.
+
+test("comando sem resposta deixa a pessoa 'aguardando' NAQUELE aparelho", async () => {
+  const { modelo } = montar({
+    vinculos: vinculoCom({ fotoEm: new Date("2026-10-10T18:04:17Z") }),
+    cadastro: { em: new Date("2026-10-10T17:35:09Z") },
+  });
+
+  // Nada na fila: confirmado.
+  assert.equal((await modelo.situacaoNaPorta(PESSOA))[0].pendente, false);
+
+  // Agora libera: sai comando, e a espera aparece.
+  await modelo.cadastrarNoAparelho(APARELHO, PESSOA);
+  assert.equal((await modelo.situacaoNaPorta(PESSOA))[0].pendente, true);
+});
+
+test("o comando carrega o DONO — senão a regra e o bloqueio ficam sem pessoa", async () => {
+  // `prosseguir` já levava a pessoa, mas só nos dois comandos que continuam
+  // uma saga. A regra e o bloqueio não tinham dono, e sem dono a ficha não
+  // tem como saber que ainda está esperando por ELES.
+  const { modelo, comandos } = montar({
+    vinculos: vinculoCom({ fotoEm: new Date("2026-10-10T18:04:17Z") }),
+  });
+
+  await modelo.bloquearNoAparelho(APARELHO, 4, PESSOA);
+
+  assert.equal(comandos[0].endpoint, "destroy_objects");
+  assert.equal(String(comandos[0].pessoa), String(PESSOA));
 });
